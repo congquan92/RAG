@@ -1,87 +1,87 @@
-## 1. Tong quan (Overview)
+## 1. Tổng quan (Overview)
 
-| Muc            | Mo ta ngan                                                                                   |
+| Mục            | Mô tả ngắn                                                                                   |
 | -------------- | -------------------------------------------------------------------------------------------- |
 | Tech stack     | FastAPI, SQLAlchemy Async + SQLite, ChromaDB, LightRAG, LangChain, Ollama/Gemini, Streamlit  |
-| Vai tro        | Upload tai lieu, ingestion + chunking, truy van RAG (sync + streaming), quan ly lich su chat |
-| Duong dan API  | `http://localhost:8000/api/v1`                                                               |
+| Vai trò        | Upload tài liệu, ingestion + chunking, truy vấn RAG (sync + streaming), quản lý lịch sử chat |
+| Đường dẫn API  | `http://localhost:8000/api/v1`                                                               |
 | Health check   | `http://localhost:8000/health`                                                               |
-| Vector backend | ChromaDB local (`CHROMA_PERSIST_DIR`), ket hop LightRAG graph retrieval                      |
+| Vector backend | ChromaDB local (`CHROMA_PERSIST_DIR`), kết hợp LightRAG graph retrieval                      |
 
-> Note thuc te: Neu backend chay trong Docker, can map duoc endpoint Ollama (`OLLAMA_BASE_URL`) de server goi model local.
+> Note thực tế: Nếu backend chạy trong Docker, cần map được endpoint Ollama (`OLLAMA_BASE_URL`) để server gọi model local.
 
-## 2. Cau truc chinh (Architecture)
+## 2. Cấu trúc chính (Architecture)
 
-| Thu muc/File                       | Vai tro                                                                      |
+| Thư mục/File                       | Vai trò                                                                      |
 | ---------------------------------- | ---------------------------------------------------------------------------- |
 | `main.py`                          | App bootstrap, lifespan startup/shutdown, mount routers, run server          |
-| `app/api/v1/chat_router.py`        | Chat session CRUD, chat sync va SSE stream                                   |
+| `app/api/v1/chat_router.py`        | Chat session CRUD, chat sync và SSE stream                                   |
 | `app/api/v1/document_router.py`    | Upload document, poll ingestion status, document CRUD                        |
 | `app/api/deps.py`                  | Dependency injection (`get_db`, `get_embeddings`, `get_reranker`, `get_llm`) |
-| `app/services/chat_service.py`     | Dieu phoi chat flow: luu message -> retrieve -> generate -> citations        |
-| `app/services/document_service.py` | Save file, background ingestion, luu chunk vao ChromaDB                      |
-| `app/rag/ingestion.py`             | Parse tai lieu (PyMuPDF/docling), chunking bang tiktoken                     |
-| `app/rag/retriever.py`             | Tri-search (semantic + keyword + graph) va reranking                         |
-| `app/rag/generator.py`             | Sinh cau tra loi sync/stream va trich citations                              |
-| `app/core/settings.py`             | Cau hinh trung tam doc tu `.env` (strict mode)                               |
+| `app/services/chat_service.py`     | Điều phối chat flow: lưu message -> retrieve -> generate -> citations        |
+| `app/services/document_service.py` | Save file, background ingestion, lưu chunk vào ChromaDB                      |
+| `app/rag/ingestion.py`             | Parse tài liệu (PyMuPDF/docling), chunking bằng tiktoken                     |
+| `app/rag/retriever.py`             | Tri-search (semantic + keyword + graph) và reranking                         |
+| `app/rag/generator.py`             | Sinh câu trả lời sync/stream và trích citations                              |
+| `app/core/settings.py`             | Cấu hình trung tâm đọc từ `.env` (strict mode)                               |
 | `app/core/llm_factory.py`          | Hot-swap LLM/Embeddings theo provider trong `.env`                           |
 | `app/core/database.py`             | Async engine/session factory, init/dispose DB                                |
-| `scripts/check_env.py`             | Kiem tra bien moi truong truoc khi startup                                   |
+| `scripts/check_env.py`             | Kiểm tra biến môi trường trước khi startup                                   |
 | `admin_ui/app.py`                  | Dashboard Streamlit: overview, documents, chat history, evaluation           |
 
-> Pro-tip: Tach API layer va Service layer giup logic RAG khong bi dinh chat vao HTTP handler, rat de test va mo rong.
+> Pro-tip: Tách API layer và Service layer giúp logic RAG không bị dính chặt vào HTTP handler, rất dễ test và mở rộng.
 
 ## 3. API Endpoints
 
-| Method | Path                                 | Muc dich                      | Ghi chu nhanh                               |
+| Method | Path                                 | Mục đích                      | Ghi chú nhanh                               |
 | ------ | ------------------------------------ | ----------------------------- | ------------------------------------------- |
-| GET    | `/health`                            | Kiem tra trang thai he thong  | Tra ve provider, trang thai model load      |
-| POST   | `/api/v1/chat/sessions`              | Tao session chat moi          | Body: `title` (optional)                    |
-| GET    | `/api/v1/chat/sessions`              | Liet ke sessions              | Ho tro `skip`, `limit`                      |
-| GET    | `/api/v1/chat/sessions/{session_id}` | Chi tiet session + messages   | Kem lich su message va citations            |
-| DELETE | `/api/v1/chat/sessions/{session_id}` | Xoa session                   | Cascade xoa messages                        |
+| GET    | `/health`                            | Kiểm tra trạng thái hệ thống  | Trả về provider, trạng thái model load      |
+| POST   | `/api/v1/chat/sessions`              | Tạo session chat mới          | Body: `title` (optional)                    |
+| GET    | `/api/v1/chat/sessions`              | Liệt kê sessions              | Hỗ trợ `skip`, `limit`                      |
+| GET    | `/api/v1/chat/sessions/{session_id}` | Chi tiết session + messages   | Kèm lịch sử message và citations            |
+| DELETE | `/api/v1/chat/sessions/{session_id}` | Xóa session                   | Cascade xóa messages                        |
 | POST   | `/api/v1/chat`                       | Chat non-stream               | Body: `session_id`, `query`, `stream=false` |
 | POST   | `/api/v1/chat/stream`                | Chat streaming SSE            | Yield token/citations/done theo event       |
-| POST   | `/api/v1/documents/upload`           | Upload va queue ingestion     | Multipart file, tra `task_id` ngay          |
+| POST   | `/api/v1/documents/upload`           | Upload và queue ingestion     | Multipart file, trả `task_id` ngay          |
 | GET    | `/api/v1/documents/status/{task_id}` | Poll status ingestion         | `pending/processing/completed/failed`       |
-| GET    | `/api/v1/documents`                  | Liet ke documents             | Ho tro `skip`, `limit`                      |
-| GET    | `/api/v1/documents/{document_id}`    | Chi tiet document             | Metadata + chunk count                      |
-| DELETE | `/api/v1/documents/{document_id}`    | Xoa document + cleanup vector | Xoa file va chunks trong ChromaDB           |
+| GET    | `/api/v1/documents`                  | Liệt kê documents             | Hỗ trợ `skip`, `limit`                      |
+| GET    | `/api/v1/documents/{document_id}`    | Chi tiết document             | Metadata + chunk count                      |
+| DELETE | `/api/v1/documents/{document_id}`    | Xóa document + cleanup vector | Xóa file và chunks trong ChromaDB           |
 
-## 4. Retrieval Modes (Che do truy van)
+## 4. Retrieval Modes (Chế độ truy vấn)
 
-- `semantic`: Tim theo vector similarity trong ChromaDB.
-- `keyword`: Tim theo BM25 tren corpus da index (hieu qua cho keyword/ma loi/ten rieng).
-- `graph`: Tim theo quan he tri thuc tu LightRAG.
-- `tri-search + rerank`: Gom 3 nguon tren, deduplicate, sau do rerank bang FlashRank de lay top-k cuoi.
+- `semantic`: Tìm theo vector similarity trong ChromaDB.
+- `keyword`: Tìm theo BM25 trên corpus đã index (hiệu quả cho keyword/mã lỗi/tên riêng).
+- `graph`: Tìm theo quan hệ tri thức từ LightRAG.
+- `tri-search + rerank`: Gom 3 nguồn trên, deduplicate, sau đó rerank bằng FlashRank để lấy top-k cuối.
 
-## 5. Request Fields hay dung
+## 5. Request Fields hay dùng
 
-| Field           | Kieu           | Ghi chu                                                   |
+| Field           | Kiểu           | Ghi chú                                                   |
 | --------------- | -------------- | --------------------------------------------------------- |
-| `session_id`    | string         | Dinh danh session chat de luu lich su va truy van context |
-| `query`         | string         | Cau hoi user gui vao RAG                                  |
-| `stream`        | bool           | `true` dung endpoint stream; `false` dung endpoint sync   |
-| `title`         | string         | Tieu de session khi tao chat session                      |
-| `file`          | multipart file | File tai lieu upload de ingestion                         |
+| `session_id`    | string         | Định danh session chat để lưu lịch sử và truy vấn context |
+| `query`         | string         | Câu hỏi user gửi vào RAG                                  |
+| `stream`        | bool           | `true` dùng endpoint stream; `false` dùng endpoint sync   |
+| `title`         | string         | Tiêu đề session khi tạo chat session                      |
+| `file`          | multipart file | File tài liệu upload để ingestion                         |
 | `skip`, `limit` | int            | Pagination cho list sessions/documents                    |
 
-## 6. Bien moi truong quan trong (Environment Variables)
+## 6. Biến môi trường quan trọng (Environment Variables)
 
-### Provider va model
+### Provider và model
 
-- `LLM_PROVIDER`: `ollama` hoac `gemini`
+- `LLM_PROVIDER`: `ollama` hoặc `gemini`
 - `OLLAMA_BASE_URL`, `OLLAMA_MODEL`
 - `GEMINI_API_KEY`, `GEMINI_MODEL`
 - `EMBEDDING_PROVIDER`, `EMBEDDING_MODEL`
 
-### Hardware va runtime
+### Hardware và runtime
 
 - `EMBEDDING_DEVICE`, `DOCLING_DEVICE`, `RERANKER_DEVICE`
 - `API_HOST`, `API_PORT`, `API_RELOAD`
 - `CORS_ORIGINS`
 
-### Data va retrieval
+### Data và retrieval
 
 - `DATABASE_URL`
 - `CHROMA_PERSIST_DIR`, `CHROMA_COLLECTION_NAME`
@@ -93,26 +93,26 @@
 
 - `PHOENIX_ENABLED`, `PHOENIX_PORT`
 
-> Luu y: `app/core/settings.py` dang bat strict mode. Neu thieu bien bat buoc trong `.env`, app se fail startup voi danh sach key thieu ro rang.
+> Lưu ý: `app/core/settings.py` đang bật strict mode. Nếu thiếu biến bắt buộc trong `.env`, app sẽ fail startup với danh sách key thiếu rõ ràng.
 
 ## 7. Setup nhanh (Quick Start)
 
 ```bash
-# 1) Tao va kich hoat virtualenv
+# 1) Tạo và kích hoạt virtualenv
 python3 -m venv .venv
 source .venv/bin/activate
 
-# 2) Cai dependency
+# 2) Cài dependency
 pip install -r requirements.txt
 
-# 3) Tao file env
+# 3) Tạo file env
 cp .env.example .env
-# chinh sua .env theo may cua ban
+# chỉnh sửa .env theo máy của bạn
 
-# 4) Kiem tra env
+# 4) Kiểm tra env
 python scripts/check_env.py
 
-# 5) Chay server (tu dong check .env truoc khi boot)
+# 5) Chạy server (tự động check .env trước khi boot)
 python3 main.py
 ```
 
@@ -124,30 +124,30 @@ ReDoc:
 
 - `http://localhost:8000/redoc`
 
-## 8. Lenh van hanh huu ich
+## 8. Lệnh vận hành hữu ích
 
 ```bash
-# Chay admin dashboard
+# Chạy admin dashboard
 streamlit run admin_ui/app.py --server.port 8501
 
-# Chay test API controller
+# Chạy test API controller
 python scripts/test_api.py
 
-# Chay test settings
+# Chạy test settings
 python scripts/test_settings.py
 
-# Chay test evaluator
+# Chạy test evaluator
 python scripts/test_evaluator.py
 ```
 
-## 9. Luu y van hanh (Operational Notes)
+## 9. Lưu ý vận hành (Operational Notes)
 
-1. Ingestion document chay background task: upload xong co task id ngay, can poll status de biet da completed chua.
-2. SSE endpoint (`/api/v1/chat/stream`) tra event token theo thoi gian thuc; can xu ly stream phia client.
-3. Neu dung `gemini` cho LLM hoac embeddings, bat buoc set `GEMINI_API_KEY`.
-4. Neu `flashrank` khong available, retriever van chay nhung fallback sort theo score ban dau.
-5. ChromaDB dang local-first; scale multi-instance can tinh toan strategy luu tru chia se.
+1. Ingestion document chạy background task: upload xong có task id ngay, cần poll status để biết đã completed chưa.
+2. SSE endpoint (`/api/v1/chat/stream`) trả event token theo thời gian thực; cần xử lý stream phía client.
+3. Nếu dùng `gemini` cho LLM hoặc embeddings, bắt buộc set `GEMINI_API_KEY`.
+4. Nếu `flashrank` không available, retriever vẫn chạy nhưng fallback sort theo score ban đầu.
+5. ChromaDB đang local-first; scale multi-instance cần tính toán strategy lưu trữ chia sẻ.
 
 ---
 
-Backend nay duoc thiet ke theo huong modular va env-driven: doi provider/model/device/chunking chu yeu qua `.env`, han che sua code business logic.
+Backend này được thiết kế theo hướng modular và env-driven: đổi provider/model/device/chunking chủ yếu qua `.env`, hạn chế sửa code business logic.
