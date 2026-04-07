@@ -88,6 +88,10 @@ async def upload_document(
         file_content=file_content,
     )
 
+    # Commit trước khi queue background task để tránh race condition:
+    # worker đọc task/document khi transaction upload chưa được flush ra DB.
+    await db.commit()
+
     # Validate MIME type sau khi detect (python-magic trong service)
     if (
         document.mime_type
