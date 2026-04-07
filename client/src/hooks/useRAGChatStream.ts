@@ -154,6 +154,7 @@ export function useRAGChatStream(workspaceId: string): RAGStreamResult {
             let finalSources: ChatSourceChunk[] = [];
             let fullAnswer = "";
             let hasGenerationStep = false;
+            let assistantMessageIdFromServer: string | null = null;
 
             abortRef.current = new AbortController();
 
@@ -203,6 +204,10 @@ export function useRAGChatStream(workspaceId: string): RAGStreamResult {
                         }
 
                         if (event.type === "message_ids") {
+                            const data = event.data as { assistant_message_id?: unknown } | undefined;
+                            if (data && typeof data.assistant_message_id === "string") {
+                                assistantMessageIdFromServer = data.assistant_message_id;
+                            }
                             if (!hasGenerationStep) {
                                 localSteps = [...completeActiveStep(localSteps), createStep("retrieving", "Retrieved supporting context", "completed")];
                                 syncSteps(localSteps);
@@ -263,7 +268,7 @@ export function useRAGChatStream(workspaceId: string): RAGStreamResult {
                 setIsStreaming(false);
 
                 return {
-                    id: generateId(),
+                    id: assistantMessageIdFromServer ?? generateId(),
                     role: "assistant",
                     content: fullAnswer,
                     sources: finalSources,

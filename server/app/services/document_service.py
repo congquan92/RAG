@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.settings import settings
 from app.models.document import Document, IngestionTask
-from app.rag.ingestion import detect_mime_type, ingest_file
+from app.rag.ingestion import detect_mime_type, extract_text, ingest_file
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +32,30 @@ logger = logging.getLogger(__name__)
 def _get_upload_dir() -> Path:
     """Resolve upload directory from environment-backed settings."""
     return Path(settings.upload_dir)
+
+
+def _delete_document_chunks_from_chromadb(document_id: str, chunk_count: int) -> None:
+    """Best-effort delete of existing document chunks in ChromaDB."""
+    if chunk_count <= 0:
+        return
+
+    try:
+        import chromadb
+
+        client = chromadb.PersistentClient(path=settings.chroma_persist_dir)
+        collection_name = settings.chroma_collection_name
+        existing = [c.name for c in client.list_collections()]
+
+        if collection_name in existing:
+            collection = client.get_collection(name=collection_name)
+            chunk_ids = [
+                f"{document_id}_chunk_{i}"
+                for i in range(chunk_count)
+            ]
+            collection.delete(ids=chunk_ids)
+            logger.info("Deleted %d chunks from ChromaDB", len(chunk_ids))
+    except Exception as exc:
+        logger.warning("Failed to delete ChromaDB chunks: %s", exc)
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -266,6 +290,76 @@ async def get_task_status(
     return await db.get(IngestionTask, task_id)
 
 
+async def get_latest_task_for_document(
+    db: AsyncSession,
+    document_id: str,
+) -> Optional[IngestionTask]:
+    """Lấy task mới nhất của một document (nếu có)."""
+    stmt = (
+        select(IngestionTask)
+        .where(IngestionTask.document_id == document_id)
+        .order_by(IngestionTask.created_at.desc())
+        .limit(1)
+    )
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
+
+
+async def queue_document_ingestion(
+    db: AsyncSession,
+    document_id: str,
+    *,
+    force_reindex: bool = False,
+) -> tuple[Document, IngestionTask, bool]:
+    """
+    Create a new pending ingestion task for an existing document.
+
+    If a task is already pending/processing, it is returned as-is.
+    """
+    document = await db.get(Document, document_id)
+    if not document:
+        raise ValueError(f"Document not found: {document_id}")
+
+    latest_task = await get_latest_task_for_document(db, document_id)
+    if latest_task and latest_task.status in {"pending", "processing"}:
+        return document, latest_task, False
+
+    if force_reindex and document.chunk_count > 0:
+        _delete_document_chunks_from_chromadb(document.id, document.chunk_count)
+        document.chunk_count = 0
+
+    task = IngestionTask(
+        document_id=document.id,
+        status="pending",
+    )
+    db.add(task)
+    await db.flush()
+
+    logger.info(
+        "Queued ingestion task: doc_id=%s, task_id=%s, force_reindex=%s",
+        document.id,
+        task.id,
+        force_reindex,
+    )
+    return document, task, True
+
+
+async def get_document_markdown(
+    db: AsyncSession,
+    document_id: str,
+) -> tuple[Document, str]:
+    """Extract markdown/text content for a stored document."""
+    document = await db.get(Document, document_id)
+    if not document:
+        raise ValueError(f"Document not found: {document_id}")
+
+    extraction = extract_text(document.file_path, use_docling=False)
+    if extraction.error:
+        raise RuntimeError(extraction.error)
+
+    return document, extraction.full_text
+
+
 async def get_document(
     db: AsyncSession,
     document_id: str,
@@ -324,25 +418,7 @@ async def delete_document(
         logger.info("Deleted file: %s", file_path)
 
     # Xóa chunks khỏi ChromaDB
-    try:
-        import chromadb
-
-        client = chromadb.PersistentClient(path=settings.chroma_persist_dir)
-        collection_name = settings.chroma_collection_name
-        existing = [c.name for c in client.list_collections()]
-
-        if collection_name in existing:
-            collection = client.get_collection(name=collection_name)
-            # Xóa tất cả chunks của document này
-            chunk_ids = [
-                f"{document_id}_chunk_{i}"
-                for i in range(document.chunk_count)
-            ]
-            if chunk_ids:
-                collection.delete(ids=chunk_ids)
-                logger.info("Deleted %d chunks from ChromaDB", len(chunk_ids))
-    except Exception as exc:
-        logger.warning("Failed to delete ChromaDB chunks: %s", exc)
+    _delete_document_chunks_from_chromadb(document_id, document.chunk_count)
 
     # Xóa DB record (cascade xóa luôn ingestion_tasks)
     await db.delete(document)

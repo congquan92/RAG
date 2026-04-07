@@ -29,6 +29,7 @@ from app.schemas.chat_schema import (
     ChatQueryRequest,
     ChatSessionCreate,
     ChatSessionDetailResponse,
+    ChatSessionUpdate,
     ChatSessionResponse,
 )
 from app.services import chat_service
@@ -54,13 +55,10 @@ async def create_session(
 ):
     """Tạo session rỗng, trả về metadata (id, title, timestamps)."""
     session = await chat_service.create_session(db, title=body.title)
-    return ChatSessionResponse(
-        id=session.id,
-        title=session.title,
-        created_at=session.created_at,
-        updated_at=session.updated_at,
-        message_count=0,
-    )
+    created = await chat_service.get_session_payload(db, session.id)
+    if created is None:
+        raise HTTPException(status_code=500, detail="Failed to create session payload.")
+    return ChatSessionResponse(**created)
 
 
 @router.get(
@@ -113,13 +111,52 @@ async def get_session(
             created_at=msg.created_at,
         ))
 
+    kg_entity_types = None
+    if session.settings and session.settings.kg_entity_types:
+        try:
+            parsed = json.loads(session.settings.kg_entity_types)
+            if isinstance(parsed, list):
+                kg_entity_types = [str(item) for item in parsed]
+        except json.JSONDecodeError:
+            kg_entity_types = None
+
     return ChatSessionDetailResponse(
         id=session.id,
         title=session.title,
         created_at=session.created_at,
         updated_at=session.updated_at,
+        description=session.settings.description if session.settings else None,
+        system_prompt=session.settings.system_prompt if session.settings else None,
+        kg_language=session.settings.kg_language if session.settings else None,
+        kg_entity_types=kg_entity_types,
         messages=msg_responses,
     )
+
+
+@router.patch(
+    "/sessions/{session_id}",
+    response_model=ChatSessionResponse,
+    summary="Cập nhật metadata/prompt cho session",
+)
+async def update_session(
+    session_id: str,
+    body: ChatSessionUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    """Update title + workspace metadata fields associated with a chat session."""
+    try:
+        updated = await chat_service.update_session_metadata(
+            db=db,
+            session_id=session_id,
+            patch=body.model_dump(exclude_unset=True),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
+
+    return ChatSessionResponse(**updated)
 
 
 @router.delete(

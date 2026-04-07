@@ -20,13 +20,17 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db, get_embeddings
 from app.core.settings import settings
 from app.schemas.document_schema import (
+    DocumentBatchProcessRequest,
+    DocumentBatchProcessResponse,
+    DocumentBatchTaskItem,
     DocumentDeleteResponse,
+    DocumentIngestionTriggerResponse,
     DocumentListResponse,
     DocumentResponse,
     DocumentUploadResponse,
@@ -154,6 +158,160 @@ async def get_ingestion_status(
     )
 
 
+@router.post(
+    "/{document_id}/process",
+    response_model=DocumentIngestionTriggerResponse,
+    summary="Queue processing cho 1 document",
+)
+async def process_document(
+    document_id: str,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    embeddings: Any = Depends(get_embeddings),
+):
+    try:
+        document, task, is_new_task = await document_service.queue_document_ingestion(
+            db=db,
+            document_id=document_id,
+            force_reindex=False,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+    if is_new_task:
+        await db.commit()
+        background_tasks.add_task(
+            document_service.process_ingestion_task,
+            task_id=task.id,
+            document_id=document.id,
+            embeddings=embeddings,
+        )
+        message = "Ingestion task queued."
+    else:
+        message = "A processing task is already running for this document."
+
+    return DocumentIngestionTriggerResponse(
+        document_id=document.id,
+        task_id=task.id,
+        status="pending",
+        message=message,
+    )
+
+
+@router.post(
+    "/{document_id}/reindex",
+    response_model=DocumentIngestionTriggerResponse,
+    summary="Queue reindex cho 1 document",
+)
+async def reindex_document(
+    document_id: str,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    embeddings: Any = Depends(get_embeddings),
+):
+    try:
+        document, task, is_new_task = await document_service.queue_document_ingestion(
+            db=db,
+            document_id=document_id,
+            force_reindex=True,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+    if is_new_task:
+        await db.commit()
+        background_tasks.add_task(
+            document_service.process_ingestion_task,
+            task_id=task.id,
+            document_id=document.id,
+            embeddings=embeddings,
+        )
+        message = "Reindex task queued."
+    else:
+        message = "A processing task is already running for this document."
+
+    return DocumentIngestionTriggerResponse(
+        document_id=document.id,
+        task_id=task.id,
+        status="pending",
+        message=message,
+    )
+
+
+@router.post(
+    "/process/batch",
+    response_model=DocumentBatchProcessResponse,
+    summary="Queue batch processing cho nhiều documents",
+)
+async def process_documents_batch(
+    background_tasks: BackgroundTasks,
+    body: DocumentBatchProcessRequest | None = None,
+    db: AsyncSession = Depends(get_db),
+    embeddings: Any = Depends(get_embeddings),
+):
+    requested_ids = body.document_ids if body and body.document_ids else []
+    force_reindex = body.force_reindex if body else False
+
+    if requested_ids:
+        target_ids = requested_ids
+    else:
+        documents, _total = await document_service.list_documents(db, skip=0, limit=1000)
+        target_ids = [doc.id for doc in documents]
+
+    tasks: list[DocumentBatchTaskItem] = []
+    queued_tasks: list[tuple[str, str]] = []
+
+    for document_id in target_ids:
+        try:
+            document, task, is_new_task = await document_service.queue_document_ingestion(
+                db=db,
+                document_id=document_id,
+                force_reindex=force_reindex,
+            )
+        except ValueError:
+            continue
+
+        tasks.append(DocumentBatchTaskItem(document_id=document.id, task_id=task.id))
+        if is_new_task:
+            queued_tasks.append((task.id, document.id))
+
+    if queued_tasks:
+        await db.commit()
+        for task_id, document_id in queued_tasks:
+            background_tasks.add_task(
+                document_service.process_ingestion_task,
+                task_id=task_id,
+                document_id=document_id,
+                embeddings=embeddings,
+            )
+
+    return DocumentBatchProcessResponse(
+        queued=len(queued_tasks),
+        tasks=tasks,
+    )
+
+
+@router.get(
+    "/{document_id}/markdown",
+    summary="Render markdown/text preview for one document",
+)
+async def get_document_markdown(
+    document_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        _document, markdown = await document_service.get_document_markdown(
+            db=db,
+            document_id=document_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=422, detail=f"Cannot extract text: {exc}")
+
+    return Response(content=markdown, media_type="text/markdown; charset=utf-8")
+
+
 # ═════════════════════════════════════════════════════════════════════════════
 # Document CRUD
 # ═════════════════════════════════════════════════════════════════════════════
@@ -173,6 +331,7 @@ async def list_documents(
 
     doc_responses = []
     for doc in documents:
+        latest_task = await document_service.get_latest_task_for_document(db, doc.id)
         doc_responses.append(DocumentResponse(
             id=doc.id,
             filename=doc.filename,
@@ -180,6 +339,7 @@ async def list_documents(
             mime_type=doc.mime_type or "unknown",
             chunk_count=doc.chunk_count,
             created_at=doc.created_at,
+            latest_task_status=latest_task.status if latest_task else None,
         ))
 
     return DocumentListResponse(documents=doc_responses, total=total)
@@ -199,6 +359,8 @@ async def get_document(
     if not document:
         raise HTTPException(status_code=404, detail=f"Document not found: {document_id}")
 
+    latest_task = await document_service.get_latest_task_for_document(db, document.id)
+
     return DocumentResponse(
         id=document.id,
         filename=document.filename,
@@ -206,6 +368,7 @@ async def get_document(
         mime_type=document.mime_type or "unknown",
         chunk_count=document.chunk_count,
         created_at=document.created_at,
+        latest_task_status=latest_task.status if latest_task else None,
     )
 
 

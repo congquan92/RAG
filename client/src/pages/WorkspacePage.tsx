@@ -37,6 +37,21 @@ interface ServerIngestionTaskResponse {
     error_message?: string | null;
 }
 
+interface ServerDocumentIngestionTriggerResponse {
+    document_id: string;
+    task_id: string;
+    status: "pending";
+    message: string;
+}
+
+interface ServerDocumentBatchProcessResponse {
+    queued: number;
+    tasks: Array<{
+        document_id: string;
+        task_id: string;
+    }>;
+}
+
 interface RuntimeTaskState {
     status: DocumentStatus;
     error: string | null;
@@ -201,6 +216,53 @@ export function WorkspacePage() {
         onError: () => toast.error("Failed to upload document"),
     });
 
+    const processDoc = useMutation({
+        mutationFn: ({ docId, mode }: { docId: string; mode: "process" | "reindex" }) => api.post<ServerDocumentIngestionTriggerResponse>(`/documents/${docId}/${mode}`),
+        onSuccess: (payload) => {
+            setTaskStateByDocId((prev) => ({
+                ...prev,
+                [payload.document_id]: {
+                    status: "pending",
+                    error: null,
+                },
+            }));
+
+            queryClient.invalidateQueries({ queryKey: ["documents"] });
+            toast.success(payload.message || "Document processing queued.");
+            void pollIngestionTask(payload.task_id, payload.document_id);
+        },
+        onError: () => toast.error("Failed to queue document processing"),
+    });
+
+    const batchProcess = useMutation({
+        mutationFn: (documentIds: string[]) => api.post<ServerDocumentBatchProcessResponse>("/documents/process/batch", { document_ids: documentIds }),
+        onSuccess: (payload) => {
+            if (payload.tasks.length === 0) {
+                toast.info("No documents were queued.");
+                return;
+            }
+
+            setTaskStateByDocId((prev) => {
+                const next = { ...prev };
+                for (const task of payload.tasks) {
+                    next[task.document_id] = {
+                        status: "pending",
+                        error: null,
+                    };
+                }
+                return next;
+            });
+
+            queryClient.invalidateQueries({ queryKey: ["documents"] });
+            for (const task of payload.tasks) {
+                void pollIngestionTask(task.task_id, task.document_id);
+            }
+
+            toast.success(`Queued ${payload.queued} document${payload.queued === 1 ? "" : "s"} for processing.`);
+        },
+        onError: () => toast.error("Failed to queue batch processing"),
+    });
+
     const deleteDoc = useMutation({
         mutationFn: (docId: string) => api.delete(`/documents/${docId}`),
         onSuccess: (_, docId) => {
@@ -232,11 +294,7 @@ export function WorkspacePage() {
     const handleUpdateWorkspace = useCallback(
         async (data: UpdateWorkspace) => {
             if (!wsId) return;
-            try {
-                await updateWorkspace.mutateAsync({ id: wsId, data });
-            } catch {
-                toast.info("Workspace metadata update is temporarily unavailable on server.");
-            }
+            await updateWorkspace.mutateAsync({ id: wsId, data });
         },
         [wsId, updateWorkspace],
     );
@@ -252,6 +310,9 @@ export function WorkspacePage() {
                 onSelectDoc={handleSelectDoc}
                 onUpload={(file, customMetadata) => uploadDoc.mutate({ file, customMetadata })}
                 isUploading={uploadDoc.isPending}
+                onProcessDocument={(doc, mode) => processDoc.mutate({ docId: doc.id, mode })}
+                onBatchProcess={(documentIds) => batchProcess.mutate(documentIds)}
+                isBatchProcessing={batchProcess.isPending}
                 onDelete={(id) => deleteDoc.mutate(id)}
                 onUpdateWorkspace={handleUpdateWorkspace}
             />

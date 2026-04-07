@@ -8,6 +8,10 @@ interface ServerChatSession {
     created_at: string;
     updated_at: string;
     message_count: number;
+    description?: string | null;
+    system_prompt?: string | null;
+    kg_language?: string | null;
+    kg_entity_types?: string[] | null;
 }
 
 interface ServerChatSessionDetail {
@@ -16,16 +20,20 @@ interface ServerChatSessionDetail {
     created_at: string;
     updated_at: string;
     messages: Array<{ id: string }>;
+    description?: string | null;
+    system_prompt?: string | null;
+    kg_language?: string | null;
+    kg_entity_types?: string[] | null;
 }
 
 function mapSessionToWorkspace(session: ServerChatSession): KnowledgeBase {
     return {
         id: session.id,
         name: session.title,
-        description: null,
-        system_prompt: null,
-        kg_language: null,
-        kg_entity_types: null,
+        description: session.description ?? null,
+        system_prompt: session.system_prompt ?? null,
+        kg_language: session.kg_language ?? null,
+        kg_entity_types: session.kg_entity_types ?? null,
         document_count: session.message_count,
         indexed_count: 0,
         created_at: session.created_at,
@@ -51,10 +59,10 @@ export function useWorkspace(workspaceId: string | null) {
             return {
                 id: session.id,
                 name: session.title,
-                description: null,
-                system_prompt: null,
-                kg_language: null,
-                kg_entity_types: null,
+                description: session.description ?? null,
+                system_prompt: session.system_prompt ?? null,
+                kg_language: session.kg_language ?? null,
+                kg_entity_types: session.kg_entity_types ?? null,
                 document_count: session.messages.length,
                 indexed_count: 0,
                 created_at: session.created_at,
@@ -91,9 +99,16 @@ export function useCreateWorkspace() {
 }
 
 export function useUpdateWorkspace() {
+    const queryClient = useQueryClient();
+
     return useMutation({
-        mutationFn: async (_variables: { id: string; data: UpdateWorkspace }) => {
-            throw new Error("Server does not support workspace metadata updates yet.");
+        mutationFn: async ({ id, data }: { id: string; data: UpdateWorkspace }) => {
+            const session = await api.patch<ServerChatSession>(`/chat/sessions/${id}`, data);
+            return mapSessionToWorkspace(session);
+        },
+        onSuccess: (_updated, variables) => {
+            queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+            queryClient.invalidateQueries({ queryKey: ["workspaces", variables.id] });
         },
     });
 }

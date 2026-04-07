@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo, memo, createContext, useContext, Children, isValidElement, type ReactNode } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -25,6 +25,7 @@ import diff from "react-syntax-highlighter/dist/esm/languages/prism/diff";
 import markdown from "react-syntax-highlighter/dist/esm/languages/prism/markdown";
 import { toast } from "sonner";
 import { cn, generateId } from "@/lib/utils";
+import { api } from "@/lib/api";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useThemeStore } from "@/stores/useThemeStore";
 
@@ -52,9 +53,10 @@ SyntaxHighlighter.registerLanguage("markdown", markdown);
 SyntaxHighlighter.registerLanguage("md", markdown);
 import { useChatHistory, useClearChatHistory } from "@/hooks/useChatHistory";
 import { useRAGChatStream } from "@/hooks/useRAGChatStream";
+import { useUpdateWorkspace } from "@/hooks/useWorkspaces";
 import { StreamingMarkdown } from "@/components/rag/MemoizedMarkdown";
 import { ThinkingTimeline } from "@/components/rag/ThinkingTimeline";
-import type { ChatMessage, ChatImageRef, ChatSourceChunk, ChatStreamStatus, Document, KnowledgeBase, AgentStep } from "@/types";
+import type { ChatMessage, ChatImageRef, ChatSourceChunk, ChatStreamStatus, Document, KnowledgeBase, AgentStep, LLMCapabilities } from "@/types";
 
 // Context to provide workspaceId and debugMode to nested components
 const WsIdCtx = createContext<string>("");
@@ -468,6 +470,17 @@ function SourcesPanel({ sources, messageId }: { sources: ChatSourceChunk[]; mess
         // Toggle: click same rating to un-rate
         const newRating = ratings[sourceIndex] === rating ? "partial" : rating;
         setRatings((r) => ({ ...r, [sourceIndex]: newRating }));
+
+        if (!messageId) return;
+
+        void api
+            .post(`/rag/chat/${messageId}/rate`, {
+                source_index: sourceIndex,
+                rating: newRating,
+            })
+            .catch(() => {
+                toast.error("Failed to save source rating.");
+            });
     };
 
     return (
@@ -935,6 +948,14 @@ export const ChatPanel = memo(function ChatPanel({ workspaceId, hasIndexedDocs, 
     // Load chat history from PostgreSQL
     const { data: historyData, isLoading: historyLoading } = useChatHistory(workspaceId);
     const clearMutation = useClearChatHistory(workspaceId);
+    const updateWorkspace = useUpdateWorkspace();
+
+    const { data: capabilities } = useQuery<LLMCapabilities>({
+        queryKey: ["rag", "capabilities"],
+        queryFn: () => api.get<LLMCapabilities>("/rag/capabilities"),
+        staleTime: 5 * 60 * 1000,
+        retry: 1,
+    });
     const [showPromptEditor, setShowPromptEditor] = useState(false);
     const [promptDraft, setPromptDraft] = useState("");
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -974,16 +995,31 @@ export const ChatPanel = memo(function ChatPanel({ workspaceId, hasIndexedDocs, 
     const promptIsDirty = promptDraft !== effectivePrompt;
 
     const handleSavePrompt = useCallback(() => {
-        toast.info("Server does not support saving custom prompts yet.");
-    }, []);
+        const trimmed = promptDraft.trim();
+        const nextPrompt = trimmed && trimmed !== DEFAULT_SYSTEM_PROMPT ? trimmed : null;
+
+        void updateWorkspace
+            .mutateAsync({
+                id: workspaceId,
+                data: {
+                    system_prompt: nextPrompt,
+                },
+            })
+            .then(() => {
+                toast.success("System prompt saved.");
+            })
+            .catch((error: unknown) => {
+                const message = error instanceof Error ? error.message : "Failed to save system prompt.";
+                toast.error(message);
+            });
+    }, [promptDraft, updateWorkspace, workspaceId]);
 
     const handleResetPrompt = useCallback(() => {
         setPromptDraft(DEFAULT_SYSTEM_PROMPT);
-        toast.info("Prompt reset is local-only because server has no prompt settings endpoint.");
+        toast.info("Prompt reset in editor. Click Save to persist.");
     }, []);
 
-    // Current server does not expose /rag/capabilities.
-    const thinkingSupported = false;
+    const thinkingSupported = capabilities?.supports_thinking ?? false;
 
     // Sync DB history → local messages state when data loads.
     // IMPORTANT: preserve agentSteps from local state — they are client-side only (not stored in DB).
@@ -1238,7 +1274,7 @@ export const ChatPanel = memo(function ChatPanel({ workspaceId, hasIndexedDocs, 
                         m.id === assistantId
                             ? {
                                   ...finalMsg,
-                                  id: assistantId,
+                                  id: finalMsg.id || assistantId,
                                   isStreaming: false,
                                   agentSteps: finalMsg.agentSteps?.length ? finalMsg.agentSteps : agentStepsRef.current.length > 0 ? agentStepsRef.current : m.agentSteps,
                               }

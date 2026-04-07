@@ -91,3 +91,31 @@ class DocumentDeleteResponse(BaseModel):
     document_id: str
     filename: str
     message: str = Field(default="Document deleted successfully.")
+
+
+class DocumentIngestionTriggerResponse(BaseModel):
+    """Response khi queue xử lý/reindex cho 1 document."""
+
+    document_id: str
+    task_id: str
+    status: Literal["pending"]
+    message: str
+
+
+class DocumentBatchProcessRequest(BaseModel):
+    """Request queue batch ingestion cho nhiều documents."""
+
+    document_ids: list[str] = Field(default_factory=list)
+    force_reindex: bool = Field(default=False)
+
+
+class DocumentBatchTaskItem(BaseModel):
+    document_id: str
+    task_id: str
+
+
+class DocumentBatchProcessResponse(BaseModel):
+    """Response sau khi queue batch ingestion."""
+
+    queued: int
+    tasks: list[DocumentBatchTaskItem] = Field(default_factory=list)

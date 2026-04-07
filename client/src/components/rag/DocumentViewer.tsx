@@ -168,8 +168,7 @@ export const DocumentViewer = memo(function DocumentViewer({ doc, scrollToPage, 
     } = useQuery({
         queryKey: ["document-markdown", doc.id],
         queryFn: () => api.getText(`/documents/${doc.id}/markdown`),
-        // Server contract currently has no GET /documents/{id}/markdown endpoint.
-        enabled: false,
+        enabled: !!doc.id,
         staleTime: 5 * 60 * 1000, // cache 5 min
     });
 

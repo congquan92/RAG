@@ -17,7 +17,7 @@ import type { Document, RAGStats, DocumentStatus, KnowledgeBase, UpdateWorkspace
 
 const PROCESSING_STATUSES = new Set<DocumentStatus>(["parsing", "indexing", "processing"]);
 const PROCESSABLE_STATUSES = new Set<DocumentStatus>(["pending", "failed"]);
-const BATCH_PROCESS_SUPPORTED = false;
+const BATCH_PROCESS_SUPPORTED = true;
 
 interface DataPanelProps {
     workspace: KnowledgeBase | undefined;
@@ -28,11 +28,14 @@ interface DataPanelProps {
     onSelectDoc: (doc: Document) => void;
     onUpload: (file: File, customMetadata?: { key: string; value: string }[]) => void;
     isUploading: boolean;
+    onProcessDocument: (doc: Document, mode: "process" | "reindex") => void;
+    onBatchProcess: (docIds: string[]) => void;
+    isBatchProcessing: boolean;
     onDelete: (id: string) => void;
     onUpdateWorkspace: (data: UpdateWorkspace) => Promise<void>;
 }
 
-export const DataPanel = memo(function DataPanel({ workspace, documents, docsLoading, ragStats, selectedDocId, onSelectDoc, onUpload, isUploading, onDelete, onUpdateWorkspace }: DataPanelProps) {
+export const DataPanel = memo(function DataPanel({ workspace, documents, docsLoading, ragStats, selectedDocId, onSelectDoc, onUpload, isUploading, onProcessDocument, onBatchProcess, isBatchProcessing, onDelete, onUpdateWorkspace }: DataPanelProps) {
     const navigate = useNavigate();
     const [deleteDocConfirm, setDeleteDocConfirm] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
@@ -55,7 +58,7 @@ export const DataPanel = memo(function DataPanel({ workspace, documents, docsLoa
     const processingCount = useMemo(() => documents?.filter((d) => PROCESSING_STATUSES.has(d.status)).length ?? 0, [documents]);
 
     const pendingCount = useMemo(() => documents?.filter((d) => PROCESSABLE_STATUSES.has(d.status)).length ?? 0, [documents]);
-    const batchProcessing = false;
+    const batchProcessing = isBatchProcessing;
 
     const filteredDocs = useMemo(() => {
         if (!documents) return [];
@@ -85,10 +88,13 @@ export const DataPanel = memo(function DataPanel({ workspace, documents, docsLoa
 
     const handleBatchProcess = useCallback(async () => {
         if (!documents) return;
-        toast.info("Batch process is temporarily disabled", {
-            description: "Current server only supports automatic ingestion after upload.",
-        });
-    }, [documents]);
+        const ids = documents.filter((d) => PROCESSABLE_STATUSES.has(d.status)).map((d) => d.id);
+        if (ids.length === 0) {
+            toast.info("No pending documents to process.");
+            return;
+        }
+        onBatchProcess(ids);
+    }, [documents, onBatchProcess]);
 
     const handleStartEdit = () => {
         if (workspace) {
@@ -210,7 +216,7 @@ export const DataPanel = memo(function DataPanel({ workspace, documents, docsLoa
                         <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1.5">
                             <AnimatePresence mode="popLayout">
                                 {filteredDocs.map((doc) => (
-                                    <DocumentCard key={doc.id} doc={doc} selected={doc.id === selectedDocId} onDelete={setDeleteDocConfirm} onClick={onSelectDoc} />
+                                    <DocumentCard key={doc.id} doc={doc} selected={doc.id === selectedDocId} onProcess={onProcessDocument} onDelete={setDeleteDocConfirm} onClick={onSelectDoc} />
                                 ))}
                             </AnimatePresence>
                             {filteredDocs.length === 0 && documents.length > 0 && <div className="text-center py-4 text-[11px] text-muted-foreground">No documents match your filter</div>}
