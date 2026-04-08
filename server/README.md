@@ -5,7 +5,7 @@
 | Tech stack     | FastAPI, SQLAlchemy Async + SQLite, ChromaDB, LightRAG, LangChain, Ollama/Gemini, Streamlit  |
 | Vai trò        | Upload tài liệu, ingestion + chunking, truy vấn RAG (sync + streaming), quản lý lịch sử chat |
 | Đường dẫn API  | `http://localhost:8000/api/v1`                                                               |
-| Health check   | `http://localhost:8000/health`                                                               |
+| Health check   | `http://localhost:8000/api/v1/health`                                                        |
 | Vector backend | ChromaDB local (`CHROMA_PERSIST_DIR`), kết hợp LightRAG graph retrieval                      |
 
 > Note thực tế: Nếu backend chạy trong Docker, cần map được endpoint Ollama (`OLLAMA_BASE_URL`) để server gọi model local.
@@ -35,7 +35,7 @@
 
 | Method | Path                                 | Mục đích                      | Ghi chú nhanh                               |
 | ------ | ------------------------------------ | ----------------------------- | ------------------------------------------- |
-| GET    | `/health`                            | Kiểm tra trạng thái hệ thống  | Trả về provider, trạng thái model load      |
+| GET    | `/api/v1/health`                     | Kiểm tra trạng thái hệ thống  | Trả về provider, trạng thái model load      |
 | POST   | `/api/v1/chat/sessions`              | Tạo session chat mới          | Body: `title` (optional)                    |
 | GET    | `/api/v1/chat/sessions`              | Liệt kê sessions              | Hỗ trợ `skip`, `limit`                      |
 | GET    | `/api/v1/chat/sessions/{session_id}` | Chi tiết session + messages   | Kèm lịch sử message và citations            |

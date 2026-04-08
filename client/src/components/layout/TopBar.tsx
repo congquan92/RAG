@@ -21,7 +21,6 @@ interface TopBarProps {
 export const TopBar = memo(function TopBar({ actions, className }: TopBarProps) {
     const location = useLocation();
     const [config, setConfig] = useState<ConfigStatus | null>(null);
-
     useEffect(() => {
         api.get<ConfigStatus>("/health")
             .then(setConfig)

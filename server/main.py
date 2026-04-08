@@ -141,7 +141,7 @@ app.add_middleware(
 
 # ── Health Check ─────────────────────────────────────────────────────────
 
-@app.get("/health", tags=["System"])
+@app.get("/api/v1/health", tags=["System"])
 async def health_check():
     """Endpoint kiểm tra trạng thái server và các component đã load."""
     return {
