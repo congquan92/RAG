@@ -206,7 +206,6 @@ if page == "🏠 Overview":
             "Chunk Size": settings.chunk_size,
             "Top-K Retrieval": settings.retrieval_top_k,
             "Top-K Reranker": settings.reranker_top_k,
-            "Phoenix Tracing": "Enabled" if settings.phoenix_enabled else "Disabled",
         }
         left, right = st.columns(2)
         items = list(config_data.items())

@@ -89,10 +89,6 @@
 - `MAX_UPLOAD_SIZE_MB`, `ALLOWED_UPLOAD_MIME_TYPES`
 - `RETRIEVAL_TOP_K`, `RERANKER_TOP_K`, `RERANKER_MODEL`, `CHUNK_SIZE`, `CHUNK_OVERLAP`
 
-### Observability
-
-- `PHOENIX_ENABLED`, `PHOENIX_PORT`
-
 > Lưu ý: `app/core/settings.py` đang bật strict mode. Nếu thiếu biến bắt buộc trong `.env`, app sẽ fail startup với danh sách key thiếu rõ ràng.
 
 ## 7. Setup nhanh (Quick Start)

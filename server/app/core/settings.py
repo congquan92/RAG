@@ -85,10 +85,6 @@ class Settings(BaseSettings):
     max_upload_size_mb: int
     allowed_upload_mime_types: str
 
-    # ── Observability ────────────────────────────────────────────────────
-    phoenix_enabled: bool
-    phoenix_port: int
-
     # ── Retrieval Tuning ─────────────────────────────────────────────────
     retrieval_top_k: int
     reranker_top_k: int

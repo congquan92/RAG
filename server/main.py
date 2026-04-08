@@ -2,12 +2,11 @@
 FastAPI Entry Point — Application bootstrap with Lifespan management.
 
 Startup sequence:
-  1. Start Phoenix tracer (if enabled)
-  2. Initialize database (create tables)
-  3. Load Embedding model into app.state (based on EMBEDDING_DEVICE)
-  4. Load FlashRank reranker into app.state (based on RERANKER_DEVICE)
-  5. Yield → application serves requests
-  6. Shutdown: graceful cleanup of DB, Phoenix, models
+    1. Initialize database (create tables)
+    2. Load Embedding model into app.state (based on EMBEDDING_DEVICE)
+    3. Load FlashRank reranker into app.state (based on RERANKER_DEVICE)
+    4. Yield → application serves requests
+    5. Shutdown: graceful cleanup of DB and models
 
 All heavy models are loaded ONCE at startup and reused via app.state.
 """
@@ -40,46 +39,21 @@ logger = logging.getLogger("rag.server")
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     Quản lý vòng đời ứng dụng:
-    - Startup: khởi tạo Phoenix, load AI models vào app.state
+    - Startup: load AI models vào app.state
     - Shutdown: giải phóng tài nguyên, đóng kết nối
     """
     logger.info("═" * 60)
     logger.info("  RAG Server — Starting up...")
     logger.info("═" * 60)
 
-    # ── 1. Phoenix Tracing (Observability) ───────────────────────────────
-    phoenix_session = None
-    if settings.phoenix_enabled:
-        try:
-            import phoenix as px
-
-            phoenix_session = px.launch_app(port=settings.phoenix_port)
-            logger.info(
-                "Phoenix tracing started on port %d", settings.phoenix_port
-            )
-
-            # Auto-instrument LangChain calls cho tracing
-            from openinference.instrumentation.langchain import LangChainInstrumentor
-
-            LangChainInstrumentor().instrument()
-            logger.info("LangChain auto-instrumentation enabled")
-        except ImportError:
-            logger.warning(
-                "Phoenix or instrumentation packages not installed. "
-                "Tracing disabled. Install: arize-phoenix, "
-                "openinference-instrumentation-langchain"
-            )
-        except Exception as exc:
-            logger.warning("Failed to start Phoenix tracing: %s", exc)
-
-    # ── 2. Database Initialization ────────────────────────────────────────
+    # ── 1. Database Initialization ────────────────────────────────────────
     from app.models import Base  # noqa: F401 — đảm bảo tất cả models registered
     from app.core.database import init_db, dispose_db
 
     await init_db()
     logger.info("Database initialized successfully")
 
-    # ── 3. Load Embedding Model ──────────────────────────────────────────
+    # ── 2. Load Embedding Model ──────────────────────────────────────────
     try:
         from app.core.llm_factory import get_embeddings
 
@@ -94,7 +68,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.error("Failed to load embedding model: %s", exc)
         app.state.embeddings = None
 
-    # ── 4. Load Reranker (FlashRank) ─────────────────────────────────────
+    # ── 3. Load Reranker (FlashRank) ─────────────────────────────────────
     try:
         from flashrank import Ranker
 
@@ -112,7 +86,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.warning("Failed to load reranker: %s", exc)
         app.state.reranker = None
 
-    # ── 5. Store settings reference ──────────────────────────────────────
+    # ── 4. Store settings reference ──────────────────────────────────────
     app.state.settings = settings
 
     logger.info("═" * 60)
@@ -130,14 +104,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Đóng database connection pool
     await dispose_db()
-
-    # Đóng Phoenix session
-    if phoenix_session is not None:
-        try:
-            phoenix_session.close()
-            logger.info("Phoenix tracing stopped")
-        except Exception as exc:
-            logger.warning("Error closing Phoenix: %s", exc)
 
     # Cleanup embedding model (giải phóng GPU memory nếu có)
     if hasattr(app.state, "embeddings") and app.state.embeddings is not None:
@@ -184,7 +150,6 @@ async def health_check():
         "embedding_provider": settings.embedding_provider,
         "embedding_loaded": getattr(app.state, "embeddings", None) is not None,
         "reranker_loaded": getattr(app.state, "reranker", None) is not None,
-        "phoenix_enabled": settings.phoenix_enabled,
     }
 
 

@@ -32,8 +32,6 @@ ollama>=0.4.0                 # Local LLM (Dành trọn 6GB VRAM cho thằng nà
 
 # 6. Observability (Giám sát, check lỗi)
 ragas>=0.1.0         # Đo lường AI trả lời ngu hay khôn
-arize-phoenix>=4.0.0 # Bắt lỗi đường đi của Data (rất cần cho dev)
-openinference-instrumentation-langchain
 
 # 7. Utilities 
 python-dotenv>=1.0.0
