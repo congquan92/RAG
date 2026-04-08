@@ -5,6 +5,7 @@ Endpoints:
   POST   /chat/sessions          → Tạo phiên hội thoại mới
   GET    /chat/sessions          → Liệt kê sessions (pagination)
   GET    /chat/sessions/{id}     → Chi tiết session + messages
+    DELETE /chat/sessions/{id}/messages → Xóa toàn bộ messages của session
   DELETE /chat/sessions/{id}     → Xóa session (cascade messages)
   POST   /chat                   → Gửi câu hỏi → RAG pipeline → trả answer
   POST   /chat/stream            → Gửi câu hỏi → SSE streaming response
@@ -130,6 +131,22 @@ async def delete_session(
 ):
     """Xóa session + cascade xóa tất cả messages."""
     result = await chat_service.delete_session(db, session_id)
+    if not result:
+        raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
+    return None
+
+
+@router.delete(
+    "/sessions/{session_id}/messages",
+    status_code=204,
+    summary="Xóa lịch sử chat trong phiên",
+)
+async def clear_session_messages(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Xóa tất cả messages của session nhưng giữ nguyên session."""
+    result = await chat_service.clear_session_messages(db, session_id)
     if not result:
         raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
     return None

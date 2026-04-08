@@ -73,14 +73,15 @@ export function useClearChatHistory(workspaceId: string) {
     const queryClient = useQueryClient();
 
     return useMutation({
-        // Server has no endpoint to delete all messages in a session.
-        mutationFn: async () => undefined,
+        mutationFn: async () => api.delete(`/chat/sessions/${workspaceId}/messages`),
         onSuccess: () => {
             queryClient.setQueryData<ChatHistoryResponse>(["chat-history", workspaceId], {
                 workspace_id: workspaceId,
                 messages: [],
                 total: 0,
             });
+            queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+            queryClient.invalidateQueries({ queryKey: ["workspaces", "summary"] });
         },
     });
 }

@@ -204,7 +204,7 @@ export function useRAGChatStream(workspaceId: string): RAGStreamResult {
 
                         if (event.type === "message_ids") {
                             if (!hasGenerationStep) {
-                                localSteps = [...completeActiveStep(localSteps), createStep("retrieving", "Đã truy xuất ngữ cảnh hỗ trợ", "completed")];
+                                localSteps = [...completeActiveStep(localSteps), createStep("retrieving", "Đang truy xuất ngữ cảnh hỗ trợ...")];
                                 syncSteps(localSteps);
                             }
                             continue;

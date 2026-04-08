@@ -100,6 +100,11 @@ class Settings(BaseSettings):
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
     @property
+    def llm_model(self) -> str:
+        """Return active LLM model based on current provider."""
+        return self.ollama_model if self.llm_provider == "ollama" else self.gemini_model
+
+    @property
     def allowed_upload_mime_type_set(self) -> set[str]:
         """Parse comma-separated ALLOWED_UPLOAD_MIME_TYPES into a set."""
         return {

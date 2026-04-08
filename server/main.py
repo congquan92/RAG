@@ -1,25 +1,9 @@
-"""
-FastAPI Entry Point — Application bootstrap with Lifespan management.
-
-Startup sequence:
-    1. Initialize database (create tables)
-    2. Load Embedding model into app.state (based on EMBEDDING_DEVICE)
-    3. Load FlashRank reranker into app.state (based on RERANKER_DEVICE)
-    4. Yield → application serves requests
-    5. Shutdown: graceful cleanup of DB and models
-
-All heavy models are loaded ONCE at startup and reused via app.state.
-"""
-
 from __future__ import annotations
-
 import logging
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
 from app.core.settings import settings
 
 # ── Logging setup ────────────────────────────────────────────────────────
@@ -147,9 +131,10 @@ async def health_check():
     return {
         "status": "healthy",
         "llm_provider": settings.llm_provider,
-        "embedding_provider": settings.embedding_provider,
+        "llm_model": settings.llm_model,
+        "embedding_model": settings.embedding_model,
         "embedding_loaded": getattr(app.state, "embeddings", None) is not None,
-        "reranker_loaded": getattr(app.state, "reranker", None) is not None,
+        "reranker_loaded": getattr(app.state, "reranker", None) is not None,      
     }
 
 

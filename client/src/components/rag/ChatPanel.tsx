@@ -81,6 +81,54 @@ function shortenDocName(filename: string, maxLen = 14): string {
     return name.slice(0, maxLen - 1) + "\u2026"; // ellipsis
 }
 
+function buildMockTimelineSteps(message: ChatMessage): AgentStep[] {
+    const sourceCount = message.sources?.length ?? 0;
+    const imageCount = message.imageRefs?.length ?? 0;
+    const sourceBadges = (message.sources ?? []).slice(0, 6).map((s) => String(s.index));
+
+    // Keep pseudo-duration deterministic so UI does not jump between rerenders.
+    const contentLength = message.content.trim().length;
+    const totalMs = Math.max(900, Math.min(4500, contentLength * 12));
+    const baseTimestamp = Number.isFinite(new Date(message.timestamp).getTime()) ? new Date(message.timestamp).getTime() : Date.now();
+
+    const makeStep = (step: AgentStep["step"], detail: string, durationMs: number, offsetMs: number, extras?: Partial<AgentStep>): AgentStep => ({
+        id: generateId(),
+        step,
+        detail,
+        status: "completed",
+        timestamp: baseTimestamp + offsetMs,
+        durationMs,
+        ...extras,
+    });
+
+    const analyzingMs = Math.max(120, Math.round(totalMs * 0.16));
+    const understoodMs = Math.max(100, Math.round(totalMs * 0.14));
+    const retrievingMs = Math.max(180, Math.round(totalMs * 0.26));
+    const sourcesMs = sourceCount > 0 || imageCount > 0 ? Math.max(100, Math.round(totalMs * 0.12)) : 0;
+    const generatingMs = Math.max(220, totalMs - analyzingMs - understoodMs - retrievingMs - sourcesMs);
+
+    const steps: AgentStep[] = [
+        makeStep("analyzing", "Phân tích yêu cầu", analyzingMs, 0),
+        makeStep("understood", "Xác định mục tiêu trả lời", understoodMs, analyzingMs),
+        makeStep("retrieving", sourceCount > 0 ? "Đối chiếu và truy xuất tài liệu liên quan" : "Đối chiếu ngữ cảnh hội thoại", retrievingMs, analyzingMs + understoodMs),
+    ];
+
+    if (sourceCount > 0 || imageCount > 0) {
+        steps.push(
+            makeStep("sources_found", `Tìm thấy ${sourceCount} nguồn${imageCount > 0 ? ` + ${imageCount} hình` : ""}`, sourcesMs, analyzingMs + understoodMs + retrievingMs, {
+                sourceCount,
+                imageCount,
+                sourceBadges,
+            }),
+        );
+    }
+
+    steps.push(makeStep("generating", "Tổng hợp và viết câu trả lời", generatingMs, totalMs - generatingMs));
+    steps.push(makeStep("done", `Hoàn tất trong ${(totalMs / 1000).toFixed(1)}s`, totalMs, totalMs));
+
+    return steps;
+}
+
 // ---------------------------------------------------------------------------
 // Citation badge — clickable [N] marker → icon + docname-P.N
 // ---------------------------------------------------------------------------
@@ -676,6 +724,15 @@ function CopyMessageActions({ content }: { content: string }) {
 const MessageBubble = memo(function MessageBubble({ message }: { message: ChatMessage }) {
     const isUser = message.role === "user";
 
+    const timelineSteps = useMemo(() => {
+        if (isUser) return [];
+        if (message.agentSteps?.length) return message.agentSteps;
+        if (!message.isStreaming && message.content.trim()) {
+            return buildMockTimelineSteps(message);
+        }
+        return [];
+    }, [isUser, message]);
+
     const proseClasses = cn(
         "prose prose-sm max-w-none text-foreground/90",
         "[&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_li]:my-0.5",
@@ -708,8 +765,8 @@ const MessageBubble = memo(function MessageBubble({ message }: { message: ChatMe
 
             <div className={cn(isUser ? "max-w-[85%] rounded-xl px-3 py-2 bg-secondary/50" : "max-w-[90%] min-w-0 py-1")}>
                 {/* ThinkingTimeline — single instance, never unmounts between streaming→completed */}
-                {!isUser && message.agentSteps && message.agentSteps.length > 0 && (
-                    <ThinkingTimeline steps={message.agentSteps} mode={message.isStreaming ? "live" : "embedded"} className={cn("mb-1.5", message.isStreaming && "mt-1")} autoCollapse={message.isStreaming && !!message.content} />
+                {!isUser && timelineSteps.length > 0 && (
+                    <ThinkingTimeline steps={timelineSteps} mode={message.isStreaming ? "live" : "embedded"} className={cn("mb-1.5", message.isStreaming && "mt-1")} autoCollapse={message.isStreaming && !!message.content} />
                 )}
 
                 {/* Typing indicator — only when streaming with no steps and no content yet */}
@@ -1120,23 +1177,27 @@ export const ChatPanel = memo(function ChatPanel({ workspaceId, hasIndexedDocs, 
         });
     }, []);
 
-    // Keep spacer height = container height so user message can always scroll to top
+    // Keep spacer height only while streaming so user message can stay near top
     const hasMessages = messages.length > 0;
     useEffect(() => {
         if (!hasMessages) return;
         const container = scrollContainerRef.current;
-        if (!container) return;
+        const spacer = spacerRef.current;
+        if (!container || !spacer) return;
+
+        if (!stream.isStreaming) {
+            spacer.style.height = "0px";
+            return;
+        }
 
         const updateSpacer = () => {
-            if (spacerRef.current) {
-                spacerRef.current.style.height = `${container.clientHeight}px`;
-            }
+            spacer.style.height = `${container.clientHeight}px`;
         };
         updateSpacer();
         const observer = new ResizeObserver(updateSpacer);
         observer.observe(container);
         return () => observer.disconnect();
-    }, [hasMessages]);
+    }, [hasMessages, stream.isStreaming]);
 
     // Reset spacer when streaming ends; track transition to avoid spurious scrollToBottom
     const prevIsStreamingRef = useRef(false);
@@ -1450,7 +1511,7 @@ export const ChatPanel = memo(function ChatPanel({ workspaceId, hasIndexedDocs, 
                         {messages.length === 0 ? (
                             <SuggestionChips onSelect={handleSend} />
                         ) : (
-                            <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-3 relative">
+                            <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 py-3 space-y-3 relative bg-background">
                                 <AnimatePresence>
                                     {messages.map((msg) => (
                                         <div key={msg.id} data-message-id={msg.id}>

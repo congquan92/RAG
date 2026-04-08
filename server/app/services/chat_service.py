@@ -16,9 +16,10 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime, timezone
 from typing import Any, AsyncGenerator, Optional
 
-from sqlalchemy import select, func
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.chat import ChatMessage, ChatSession
@@ -124,6 +125,23 @@ async def delete_session(
     await db.delete(session)
     logger.info("Deleted chat session: id=%s", session_id)
     return session
+
+
+async def clear_session_messages(
+    db: AsyncSession,
+    session_id: str,
+) -> bool:
+    """Xóa toàn bộ messages trong một phiên chat, giữ lại session."""
+    session = await db.get(ChatSession, session_id)
+    if not session:
+        return False
+
+    await db.execute(
+        delete(ChatMessage).where(ChatMessage.session_id == session_id)
+    )
+    session.updated_at = datetime.now(timezone.utc)
+    logger.info("Cleared chat history for session: id=%s", session_id)
+    return True
 
 
 # ═════════════════════════════════════════════════════════════════════════════
