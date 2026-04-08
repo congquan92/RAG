@@ -13,12 +13,11 @@ LLM_PROVIDER / EMBEDDING_PROVIDER in .env — zero code changes.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
-
-from langchain_core.embeddings import Embeddings
-from langchain_core.language_models import BaseChatModel
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from langchain_core.embeddings import Embeddings
+    from langchain_core.language_models import BaseChatModel
     from app.core.settings import Settings
 
 logger = logging.getLogger(__name__)
@@ -28,7 +27,7 @@ logger = logging.getLogger(__name__)
 # LLM Factory
 # ═════════════════════════════════════════════════════════════════════════════
 
-def get_llm(settings: Settings) -> BaseChatModel:
+def get_llm(settings: Settings) -> Any:
     """
     Khởi tạo Chat LLM dựa trên LLM_PROVIDER trong settings.
 
@@ -77,7 +76,7 @@ def get_llm(settings: Settings) -> BaseChatModel:
 # Embeddings Factory
 # ═════════════════════════════════════════════════════════════════════════════
 
-def get_embeddings(settings: Settings) -> Embeddings:
+def get_embeddings(settings: Settings) -> Any:
     """
     Khởi tạo Embedding model dựa trên EMBEDDING_PROVIDER trong settings.
 

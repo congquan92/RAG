@@ -18,9 +18,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-import tiktoken
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-
 from app.core.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -240,6 +237,8 @@ def extract_text(file_path: str | Path, use_docling: bool = False) -> Extraction
 
 def _tiktoken_length(text: str, encoding_name: str = "cl100k_base") -> int:
     """Đếm số tokens bằng Tiktoken (cùng tokenizer với GPT-4/embedding models)."""
+    import tiktoken
+
     encoding = tiktoken.get_encoding(encoding_name)
     return len(encoding.encode(text))
 
@@ -265,6 +264,8 @@ def split_into_chunks(
     if not text or not text.strip():
         logger.warning("Empty text provided for chunking, returning empty list")
         return []
+
+    from langchain_text_splitters import RecursiveCharacterTextSplitter
 
     _chunk_size = chunk_size or settings.chunk_size
     _chunk_overlap = chunk_overlap or settings.chunk_overlap

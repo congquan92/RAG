@@ -24,7 +24,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.settings import settings
 from app.models.document import Document, IngestionTask
-from app.rag.ingestion import detect_mime_type, extract_text, ingest_file
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +92,8 @@ async def save_uploaded_file(
     file_size = len(file_content)
 
     # Detect MIME type
+    from app.rag.ingestion import detect_mime_type
+
     mime_type = detect_mime_type(file_path)
 
     # Tạo Document record
@@ -163,6 +164,8 @@ async def process_ingestion_task(
             )
 
             # ── Step 1: Parse + Chunk ────────────────────────────────────
+            from app.rag.ingestion import ingest_file
+
             extraction = ingest_file(document.file_path)
 
             if extraction.error:
@@ -288,76 +291,6 @@ async def get_task_status(
 ) -> Optional[IngestionTask]:
     """Lấy trạng thái ingestion task theo ID."""
     return await db.get(IngestionTask, task_id)
-
-
-async def get_latest_task_for_document(
-    db: AsyncSession,
-    document_id: str,
-) -> Optional[IngestionTask]:
-    """Lấy task mới nhất của một document (nếu có)."""
-    stmt = (
-        select(IngestionTask)
-        .where(IngestionTask.document_id == document_id)
-        .order_by(IngestionTask.created_at.desc())
-        .limit(1)
-    )
-    result = await db.execute(stmt)
-    return result.scalar_one_or_none()
-
-
-async def queue_document_ingestion(
-    db: AsyncSession,
-    document_id: str,
-    *,
-    force_reindex: bool = False,
-) -> tuple[Document, IngestionTask, bool]:
-    """
-    Create a new pending ingestion task for an existing document.
-
-    If a task is already pending/processing, it is returned as-is.
-    """
-    document = await db.get(Document, document_id)
-    if not document:
-        raise ValueError(f"Document not found: {document_id}")
-
-    latest_task = await get_latest_task_for_document(db, document_id)
-    if latest_task and latest_task.status in {"pending", "processing"}:
-        return document, latest_task, False
-
-    if force_reindex and document.chunk_count > 0:
-        _delete_document_chunks_from_chromadb(document.id, document.chunk_count)
-        document.chunk_count = 0
-
-    task = IngestionTask(
-        document_id=document.id,
-        status="pending",
-    )
-    db.add(task)
-    await db.flush()
-
-    logger.info(
-        "Queued ingestion task: doc_id=%s, task_id=%s, force_reindex=%s",
-        document.id,
-        task.id,
-        force_reindex,
-    )
-    return document, task, True
-
-
-async def get_document_markdown(
-    db: AsyncSession,
-    document_id: str,
-) -> tuple[Document, str]:
-    """Extract markdown/text content for a stored document."""
-    document = await db.get(Document, document_id)
-    if not document:
-        raise ValueError(f"Document not found: {document_id}")
-
-    extraction = extract_text(document.file_path, use_docling=False)
-    if extraction.error:
-        raise RuntimeError(extraction.error)
-
-    return document, extraction.full_text
 
 
 async def get_document(

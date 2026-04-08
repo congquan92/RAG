@@ -21,50 +21,11 @@ from typing import Any, AsyncGenerator, Optional
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.chat import ChatMessage, ChatSession, ChatSessionSettings, ChatSourceRating
+from app.models.chat import ChatMessage, ChatSession
 from app.rag.generator import generate, generate_stream
 from app.rag.retriever import retrieve
 
 logger = logging.getLogger(__name__)
-
-
-def _parse_entity_types(raw: str | None) -> list[str] | None:
-    if not raw:
-        return None
-    try:
-        parsed = json.loads(raw)
-        if isinstance(parsed, list):
-            return [str(item) for item in parsed]
-    except json.JSONDecodeError:
-        logger.warning("Invalid kg_entity_types JSON: %s", raw)
-    return None
-
-
-def _serialize_entity_types(values: list[str] | None) -> str | None:
-    if values is None:
-        return None
-    if not values:
-        return None
-    normalized = [v.strip() for v in values if v and v.strip()]
-    if not normalized:
-        return None
-    return json.dumps(normalized, ensure_ascii=False)
-
-
-def _settings_payload(settings: ChatSessionSettings | None) -> dict[str, Any]:
-    if not settings:
-        return {
-            "description": None,
-            "system_prompt": None,
-            "kg_language": None,
-            "kg_entity_types": None,
-        }
-    return {
-        "description": settings.description,
-        "system_prompt": settings.system_prompt,
-        "kg_language": settings.kg_language,
-        "kg_entity_types": _parse_entity_types(settings.kg_entity_types),
-    }
 
 
 async def _get_message_count(db: AsyncSession, session_id: str) -> int:
@@ -80,7 +41,6 @@ async def _build_session_payload(db: AsyncSession, session: ChatSession) -> dict
         "created_at": session.created_at,
         "updated_at": session.updated_at,
         "message_count": await _get_message_count(db, session.id),
-        **_settings_payload(session.settings),
     }
 
 
@@ -164,82 +124,6 @@ async def delete_session(
     await db.delete(session)
     logger.info("Deleted chat session: id=%s", session_id)
     return session
-
-
-async def update_session_metadata(
-    db: AsyncSession,
-    session_id: str,
-    patch: dict[str, Any],
-) -> Optional[dict[str, Any]]:
-    """Update workspace-like metadata and prompt for an existing chat session."""
-    session = await db.get(ChatSession, session_id)
-    if not session:
-        return None
-
-    if "name" in patch:
-        name = patch.get("name")
-        if name is not None:
-            normalized = str(name).strip()
-            if not normalized:
-                raise ValueError("Workspace name cannot be empty.")
-            session.title = normalized
-
-    setting_keys = {"description", "system_prompt", "kg_language", "kg_entity_types"}
-    if any(key in patch for key in setting_keys):
-        settings_row = session.settings
-        if settings_row is None:
-            settings_row = ChatSessionSettings(session_id=session.id)
-            db.add(settings_row)
-
-        if "description" in patch:
-            settings_row.description = patch.get("description")
-
-        if "system_prompt" in patch:
-            settings_row.system_prompt = patch.get("system_prompt")
-
-        if "kg_language" in patch:
-            kg_language = patch.get("kg_language")
-            settings_row.kg_language = kg_language.strip() if isinstance(kg_language, str) and kg_language.strip() else None
-
-        if "kg_entity_types" in patch:
-            settings_row.kg_entity_types = _serialize_entity_types(patch.get("kg_entity_types"))
-
-    await db.flush()
-    logger.info("Updated session metadata: id=%s, fields=%s", session_id, sorted(patch.keys()))
-    return await _build_session_payload(db, session)
-
-
-async def upsert_source_rating(
-    db: AsyncSession,
-    assistant_message_id: str,
-    source_index: str,
-    rating: str,
-) -> ChatSourceRating:
-    """Create or update a relevance rating for one retrieved source."""
-    message = await db.get(ChatMessage, assistant_message_id)
-    if not message or message.role != "assistant":
-        raise ValueError(f"Assistant message not found: {assistant_message_id}")
-
-    stmt = select(ChatSourceRating).where(
-        ChatSourceRating.assistant_message_id == assistant_message_id,
-        ChatSourceRating.source_index == source_index,
-    )
-    result = await db.execute(stmt)
-    existing = result.scalar_one_or_none()
-
-    if existing:
-        existing.rating = rating
-        await db.flush()
-        return existing
-
-    row = ChatSourceRating(
-        assistant_message_id=assistant_message_id,
-        source_index=source_index,
-        rating=rating,
-    )
-    db.add(row)
-    await db.flush()
-    return row
 
 
 # ═════════════════════════════════════════════════════════════════════════════

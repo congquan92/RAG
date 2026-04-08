@@ -99,16 +99,9 @@ export function useCreateWorkspace() {
 }
 
 export function useUpdateWorkspace() {
-    const queryClient = useQueryClient();
-
     return useMutation({
-        mutationFn: async ({ id, data }: { id: string; data: UpdateWorkspace }) => {
-            const session = await api.patch<ServerChatSession>(`/chat/sessions/${id}`, data);
-            return mapSessionToWorkspace(session);
-        },
-        onSuccess: (_updated, variables) => {
-            queryClient.invalidateQueries({ queryKey: ["workspaces"] });
-            queryClient.invalidateQueries({ queryKey: ["workspaces", variables.id] });
+        mutationFn: async (_params: { id: string; data: UpdateWorkspace }) => {
+            throw new Error("Workspace metadata/prompt update is not supported by this server yet.");
         },
     });
 }

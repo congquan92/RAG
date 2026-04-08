@@ -6,15 +6,13 @@ TRƯỚC khi gọi Base.metadata.create_all() trong lifespan.
 """
 
 from app.core.database import Base
-from app.models.chat import ChatMessage, ChatSession, ChatSessionSettings, ChatSourceRating
+from app.models.chat import ChatMessage, ChatSession
 from app.models.document import Document, IngestionTask
 
 __all__ = [
     "Base",
     "ChatSession",
     "ChatMessage",
-    "ChatSessionSettings",
-    "ChatSourceRating",
     "Document",
     "IngestionTask",
 ]

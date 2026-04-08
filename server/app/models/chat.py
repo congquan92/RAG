@@ -13,7 +13,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -64,15 +64,6 @@ class ChatSession(Base):
         lazy="selectin",
     )
 
-    # Optional workspace-level settings mapped by session id.
-    settings: Mapped[ChatSessionSettings | None] = relationship(
-        "ChatSessionSettings",
-        back_populates="session",
-        cascade="all, delete-orphan",
-        uselist=False,
-        lazy="selectin",
-    )
-
     def __repr__(self) -> str:
         return f"<ChatSession id={self.id!r} title={self.title!r}>"
 
@@ -116,77 +107,6 @@ class ChatMessage(Base):
         "ChatSession", back_populates="messages"
     )
 
-    source_ratings: Mapped[list[ChatSourceRating]] = relationship(
-        "ChatSourceRating",
-        back_populates="assistant_message",
-        cascade="all, delete-orphan",
-        lazy="selectin",
-    )
-
     def __repr__(self) -> str:
         preview = self.content[:50] if self.content else ""
         return f"<ChatMessage id={self.id!r} role={self.role!r} content={preview!r}>"
-
-
-class ChatSessionSettings(Base):
-    """
-    Workspace-like metadata bound to a chat session.
-
-    Stores prompt and KG settings used by the client settings UI.
-    """
-
-    __tablename__ = "chat_session_settings"
-
-    session_id: Mapped[str] = mapped_column(
-        String(36),
-        ForeignKey("chat_sessions.id", ondelete="CASCADE"),
-        primary_key=True,
-    )
-    description: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
-    system_prompt: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
-    kg_language: Mapped[str | None] = mapped_column(String(64), nullable=True, default=None)
-    kg_entity_types: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
-    )
-
-    session: Mapped[ChatSession] = relationship(
-        "ChatSession", back_populates="settings"
-    )
-
-
-class ChatSourceRating(Base):
-    """User feedback per assistant message citation source."""
-
-    __tablename__ = "chat_source_ratings"
-    __table_args__ = (
-        UniqueConstraint(
-            "assistant_message_id",
-            "source_index",
-            name="uq_chat_source_ratings_message_source",
-        ),
-    )
-
-    id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=_generate_uuid
-    )
-    assistant_message_id: Mapped[str] = mapped_column(
-        String(36),
-        ForeignKey("chat_messages.id", ondelete="CASCADE"),
-        index=True,
-    )
-    source_index: Mapped[str] = mapped_column(String(64), index=True)
-    rating: Mapped[str] = mapped_column(String(20))
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
-    )
-
-    assistant_message: Mapped[ChatMessage] = relationship(
-        "ChatMessage", back_populates="source_ratings"
-    )

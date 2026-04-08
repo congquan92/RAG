@@ -15,27 +15,42 @@ import { DocumentCard } from "./DocumentCard";
 import { cn } from "@/lib/utils";
 import type { Document, RAGStats, DocumentStatus, KnowledgeBase, UpdateWorkspace } from "@/types";
 
-const PROCESSING_STATUSES = new Set<DocumentStatus>(["parsing", "indexing", "processing"]);
-const PROCESSABLE_STATUSES = new Set<DocumentStatus>(["pending", "failed"]);
-const BATCH_PROCESS_SUPPORTED = true;
+const PROCESSING_STATUSES = new Set<DocumentStatus>(["pending", "parsing", "indexing", "processing"]);
+const BATCH_PROCESS_SUPPORTED = false;
+
+export interface PendingUploadItem {
+    id: string;
+    filename: string;
+    file_size: number;
+    phase: "uploading" | "pending" | "parsing" | "indexing" | "failed";
+    chunksProcessed?: number;
+    documentId?: string;
+    error?: string | null;
+}
+
+function getPendingPhaseLabel(item: PendingUploadItem): string {
+    if (item.phase === "uploading") return "Đang tải lên";
+    if (item.phase === "pending") return "Đã nhận, chờ xử lý";
+    if (item.phase === "parsing") return "Đang parsing";
+    if (item.phase === "indexing") return item.chunksProcessed && item.chunksProcessed > 0 ? `Đang indexing (${item.chunksProcessed} chunks)` : "Đang indexing";
+    return "Thất bại";
+}
 
 interface DataPanelProps {
     workspace: KnowledgeBase | undefined;
     documents: Document[] | undefined;
+    pendingUploads: PendingUploadItem[];
     docsLoading: boolean;
     ragStats: RAGStats | undefined;
     selectedDocId: string | null;
     onSelectDoc: (doc: Document) => void;
     onUpload: (file: File, customMetadata?: { key: string; value: string }[]) => void;
     isUploading: boolean;
-    onProcessDocument: (doc: Document, mode: "process" | "reindex") => void;
-    onBatchProcess: (docIds: string[]) => void;
-    isBatchProcessing: boolean;
     onDelete: (id: string) => void;
     onUpdateWorkspace: (data: UpdateWorkspace) => Promise<void>;
 }
 
-export const DataPanel = memo(function DataPanel({ workspace, documents, docsLoading, ragStats, selectedDocId, onSelectDoc, onUpload, isUploading, onProcessDocument, onBatchProcess, isBatchProcessing, onDelete, onUpdateWorkspace }: DataPanelProps) {
+export const DataPanel = memo(function DataPanel({ workspace, documents, pendingUploads, docsLoading, ragStats, selectedDocId, onSelectDoc, onUpload, isUploading, onDelete, onUpdateWorkspace }: DataPanelProps) {
     const navigate = useNavigate();
     const [deleteDocConfirm, setDeleteDocConfirm] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
@@ -55,10 +70,11 @@ export const DataPanel = memo(function DataPanel({ workspace, documents, docsLoa
         [customMetadata, onUpload],
     );
 
-    const processingCount = useMemo(() => documents?.filter((d) => PROCESSING_STATUSES.has(d.status)).length ?? 0, [documents]);
-
-    const pendingCount = useMemo(() => documents?.filter((d) => PROCESSABLE_STATUSES.has(d.status)).length ?? 0, [documents]);
-    const batchProcessing = isBatchProcessing;
+    const processingCount = useMemo(() => {
+        const fromDocuments = documents?.filter((d) => PROCESSING_STATUSES.has(d.status)).length ?? 0;
+        const fromPendingUploads = pendingUploads.filter((u) => u.phase !== "failed").length;
+        return fromDocuments + fromPendingUploads;
+    }, [documents, pendingUploads]);
 
     const filteredDocs = useMemo(() => {
         if (!documents) return [];
@@ -85,16 +101,6 @@ export const DataPanel = memo(function DataPanel({ workspace, documents, docsLoa
         });
         return counts as Record<FilterStatus, number>;
     }, [documents]);
-
-    const handleBatchProcess = useCallback(async () => {
-        if (!documents) return;
-        const ids = documents.filter((d) => PROCESSABLE_STATUSES.has(d.status)).map((d) => d.id);
-        if (ids.length === 0) {
-            toast.info("No pending documents to process.");
-            return;
-        }
-        onBatchProcess(ids);
-    }, [documents, onBatchProcess]);
 
     const handleStartEdit = () => {
         if (workspace) {
@@ -175,29 +181,44 @@ export const DataPanel = memo(function DataPanel({ workspace, documents, docsLoa
                 </div>
                 <StatsBar stats={ragStats} processingCount={processingCount} />
 
-                {/* Analyze All banner — compact for narrow panel */}
-                {BATCH_PROCESS_SUPPORTED && pendingCount > 0 && (
+                {/* Analyze All banner — hidden when server does not support batch processing */}
+                {BATCH_PROCESS_SUPPORTED && (
                     <button
-                        onClick={handleBatchProcess}
-                        disabled={batchProcessing || processingCount > 0}
-                        className={cn(
-                            "w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-md",
-                            "border border-blue-400/20 bg-blue-400/[0.06]",
-                            "hover:bg-blue-400/10 transition-colors",
-                            (batchProcessing || processingCount > 0) && "opacity-50 pointer-events-none",
-                        )}
+                        onClick={() => toast.info("Manual batch processing is temporarily unavailable.")}
+                        disabled
+                        className={cn("w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-md", "border border-blue-400/20 bg-blue-400/[0.06]", "hover:bg-blue-400/10 transition-colors", "opacity-50 pointer-events-none")}
                     >
                         <div className="flex items-center gap-2 min-w-0">
-                            <Sparkles className={cn("w-3.5 h-3.5 text-blue-400 flex-shrink-0", batchProcessing && "animate-spin")} />
-                            <span className="text-[11px] font-medium text-blue-400 truncate">{batchProcessing ? "Starting..." : `Analyze All (${pendingCount})`}</span>
+                            <Sparkles className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
+                            <span className="text-[11px] font-medium text-blue-400 truncate">Analyze All</span>
                         </div>
-                        <span className="text-[10px] text-muted-foreground flex-shrink-0">{pendingCount} pending</span>
+                        <span className="text-[10px] text-muted-foreground flex-shrink-0">Unavailable</span>
                     </button>
                 )}
             </div>
 
             {/* Document list — ~80% */}
             <div className="flex-1 overflow-hidden flex flex-col">
+                {pendingUploads.length > 0 && (
+                    <div className="px-3 pt-2 pb-1.5 border-b">
+                        <div className="rounded-md border border-amber-400/20 bg-amber-400/[0.06] px-2.5 py-2 space-y-1.5">
+                            <p className="text-[11px] font-medium text-amber-400">Tệp đang xử lý</p>
+                            <div className="space-y-1">
+                                {pendingUploads.slice(0, 3).map((item) => (
+                                    <div key={item.id} className="flex items-center justify-between gap-2 text-[11px]">
+                                        <div className="min-w-0 flex items-center gap-1.5">
+                                            <Loader2 className={cn("w-3 h-3 flex-shrink-0", item.phase !== "failed" && "animate-spin", item.phase === "failed" ? "text-destructive" : "text-amber-400")} />
+                                            <span className="truncate text-foreground/90">{item.filename}</span>
+                                        </div>
+                                        <span className={cn("flex-shrink-0", item.phase === "failed" ? "text-destructive" : "text-amber-400")}>{getPendingPhaseLabel(item)}</span>
+                                    </div>
+                                ))}
+                                {pendingUploads.length > 3 && <p className="text-[10px] text-muted-foreground">+{pendingUploads.length - 3} tệp khác</p>}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {docsLoading ? (
                     <div className="flex items-center justify-center py-8">
                         <Loader2 className="w-4 h-4 animate-spin text-muted-foreground mr-2" />
@@ -205,7 +226,11 @@ export const DataPanel = memo(function DataPanel({ workspace, documents, docsLoa
                     </div>
                 ) : !documents || documents.length === 0 ? (
                     <div className="flex-1 flex items-center justify-center px-3">
-                        <p className="text-xs text-muted-foreground text-center">No documents yet. Drop files above to get started.</p>
+                        {pendingUploads.length > 0 ? (
+                            <p className="text-xs text-muted-foreground text-center">Tệp đã được tải lên và đang xử lý. Tài liệu sẽ xuất hiện trong danh sách sau ít giây.</p>
+                        ) : (
+                            <p className="text-xs text-muted-foreground text-center">Chưa có tài liệu. Hãy kéo thả tệp ở phía trên để bắt đầu.</p>
+                        )}
                     </div>
                 ) : (
                     <>
@@ -216,10 +241,10 @@ export const DataPanel = memo(function DataPanel({ workspace, documents, docsLoa
                         <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1.5">
                             <AnimatePresence mode="popLayout">
                                 {filteredDocs.map((doc) => (
-                                    <DocumentCard key={doc.id} doc={doc} selected={doc.id === selectedDocId} onProcess={onProcessDocument} onDelete={setDeleteDocConfirm} onClick={onSelectDoc} />
+                                    <DocumentCard key={doc.id} doc={doc} selected={doc.id === selectedDocId} onDelete={setDeleteDocConfirm} onClick={onSelectDoc} />
                                 ))}
                             </AnimatePresence>
-                            {filteredDocs.length === 0 && documents.length > 0 && <div className="text-center py-4 text-[11px] text-muted-foreground">No documents match your filter</div>}
+                            {filteredDocs.length === 0 && documents.length > 0 && <div className="text-center py-4 text-[11px] text-muted-foreground">Không có tài liệu khớp bộ lọc</div>}
                         </div>
                     </>
                 )}

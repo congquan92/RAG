@@ -1,6 +1,6 @@
 import { memo, useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { FileText, FileType, Presentation, FileCode, Hash, Trash2, CheckCircle2, XCircle, Loader2, Clock, File, Play, RefreshCw } from "lucide-react";
+import { FileText, FileType, Presentation, FileCode, Hash, Trash2, CheckCircle2, XCircle, Loader2, Clock, File } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Document, DocumentStatus } from "@/types";
@@ -25,13 +25,13 @@ function getFileConfig(fileType: string) {
 // Status badge
 // ---------------------------------------------------------------------------
 const STATUS_CONFIG: Record<DocumentStatus, { label: string; className: string; icon: typeof CheckCircle2 }> = {
-    pending: { label: "Pending", className: "bg-muted text-muted-foreground", icon: Clock },
-    parsing: { label: "Parsing", className: "bg-blue-400/15 text-blue-400", icon: Loader2 },
-    indexing: { label: "Indexing", className: "bg-amber-400/15 text-amber-400", icon: Loader2 },
-    processing: { label: "Processing", className: "bg-amber-400/15 text-amber-400", icon: Loader2 },
-    completed: { label: "Completed", className: "bg-emerald-500/15 text-emerald-500", icon: CheckCircle2 },
-    indexed: { label: "Indexed", className: "bg-primary/15 text-primary", icon: CheckCircle2 },
-    failed: { label: "Failed", className: "bg-destructive/15 text-destructive", icon: XCircle },
+    pending: { label: "Chờ xử lý", className: "bg-muted text-muted-foreground", icon: Clock },
+    parsing: { label: "Đang parsing", className: "bg-blue-400/15 text-blue-400", icon: Loader2 },
+    indexing: { label: "Đang indexing", className: "bg-amber-400/15 text-amber-400", icon: Loader2 },
+    processing: { label: "Đang xử lý", className: "bg-amber-400/15 text-amber-400", icon: Loader2 },
+    completed: { label: "Hoàn tất", className: "bg-emerald-500/15 text-emerald-500", icon: CheckCircle2 },
+    indexed: { label: "Đã index", className: "bg-primary/15 text-primary", icon: CheckCircle2 },
+    failed: { label: "Thất bại", className: "bg-destructive/15 text-destructive", icon: XCircle },
 };
 
 function StatusBadge({ status }: { status: DocumentStatus }) {
@@ -77,18 +77,15 @@ interface DocumentCardProps {
     doc: Document;
     selected?: boolean;
     onDelete: (id: string) => void;
-    onProcess?: (doc: Document, mode: "process" | "reindex") => void;
     onClick?: (doc: Document) => void;
 }
 
-export const DocumentCard = memo(function DocumentCard({ doc, selected, onDelete, onProcess, onClick }: DocumentCardProps) {
+export const DocumentCard = memo(function DocumentCard({ doc, selected, onDelete, onClick }: DocumentCardProps) {
     const fileConfig = getFileConfig(doc.file_type);
     const FileIcon = fileConfig.icon;
     const sizeStr = doc.file_size >= 1024 * 1024 ? `${(doc.file_size / (1024 * 1024)).toFixed(1)} MB` : `${Math.round(doc.file_size / 1024)} KB`;
 
     const isActive = doc.status === "parsing" || doc.status === "indexing" || doc.status === "processing";
-    const canProcess = doc.status === "pending" || doc.status === "failed";
-    const canReindex = doc.status === "indexed" || doc.status === "completed";
 
     // Elapsed time for active processing
     const [elapsed, setElapsed] = useState("");
@@ -145,7 +142,7 @@ export const DocumentCard = memo(function DocumentCard({ doc, selected, onDelete
                     <div className="flex items-center gap-2 mt-0.5">
                         <span className="text-xs text-muted-foreground">{sizeStr}</span>
                         {doc.parser_version && <span className="text-xs text-muted-foreground/60">{doc.parser_version}</span>}
-                        {isActive && <span className="text-xs text-blue-400/80 font-medium animate-pulse">Analyzing{elapsed ? ` (${elapsed})` : "..."}</span>}
+                        {isActive && <span className="text-xs text-blue-400/80 font-medium animate-pulse">Đang phân tích{elapsed ? ` (${elapsed})` : "..."}</span>}
                     </div>
                     <MetadataChips doc={doc} />
                     {doc.error_message && <p className="text-xs text-destructive mt-1 truncate">{doc.error_message}</p>}
@@ -153,25 +150,6 @@ export const DocumentCard = memo(function DocumentCard({ doc, selected, onDelete
 
                 {/* Actions */}
                 <div className="flex items-center gap-1 flex-shrink-0">
-                    {(canProcess || canReindex) && (
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                if (canReindex) {
-                                    onProcess?.(doc, "reindex");
-                                } else {
-                                    onProcess?.(doc, "process");
-                                }
-                            }}
-                            className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                            title={canReindex ? "Reindex document" : "Process document"}
-                            disabled={isActive}
-                        >
-                            {canReindex ? <RefreshCw className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-                        </Button>
-                    )}
                     {/* Delete — hover only */}
                     <Button
                         variant="ghost"

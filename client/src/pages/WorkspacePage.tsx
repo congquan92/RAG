@@ -2,7 +2,7 @@ import { useMemo, useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { DataPanel } from "@/components/rag/DataPanel";
+import { DataPanel, type PendingUploadItem } from "@/components/rag/DataPanel";
 import { ChatPanel } from "@/components/rag/ChatPanel";
 import { VisualPanel } from "@/components/rag/VisualPanel";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
@@ -10,7 +10,7 @@ import { useWorkspace, useUpdateWorkspace } from "@/hooks/useWorkspaces";
 import { api } from "@/lib/api";
 import type { Document, RAGStats, DocumentStatus, UpdateWorkspace } from "@/types";
 
-const PROCESSING_STATUSES = new Set<DocumentStatus>(["pending", "processing"]);
+const PROCESSING_STATUSES = new Set<DocumentStatus>(["pending", "processing", "parsing", "indexing"]);
 
 interface ServerDocumentItem {
     id: string;
@@ -34,27 +34,20 @@ interface ServerDocumentUploadResponse {
 
 interface ServerIngestionTaskResponse {
     status: "pending" | "processing" | "completed" | "failed";
+    chunks_processed: number;
     error_message?: string | null;
-}
-
-interface ServerDocumentIngestionTriggerResponse {
-    document_id: string;
-    task_id: string;
-    status: "pending";
-    message: string;
-}
-
-interface ServerDocumentBatchProcessResponse {
-    queued: number;
-    tasks: Array<{
-        document_id: string;
-        task_id: string;
-    }>;
 }
 
 interface RuntimeTaskState {
     status: DocumentStatus;
+    chunksProcessed: number;
     error: string | null;
+}
+
+interface UploadMutationInput {
+    file: File;
+    customMetadata?: { key: string; value: string }[];
+    clientId: string;
 }
 
 function getFileType(filename: string, mimeType: string): string {
@@ -75,7 +68,48 @@ function mapServerStatus(chunkCount: number, latestTaskStatus?: ServerDocumentIt
     return chunkCount > 0 ? "indexed" : "pending";
 }
 
+function mapTaskResponseToRuntimeState(task: ServerIngestionTaskResponse): RuntimeTaskState {
+    if (task.status === "failed") {
+        return {
+            status: "failed",
+            chunksProcessed: task.chunks_processed ?? 0,
+            error: task.error_message ?? null,
+        };
+    }
+
+    if (task.status === "completed") {
+        return {
+            status: "indexed",
+            chunksProcessed: task.chunks_processed ?? 0,
+            error: null,
+        };
+    }
+
+    if (task.status === "processing") {
+        return {
+            status: (task.chunks_processed ?? 0) > 0 ? "indexing" : "parsing",
+            chunksProcessed: task.chunks_processed ?? 0,
+            error: null,
+        };
+    }
+
+    return {
+        status: "pending",
+        chunksProcessed: task.chunks_processed ?? 0,
+        error: null,
+    };
+}
+
+function mapTaskResponseToPendingPhase(task: ServerIngestionTaskResponse): PendingUploadItem["phase"] {
+    if (task.status === "failed") return "failed";
+    if (task.status === "pending") return "pending";
+    if (task.status === "processing") return (task.chunks_processed ?? 0) > 0 ? "indexing" : "parsing";
+    return "indexing";
+}
+
 function mapServerDocument(document: ServerDocumentItem, workspaceId: string, runtimeTask?: RuntimeTaskState): Document {
+    const liveChunkCount = runtimeTask ? Math.max(document.chunk_count, runtimeTask.chunksProcessed ?? 0) : document.chunk_count;
+
     return {
         id: document.id,
         workspace_id: workspaceId,
@@ -84,7 +118,7 @@ function mapServerDocument(document: ServerDocumentItem, workspaceId: string, ru
         file_type: getFileType(document.filename, document.mime_type),
         file_size: document.file_size,
         status: mapServerStatus(document.chunk_count, document.latest_task_status, runtimeTask),
-        chunk_count: document.chunk_count,
+        chunk_count: liveChunkCount,
         error_message: runtimeTask?.error ?? null,
         created_at: document.created_at,
         updated_at: document.created_at,
@@ -96,6 +130,7 @@ export function WorkspacePage() {
     const queryClient = useQueryClient();
 
     const [taskStateByDocId, setTaskStateByDocId] = useState<Record<string, RuntimeTaskState>>({});
+    const [pendingUploads, setPendingUploads] = useState<PendingUploadItem[]>([]);
 
     const wsId = workspaceId ?? null;
 
@@ -115,24 +150,40 @@ export function WorkspacePage() {
             for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
                 try {
                     const task = await api.get<ServerIngestionTaskResponse>(`/documents/status/${taskId}`);
-                    const nextStatus: DocumentStatus = task.status === "completed" ? "indexed" : task.status === "failed" ? "failed" : task.status;
+                    const nextRuntime = mapTaskResponseToRuntimeState(task);
 
                     setTaskStateByDocId((prev) => ({
                         ...prev,
                         [documentId]: {
-                            status: nextStatus,
-                            error: task.error_message ?? null,
+                            status: nextRuntime.status,
+                            chunksProcessed: nextRuntime.chunksProcessed,
+                            error: nextRuntime.error,
                         },
                     }));
 
+                    setPendingUploads((prev) =>
+                        prev.map((item) =>
+                            item.documentId === documentId
+                                ? {
+                                      ...item,
+                                      phase: mapTaskResponseToPendingPhase(task),
+                                      chunksProcessed: task.chunks_processed ?? 0,
+                                      error: task.error_message ?? null,
+                                  }
+                                : item,
+                        ),
+                    );
+
                     if (task.status === "completed") {
+                        setPendingUploads((prev) => prev.filter((item) => item.documentId !== documentId));
                         queryClient.invalidateQueries({ queryKey: ["documents"] });
                         return;
                     }
 
                     if (task.status === "failed") {
+                        setPendingUploads((prev) => prev.map((item) => (item.documentId === documentId ? { ...item, phase: "failed", error: task.error_message ?? "Xử lý tài liệu thất bại" } : item)));
                         queryClient.invalidateQueries({ queryKey: ["documents"] });
-                        toast.error(task.error_message || "Ingestion failed");
+                        toast.error(task.error_message || "Xử lý tài liệu thất bại");
                         return;
                     }
                 } catch {
@@ -146,12 +197,14 @@ export function WorkspacePage() {
                 ...prev,
                 [documentId]: {
                     status: "failed",
+                    chunksProcessed: 0,
                     error: "Ingestion timeout: task stayed pending too long.",
                 },
             }));
+            setPendingUploads((prev) => prev.map((item) => (item.documentId === documentId ? { ...item, phase: "failed", error: "Hết thời gian chờ xử lý (timeout)." } : item)));
             queryClient.invalidateQueries({ queryKey: ["documents"] });
 
-            toast.warning("Ingestion is taking longer than expected. Please refresh documents.");
+            toast.warning("Xử lý tài liệu đang lâu hơn dự kiến. Vui lòng tải lại danh sách tài liệu.");
         },
         [queryClient],
     );
@@ -169,6 +222,20 @@ export function WorkspacePage() {
         if (!workspaceId) return [];
         return (documentList?.documents ?? []).map((doc) => mapServerDocument(doc, workspaceId, taskStateByDocId[doc.id]));
     }, [documentList, taskStateByDocId, workspaceId]);
+
+    useEffect(() => {
+        const knownDocIds = new Set((documentList?.documents ?? []).map((doc) => doc.id));
+        if (knownDocIds.size === 0) return;
+        setPendingUploads((prev) => prev.filter((item) => !(item.documentId && knownDocIds.has(item.documentId))));
+    }, [documentList]);
+
+    useEffect(() => {
+        if (!pendingUploads.some((item) => item.phase === "failed")) return;
+        const timer = setTimeout(() => {
+            setPendingUploads((prev) => prev.filter((item) => item.phase !== "failed"));
+        }, 6000);
+        return () => clearTimeout(timer);
+    }, [pendingUploads]);
 
     const ragStats = useMemo<RAGStats>(() => {
         const indexedDocuments = documents.filter((doc) => doc.status === "indexed").length;
@@ -197,70 +264,28 @@ export function WorkspacePage() {
     const hasDeepragDocs = false;
 
     const uploadDoc = useMutation({
-        mutationFn: ({ file, customMetadata }: { file: File; customMetadata?: { key: string; value: string }[] }) => api.uploadFile<ServerDocumentUploadResponse>("/documents/upload", file, customMetadata),
-        onSuccess: (payload) => {
+        mutationFn: ({ file, customMetadata }: UploadMutationInput) => api.uploadFile<ServerDocumentUploadResponse>("/documents/upload", file, customMetadata),
+        onSuccess: (payload, variables) => {
+            setPendingUploads((prev) => prev.map((item) => (item.id === variables.clientId ? { ...item, phase: "pending", documentId: payload.document_id, chunksProcessed: 0, error: null } : item)));
             setTaskStateByDocId((prev) => ({
                 ...prev,
                 [payload.document_id]: {
                     status: "pending",
+                    chunksProcessed: 0,
                     error: null,
                 },
             }));
 
             queryClient.invalidateQueries({ queryKey: ["documents"] });
             queryClient.invalidateQueries({ queryKey: ["workspaces"] });
-            toast.success("Upload accepted. Ingestion is running in background.");
+            toast.success("Đã nhận file. Hệ thống đang xử lý ở nền.");
 
             void pollIngestionTask(payload.task_id, payload.document_id);
         },
-        onError: () => toast.error("Failed to upload document"),
-    });
-
-    const processDoc = useMutation({
-        mutationFn: ({ docId, mode }: { docId: string; mode: "process" | "reindex" }) => api.post<ServerDocumentIngestionTriggerResponse>(`/documents/${docId}/${mode}`),
-        onSuccess: (payload) => {
-            setTaskStateByDocId((prev) => ({
-                ...prev,
-                [payload.document_id]: {
-                    status: "pending",
-                    error: null,
-                },
-            }));
-
-            queryClient.invalidateQueries({ queryKey: ["documents"] });
-            toast.success(payload.message || "Document processing queued.");
-            void pollIngestionTask(payload.task_id, payload.document_id);
+        onError: (_error, variables) => {
+            setPendingUploads((prev) => prev.map((item) => (item.id === variables.clientId ? { ...item, phase: "failed", error: "Tải lên thất bại" } : item)));
+            toast.error(`Tải lên thất bại: ${variables.file.name}`);
         },
-        onError: () => toast.error("Failed to queue document processing"),
-    });
-
-    const batchProcess = useMutation({
-        mutationFn: (documentIds: string[]) => api.post<ServerDocumentBatchProcessResponse>("/documents/process/batch", { document_ids: documentIds }),
-        onSuccess: (payload) => {
-            if (payload.tasks.length === 0) {
-                toast.info("No documents were queued.");
-                return;
-            }
-
-            setTaskStateByDocId((prev) => {
-                const next = { ...prev };
-                for (const task of payload.tasks) {
-                    next[task.document_id] = {
-                        status: "pending",
-                        error: null,
-                    };
-                }
-                return next;
-            });
-
-            queryClient.invalidateQueries({ queryKey: ["documents"] });
-            for (const task of payload.tasks) {
-                void pollIngestionTask(task.task_id, task.document_id);
-            }
-
-            toast.success(`Queued ${payload.queued} document${payload.queued === 1 ? "" : "s"} for processing.`);
-        },
-        onError: () => toast.error("Failed to queue batch processing"),
     });
 
     const deleteDoc = useMutation({
@@ -294,25 +319,50 @@ export function WorkspacePage() {
     const handleUpdateWorkspace = useCallback(
         async (data: UpdateWorkspace) => {
             if (!wsId) return;
-            await updateWorkspace.mutateAsync({ id: wsId, data });
+            try {
+                await updateWorkspace.mutateAsync({ id: wsId, data });
+            } catch {
+                toast.info("Workspace metadata/prompt update is not supported by this server yet.");
+            }
         },
         [wsId, updateWorkspace],
     );
+
+    const handleUpload = useCallback(
+        (file: File, customMetadata?: { key: string; value: string }[]) => {
+            const clientId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
+            setPendingUploads((prev) => [
+                ...prev,
+                {
+                    id: clientId,
+                    filename: file.name,
+                    file_size: file.size,
+                    phase: "uploading",
+                    chunksProcessed: 0,
+                    error: null,
+                },
+            ]);
+
+            uploadDoc.mutate({ file, customMetadata, clientId });
+        },
+        [uploadDoc],
+    );
+
+    const hasActiveUploadRequest = pendingUploads.some((item) => item.phase === "uploading");
 
     return (
         <div className="h-full overflow-hidden grid grid-cols-[minmax(220px,20%)_minmax(300px,40%)_minmax(300px,40%)]">
             <DataPanel
                 workspace={workspace}
                 documents={documents}
+                pendingUploads={pendingUploads}
                 docsLoading={docsLoading}
                 ragStats={ragStats}
                 selectedDocId={selectedDoc?.id ?? null}
                 onSelectDoc={handleSelectDoc}
-                onUpload={(file, customMetadata) => uploadDoc.mutate({ file, customMetadata })}
-                isUploading={uploadDoc.isPending}
-                onProcessDocument={(doc, mode) => processDoc.mutate({ docId: doc.id, mode })}
-                onBatchProcess={(documentIds) => batchProcess.mutate(documentIds)}
-                isBatchProcessing={batchProcess.isPending}
+                onUpload={handleUpload}
+                isUploading={uploadDoc.isPending || hasActiveUploadRequest}
                 onDelete={(id) => deleteDoc.mutate(id)}
                 onUpdateWorkspace={handleUpdateWorkspace}
             />

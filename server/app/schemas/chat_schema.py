@@ -30,16 +30,6 @@ class ChatSessionCreate(BaseModel):
     )
 
 
-class ChatSessionUpdate(BaseModel):
-    """Request cập nhật metadata/prompt cho session."""
-
-    name: str | None = Field(default=None, max_length=255)
-    description: str | None = Field(default=None)
-    system_prompt: str | None = Field(default=None)
-    kg_language: str | None = Field(default=None, max_length=64)
-    kg_entity_types: list[str] | None = Field(default=None)
-
-
 class ChatQueryRequest(BaseModel):
     """Request gửi câu hỏi trong phiên chat."""
 
@@ -104,10 +94,6 @@ class ChatSessionResponse(BaseModel):
         default=0,
         description="Tổng số tin nhắn trong phiên.",
     )
-    description: str | None = None
-    system_prompt: str | None = None
-    kg_language: str | None = None
-    kg_entity_types: list[str] | None = None
 
     model_config = {"from_attributes": True}
 
@@ -119,10 +105,6 @@ class ChatSessionDetailResponse(BaseModel):
     title: str
     created_at: datetime
     updated_at: datetime
-    description: str | None = None
-    system_prompt: str | None = None
-    kg_language: str | None = None
-    kg_entity_types: list[str] | None = None
     messages: list[ChatMessageResponse] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
