@@ -108,7 +108,7 @@ function CitationLink({ index, source, relatedEntities }: { index: string; sourc
             <button
                 onClick={handleContentClick}
                 className="inline-flex items-center gap-0.5 h-[18px] px-1.5 mx-0.5 text-[10px] font-medium rounded-full bg-purple-400/15 text-purple-500 dark:text-purple-400 hover:bg-purple-400/25 transition-colors align-middle whitespace-nowrap"
-                title="View in Knowledge Graph"
+                title="Xem trong Knowledge Graph"
             >
                 <Brain className="w-2.5 h-2.5 flex-shrink-0" />
                 <span>KG-{index}</span>
@@ -117,7 +117,7 @@ function CitationLink({ index, source, relatedEntities }: { index: string; sourc
     }
 
     // Vector source — blue chip with FileText icon + docname-P.N
-    const docName = doc?.original_filename ? shortenDocName(doc.original_filename) : `Source ${index}`;
+    const docName = doc?.original_filename ? shortenDocName(doc.original_filename) : `Nguon ${index}`;
     const label = `${docName}-P.${source.page_no || "?"}`;
 
     return (
@@ -125,7 +125,7 @@ function CitationLink({ index, source, relatedEntities }: { index: string; sourc
             <button
                 onClick={handleContentClick}
                 className="inline-flex items-center gap-0.5 h-[18px] px-1.5 text-[10px] font-medium rounded-full bg-primary/12 text-primary hover:bg-primary/20 transition-colors whitespace-nowrap"
-                title={`View source: ${doc?.original_filename || "unknown"} (p.${source.page_no})`}
+                title={`Xem nguồn: ${doc?.original_filename || "không rõ"} (p.${source.page_no})`}
             >
                 <FileText className="w-2.5 h-2.5 flex-shrink-0" />
                 <span>{label}</span>
@@ -133,7 +133,7 @@ function CitationLink({ index, source, relatedEntities }: { index: string; sourc
             <button
                 onClick={handleKGClick}
                 className="inline-flex items-center justify-center w-[18px] h-[18px] text-[10px] font-bold rounded-full bg-purple-400/15 text-purple-500 dark:text-purple-400 hover:bg-purple-400/25 transition-colors"
-                title="Highlight in Knowledge Graph"
+                title="To sang trong Knowledge Graph"
             >
                 <Brain className="w-2.5 h-2.5" />
             </button>
@@ -154,7 +154,7 @@ function InlineImageRef({ imgRefId, imageRef }: { imgRefId: string; imageRef: Ch
         activateImageCitation(imageRef, doc);
     };
 
-    const docName = doc?.original_filename ? shortenDocName(doc.original_filename) : `Image ${imgRefId}`;
+    const docName = doc?.original_filename ? shortenDocName(doc.original_filename) : `Hinh ${imgRefId}`;
     const label = `${docName}-P.${imageRef.page_no || "?"}`;
 
     return (
@@ -162,14 +162,14 @@ function InlineImageRef({ imgRefId, imageRef }: { imgRefId: string; imageRef: Ch
             <button
                 onClick={handleClick}
                 className="inline-flex items-center gap-0.5 h-[18px] px-1.5 text-[10px] font-medium rounded-full bg-emerald-400/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-400/25 transition-colors align-middle whitespace-nowrap"
-                title={imageRef.caption || `Image from page ${imageRef.page_no}`}
+                title={imageRef.caption || `Hình từ trang ${imageRef.page_no}`}
             >
                 <ImageIcon className="w-2.5 h-2.5 flex-shrink-0" />
                 <span>{label}</span>
             </button>
             {showPreview && (
                 <a href={imageRef.url} target="_blank" rel="noopener noreferrer" className="block mt-1 rounded-md overflow-hidden border bg-white max-w-[280px] hover:border-primary/50 transition-colors">
-                    <img src={imageRef.url} alt={imageRef.caption || `Image from page ${imageRef.page_no}`} className="w-full h-auto max-h-[180px] object-contain" />
+                    <img src={imageRef.url} alt={imageRef.caption || `Hình từ trang ${imageRef.page_no}`} className="w-full h-auto max-h-[180px] object-contain" />
                     {imageRef.caption && (
                         <span className="block px-2 py-1 text-[9px] text-muted-foreground leading-tight border-t bg-muted/30">
                             p.{imageRef.page_no} — {imageRef.caption}
@@ -323,7 +323,7 @@ function CodeBlock({ language, children }: { language: string; children: ReactNo
                     "absolute top-2 left-2 p-1 rounded-md text-muted-foreground/50 hover:text-muted-foreground transition-all opacity-0 group-hover:opacity-100 z-10",
                     isDark ? "bg-white/5 hover:bg-white/10" : "bg-black/5 hover:bg-black/10",
                 )}
-                title="Copy code"
+                title="Sao chep code"
             >
                 {copied ? <ClipboardCheck className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
             </button>
@@ -432,7 +432,7 @@ function SourceRatingButtons({ sourceIndex, currentRating, onRate }: { sourceInd
                     onRate(sourceIndex, "relevant");
                 }}
                 className={cn("p-0.5 rounded transition-colors", currentRating === "relevant" ? "text-emerald-500" : "text-muted-foreground/20 hover:text-emerald-500/60")}
-                title="Relevant"
+                title="Lien quan"
             >
                 <ThumbsUp className="w-2.5 h-2.5" />
             </button>
@@ -442,7 +442,7 @@ function SourceRatingButtons({ sourceIndex, currentRating, onRate }: { sourceInd
                     onRate(sourceIndex, "not_relevant");
                 }}
                 className={cn("p-0.5 rounded transition-colors", currentRating === "not_relevant" ? "text-destructive" : "text-muted-foreground/20 hover:text-destructive/60")}
-                title="Not relevant"
+                title="Không liên quan"
             >
                 <ThumbsDown className="w-2.5 h-2.5" />
             </button>
@@ -471,14 +471,14 @@ function SourcesPanel({ sources, messageId }: { sources: ChatSourceChunk[]; mess
 
         if (!messageId) return;
 
-        toast.info("Source rating sync is temporarily unavailable on this server.");
+        toast.info("Tạm thời chưa đồng bộ được đánh giá nguồn trên server này.");
     };
 
     return (
         <div className="mt-2 rounded-md border bg-muted/20 overflow-hidden">
             <button onClick={() => setExpanded(!expanded)} className="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-medium text-muted-foreground hover:text-foreground transition-colors">
                 <FileText className="w-3 h-3" />
-                {vectorSources.length} source{vectorSources.length > 1 ? "s" : ""}
+                {vectorSources.length} nguồn
                 {kgSources.length > 0 && " + KG"}
                 <span className="ml-auto text-[10px]">{expanded ? "▲" : "▼"}</span>
             </button>
@@ -541,7 +541,7 @@ function ImageRefCard({ img }: { img: ChatImageRef }) {
     const doc = useFindDoc(img.document_id);
     return (
         <button onClick={() => activateImageCitation(img, doc)} className="group block rounded-md overflow-hidden border bg-background hover:border-primary/50 transition-colors text-left cursor-pointer">
-            <img src={img.url} alt={img.caption || `Image from page ${img.page_no}`} className="w-full h-auto max-h-[200px] object-contain bg-white" loading="lazy" />
+            <img src={img.url} alt={img.caption || `Hình từ trang ${img.page_no}`} className="w-full h-auto max-h-[200px] object-contain bg-white" loading="lazy" />
             {img.caption && (
                 <p className="px-2 py-1 text-[10px] text-muted-foreground leading-tight line-clamp-2 border-t">
                     p.{img.page_no} — {img.caption}
@@ -560,7 +560,7 @@ function ImageRefsPanel({ images }: { images: ChatImageRef[] }) {
         <div className="mt-2 rounded-md border bg-muted/20 overflow-hidden">
             <button onClick={() => setExpanded(!expanded)} className="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-medium text-muted-foreground hover:text-foreground transition-colors">
                 <ImageIcon className="w-3 h-3" />
-                {images.length} image{images.length > 1 ? "s" : ""} from documents
+                {images.length} hình ảnh từ tài liệu
                 <span className="ml-auto text-[10px]">{expanded ? "▲" : "▼"}</span>
             </button>
             <AnimatePresence>
@@ -593,7 +593,7 @@ function ThinkingPanel({ thinking }: { thinking: string }) {
                 className="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-medium text-violet-400 hover:text-violet-300 [[data-theme='light']_&]:text-violet-600 [[data-theme='light']_&]:hover:text-violet-700 transition-colors"
             >
                 <Brain className="w-3 h-3" />
-                Thinking process
+                Quá trình suy nghĩ
                 <ChevronDown className={cn("w-3 h-3 ml-auto transition-transform", expanded && "rotate-180")} />
             </button>
             <AnimatePresence>
@@ -658,13 +658,13 @@ function CopyMessageActions({ content }: { content: string }) {
 
     return (
         <div className="flex items-center gap-0.5 mt-1.5">
-            <button onClick={() => handleCopy("text")} className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/60 transition-all text-[10px]" title="Copy as plain text">
+            <button onClick={() => handleCopy("text")} className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/60 transition-all text-[10px]" title="Sao chép dạng văn bản">
                 {copiedMode === "text" ? <ClipboardCheck className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-                <span>{copiedMode === "text" ? "Copied!" : "Copy text"}</span>
+                <span>{copiedMode === "text" ? "Đã sao chép!" : "Sao chép văn bản"}</span>
             </button>
-            <button onClick={() => handleCopy("markdown")} className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/60 transition-all text-[10px]" title="Copy as markdown">
+            <button onClick={() => handleCopy("markdown")} className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/60 transition-all text-[10px]" title="Sao chép dạng markdown">
                 {copiedMode === "markdown" ? <ClipboardCheck className="w-3 h-3 text-emerald-500" /> : <FileCode className="w-3 h-3" />}
-                <span>{copiedMode === "markdown" ? "Copied!" : "Copy markdown"}</span>
+                <span>{copiedMode === "markdown" ? "Đã sao chép!" : "Sao chép markdown"}</span>
             </button>
         </div>
     );
@@ -794,7 +794,7 @@ function InlineThinkingPreview({ text }: { text: string }) {
         <div className="mt-1">
             <div className="flex items-center gap-1.5 mb-1.5">
                 <Brain className="w-3.5 h-3.5 text-violet-400 animate-pulse" />
-                <span className="text-xs font-medium text-violet-400">Thinking...</span>
+                <span className="text-xs font-medium text-violet-400">Đang suy nghĩ...</span>
             </div>
             <div
                 ref={containerRef}
@@ -812,13 +812,13 @@ function InlineThinkingPreview({ text }: { text: string }) {
 // Typing indicator
 // ---------------------------------------------------------------------------
 const STATUS_LABELS: Record<string, string> = {
-    analyzing: "Analyzing your question...",
-    retrieving: "Searching documents...",
-    generating: "Generating answer...",
+    analyzing: "Đang phân tích câu hỏi...",
+    retrieving: "Đang tìm kiếm tài liệu...",
+    generating: "Đang tạo câu trả lời...",
 };
 
 function TypingIndicator({ status }: { status?: ChatStreamStatus }) {
-    const label = (status && STATUS_LABELS[status]) || "Analyzing documents...";
+    const label = (status && STATUS_LABELS[status]) || "Đang phân tích tài liệu...";
     return (
         <div className="flex gap-2 items-start">
             <div className="relative w-6 h-6 flex-shrink-0">
@@ -841,15 +841,15 @@ function TypingIndicator({ status }: { status?: ChatStreamStatus }) {
 // Suggestion chips (empty state)
 // ---------------------------------------------------------------------------
 function SuggestionChips({ onSelect }: { onSelect: (q: string) => void }) {
-    const suggestions = ["Summarize the key findings", "What are the main topics?", "List important entities mentioned", "Explain the methodology used"];
+    const suggestions = ["Tóm tắt các phát hiện chính", "Chủ đề chính trong tài liệu là gì?", "Liệt kê các entity quan trọng", "Giải thích phương pháp được sử dụng"];
 
     return (
         <div className="flex-1 flex flex-col items-center justify-center px-4">
             <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
                 <Sparkles className="w-6 h-6 text-primary" />
             </div>
-            <h3 className="text-sm font-semibold mb-1">AI Document Assistant</h3>
-            <p className="text-xs text-muted-foreground text-center mb-4 max-w-[240px]">Ask questions about your documents. I'll find relevant information and cite my sources.</p>
+            <h3 className="text-sm font-semibold mb-1">Trợ lý tài liệu AI</h3>
+            <p className="text-xs text-muted-foreground text-center mb-4 max-w-[240px]">Đặt câu hỏi về tài liệu của bạn. Tôi sẽ tìm thông tin liên quan và trích dẫn nguồn.</p>
             <div className="flex flex-wrap gap-1.5 justify-center max-w-[300px]">
                 {suggestions.map((s) => (
                     <button key={s} onClick={() => onSelect(s)} className="text-[11px] px-2.5 py-1 rounded-full border bg-card hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
@@ -956,7 +956,7 @@ export const ChatPanel = memo(function ChatPanel({ workspaceId, hasIndexedDocs, 
                 setDebugMode((prev) => {
                     const next = !prev;
                     localStorage.setItem("nexusrag-debug-mode", String(next));
-                    toast.success(next ? "Debug mode ON" : "Debug mode OFF");
+                    toast.success(next ? "Đã bật Debug mode" : "Đã tắt Debug mode");
                     return next;
                 });
             }
@@ -978,12 +978,12 @@ export const ChatPanel = memo(function ChatPanel({ workspaceId, hasIndexedDocs, 
     const promptIsDirty = promptDraft !== effectivePrompt;
 
     const handleSavePrompt = useCallback(() => {
-        toast.info("System prompt save is not supported by this server yet.");
+        toast.info("Server hiện chưa hỗ trợ lưu system prompt.");
     }, []);
 
     const handleResetPrompt = useCallback(() => {
         setPromptDraft(DEFAULT_SYSTEM_PROMPT);
-        toast.info("Prompt reset in editor. Click Save to persist.");
+        toast.info("Đã đặt lại prompt trong editor. Bấm Lưu để ghi nhận.");
     }, []);
 
     const thinkingSupported = false;
@@ -1249,13 +1249,13 @@ export const ChatPanel = memo(function ChatPanel({ workspaceId, hasIndexedDocs, 
                     ),
                 );
             } else if (stream.error) {
-                toast.error("Chat failed: " + stream.error);
+                toast.error("Chat thất bại: " + stream.error);
                 setMessages((prev) =>
                     prev.map((m) =>
                         m.id === assistantId
                             ? {
                                   ...m,
-                                  content: m.content || "Sorry, I encountered an error. Please try again.",
+                                  content: m.content || "Xin loi, da xay ra loi. Vui long thu lai.",
                                   isStreaming: false,
                               }
                             : m,
@@ -1316,8 +1316,8 @@ export const ChatPanel = memo(function ChatPanel({ workspaceId, hasIndexedDocs, 
         return (
             <div className="h-full flex flex-col items-center justify-center px-4 border-r">
                 <Bot className="w-10 h-10 text-muted-foreground/30 mb-3" />
-                <p className="text-sm text-muted-foreground text-center">Index some documents to start chatting</p>
-                <p className="text-[11px] text-muted-foreground/60 mt-1">Upload and process documents in the data panel</p>
+                <p className="text-sm text-muted-foreground text-center">Hãy index tài liệu để bắt đầu chat</p>
+                <p className="text-[11px] text-muted-foreground/60 mt-1">Upload và xử lý tài liệu trong cột dữ liệu</p>
             </div>
         );
     }
@@ -1331,7 +1331,7 @@ export const ChatPanel = memo(function ChatPanel({ workspaceId, hasIndexedDocs, 
                         <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-b">
                             <div className="flex items-center gap-2">
                                 <Bot className="w-4 h-4 text-primary" />
-                                <span className="text-sm font-semibold">AI Assistant</span>
+                                <span className="text-sm font-semibold">Trợ lý AI</span>
                             </div>
                             <div className="flex items-center gap-1.5">
                                 {/* Thinking toggle — only visible when model supports thinking */}
@@ -1339,31 +1339,31 @@ export const ChatPanel = memo(function ChatPanel({ workspaceId, hasIndexedDocs, 
                                     <button
                                         onClick={() => setEnableThinking((prev) => !prev)}
                                         className={cn("flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] transition-colors", enableThinking ? "text-violet-400 bg-violet-400/10 hover:bg-violet-400/15" : "text-muted-foreground hover:bg-muted")}
-                                        title={enableThinking ? "Thinking mode ON" : "Thinking mode OFF"}
+                                        title={enableThinking ? "Đã bật chế độ Thinking" : "Đã tắt chế độ Thinking"}
                                     >
                                         <Brain className="w-3 h-3" />
-                                        <span>{enableThinking ? "Think" : "Think"}</span>
+                                        <span>Thinking</span>
                                     </button>
                                 )}
                                 {/* Force search toggle */}
                                 <button
                                     onClick={() => setForceSearch((prev) => !prev)}
                                     className={cn("flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] transition-colors", forceSearch ? "text-amber-500 bg-amber-500/10 hover:bg-amber-500/15" : "text-muted-foreground hover:bg-muted")}
-                                    title={forceSearch ? "Force Search ON — pre-searches before every answer" : "Force Search OFF — AI decides when to search"}
+                                    title={forceSearch ? "Đã bật Force Search — tìm kiếm trước mỗi câu trả lời" : "Đã tắt Force Search — AI tự quyết định khi nào tìm kiếm"}
                                 >
                                     <DatabaseZap className="w-3 h-3" />
-                                    <span>Search</span>
+                                    <span>Tìm kiếm</span>
                                 </button>
                                 {/* System prompt settings */}
                                 <button
                                     onClick={() => setShowPromptEditor((p) => !p)}
                                     className={cn("flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] transition-colors", showPromptEditor ? "text-blue-500 bg-blue-500/10 hover:bg-blue-500/15" : "text-muted-foreground hover:bg-muted")}
-                                    title="System prompt settings"
+                                    title="Cai dat system prompt"
                                 >
                                     <Settings className="w-3 h-3" />
                                 </button>
                                 {messages.length > 0 && (
-                                    <button onClick={handleClear} className="p-1 rounded hover:bg-muted transition-colors" title="Clear chat">
+                                    <button onClick={handleClear} className="p-1 rounded hover:bg-muted transition-colors" title="Xóa chat">
                                         <Trash2 className="w-3.5 h-3.5 text-muted-foreground" />
                                     </button>
                                 )}
@@ -1379,13 +1379,13 @@ export const ChatPanel = memo(function ChatPanel({ workspaceId, hasIndexedDocs, 
                                         <div className="flex items-center justify-between">
                                             <span className="text-[11px] font-medium text-muted-foreground">System Prompt</span>
                                             <span className={cn("text-[9px] px-1.5 py-0.5 rounded-full font-medium", isCustom ? "bg-blue-500/15 text-blue-600 dark:text-blue-400" : "bg-muted text-muted-foreground/50")}>
-                                                {isCustom ? "Custom" : "Default"}
+                                                {isCustom ? "Tuy chinh" : "Mac dinh"}
                                             </span>
                                         </div>
                                         <textarea
                                             value={promptDraft}
                                             onChange={(e) => setPromptDraft(e.target.value)}
-                                            placeholder="Enter your custom system prompt..."
+                                            placeholder="Nhap system prompt tuy chinh..."
                                             rows={8}
                                             className={cn(
                                                 "w-full resize-none rounded-md border border-input bg-background px-2.5 py-2 text-xs",
@@ -1398,12 +1398,12 @@ export const ChatPanel = memo(function ChatPanel({ workspaceId, hasIndexedDocs, 
                                             <div className="relative group/cite">
                                                 <div className="flex items-center gap-1 cursor-help">
                                                     <Info className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                                                    <span className="text-[10px] text-blue-600 dark:text-blue-400 font-medium">Hard rules auto-appended</span>
+                                                    <span className="text-[10px] text-blue-600 dark:text-blue-400 font-medium">Hard rules tu dong duoc them</span>
                                                 </div>
                                                 {/* Tooltip on hover — below icon */}
                                                 <div className="absolute left-0 top-full mt-1.5 z-50 w-[340px] rounded-lg border border-border bg-background shadow-xl opacity-0 pointer-events-none group-hover/cite:opacity-100 group-hover/cite:pointer-events-auto transition-opacity duration-150">
                                                     <div className="px-3 py-2.5">
-                                                        <p className="text-[10px] font-semibold text-blue-700 dark:text-blue-300 mb-1.5">Citation + Formatting + Restrictions (always enforced)</p>
+                                                        <p className="text-[10px] font-semibold text-blue-700 dark:text-blue-300 mb-1.5">Citation + Dinh dang + Rang buoc (luon ap dung)</p>
                                                         <ul className="space-y-1">
                                                             {HARD_RULES_SUMMARY.map((rule, i) => (
                                                                 <li key={i} className="text-[10px] text-foreground/70 leading-snug flex gap-1">
@@ -1424,10 +1424,10 @@ export const ChatPanel = memo(function ChatPanel({ workspaceId, hasIndexedDocs, 
                                                     "flex items-center gap-1 px-2 py-1 rounded text-[10px] transition-colors",
                                                     isCustom || promptIsDirty ? "text-muted-foreground hover:bg-muted hover:text-foreground" : "text-muted-foreground/30 cursor-not-allowed",
                                                 )}
-                                                title="Reset to default prompt"
+                                                title="Dat lai prompt mac dinh"
                                             >
                                                 <RotateCcw className="w-3 h-3" />
-                                                Reset
+                                                Dat lai
                                             </button>
                                             <button
                                                 onClick={handleSavePrompt}
@@ -1438,7 +1438,7 @@ export const ChatPanel = memo(function ChatPanel({ workspaceId, hasIndexedDocs, 
                                                 )}
                                             >
                                                 <Save className="w-3 h-3" />
-                                                Save
+                                                Luu
                                             </button>
                                         </div>
                                     </div>
@@ -1472,7 +1472,7 @@ export const ChatPanel = memo(function ChatPanel({ workspaceId, hasIndexedDocs, 
                                     value={input}
                                     onChange={(e) => setInput(e.target.value)}
                                     onKeyDown={handleKeyDown}
-                                    placeholder="Ask about your documents..."
+                                    placeholder="Đặt câu hỏi về tài liệu của bạn..."
                                     rows={1}
                                     className={cn(
                                         "flex-1 resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm",
@@ -1490,7 +1490,7 @@ export const ChatPanel = memo(function ChatPanel({ workspaceId, hasIndexedDocs, 
                                     }}
                                 />
                                 {stream.isStreaming ? (
-                                    <button onClick={stream.cancel} className="flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center transition-colors bg-destructive/15 text-destructive hover:bg-destructive/25" title="Stop generating">
+                                    <button onClick={stream.cancel} className="flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center transition-colors bg-destructive/15 text-destructive hover:bg-destructive/25" title="Dung tao phan hoi">
                                         <Square className="w-3.5 h-3.5 fill-current" />
                                     </button>
                                 ) : (
@@ -1506,7 +1506,7 @@ export const ChatPanel = memo(function ChatPanel({ workspaceId, hasIndexedDocs, 
                                     </button>
                                 )}
                             </div>
-                            <p className="text-[9px] text-muted-foreground/50 mt-1 text-center">Press Enter to send, Shift+Enter for new line</p>
+                            <p className="text-[9px] text-muted-foreground/50 mt-1 text-center">Nhan Enter de gui, Shift+Enter de xuong dong</p>
                         </div>
                     </div>
                 </AllSourcesCtx.Provider>

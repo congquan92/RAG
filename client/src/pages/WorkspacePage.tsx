@@ -198,7 +198,7 @@ export function WorkspacePage() {
                 [documentId]: {
                     status: "failed",
                     chunksProcessed: 0,
-                    error: "Ingestion timeout: task stayed pending too long.",
+                    error: "Het thoi gian cho xu ly: task pending qua lau.",
                 },
             }));
             setPendingUploads((prev) => prev.map((item) => (item.documentId === documentId ? { ...item, phase: "failed", error: "Hết thời gian chờ xử lý (timeout)." } : item)));
@@ -299,9 +299,9 @@ export function WorkspacePage() {
             queryClient.invalidateQueries({ queryKey: ["documents"] });
             queryClient.invalidateQueries({ queryKey: ["workspaces"] });
             if (selectedDoc?.id === docId) selectDoc(null);
-            toast.success("Document deleted");
+            toast.success("Đã xóa tài liệu");
         },
-        onError: () => toast.error("Failed to delete document"),
+        onError: () => toast.error("Không thể xóa tài liệu"),
     });
 
     const handleSelectDoc = useCallback(
@@ -322,7 +322,7 @@ export function WorkspacePage() {
             try {
                 await updateWorkspace.mutateAsync({ id: wsId, data });
             } catch {
-                toast.info("Workspace metadata/prompt update is not supported by this server yet.");
+                toast.info("Server hiện chưa hỗ trợ cập nhật metadata/prompt cho workspace.");
             }
         },
         [wsId, updateWorkspace],

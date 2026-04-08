@@ -148,7 +148,7 @@ export function useRAGChatStream(workspaceId: string): RAGStreamResult {
             bufferRef.current = "";
             streamStartRef.current = Date.now();
 
-            let localSteps: AgentStep[] = [createStep("analyzing", "Preparing retrieval and generation...")];
+            let localSteps: AgentStep[] = [createStep("analyzing", "Đang chuẩn bị truy xuất và tạo câu trả lời...")];
             syncSteps(localSteps);
 
             let finalSources: ChatSourceChunk[] = [];
@@ -170,12 +170,12 @@ export function useRAGChatStream(workspaceId: string): RAGStreamResult {
                 });
 
                 if (!response.ok) {
-                    const err = await response.json().catch(() => ({ detail: "Stream request failed" }));
+                    const err = await response.json().catch(() => ({ detail: "Yêu cầu stream thất bại" }));
                     throw new Error(err.detail || `Error: ${response.status}`);
                 }
 
                 const reader = response.body?.getReader();
-                if (!reader) throw new Error("No response body");
+                if (!reader) throw new Error("Không có dữ liệu phản hồi");
 
                 const decoder = new TextDecoder();
                 let sseBuffer = "";
@@ -204,7 +204,7 @@ export function useRAGChatStream(workspaceId: string): RAGStreamResult {
 
                         if (event.type === "message_ids") {
                             if (!hasGenerationStep) {
-                                localSteps = [...completeActiveStep(localSteps), createStep("retrieving", "Retrieved supporting context", "completed")];
+                                localSteps = [...completeActiveStep(localSteps), createStep("retrieving", "Đã truy xuất ngữ cảnh hỗ trợ", "completed")];
                                 syncSteps(localSteps);
                             }
                             continue;
@@ -215,7 +215,7 @@ export function useRAGChatStream(workspaceId: string): RAGStreamResult {
                             if (!hasGenerationStep) {
                                 setStatus("generating");
                                 hasGenerationStep = true;
-                                localSteps = [...completeActiveStep(localSteps), createStep("generating", "Generating answer...")];
+                                localSteps = [...completeActiveStep(localSteps), createStep("generating", "Đang tạo câu trả lời...")];
                                 syncSteps(localSteps);
                             }
                             fullAnswer += token;
@@ -231,18 +231,18 @@ export function useRAGChatStream(workspaceId: string): RAGStreamResult {
                             localSteps = [
                                 ...completeActiveStep(localSteps),
                                 {
-                                    ...createStep("sources_found", `Found ${finalSources.length} source${finalSources.length === 1 ? "" : "s"}`, "completed"),
+                                    ...createStep("sources_found", `Tìm thấy ${finalSources.length} nguồn`, "completed"),
                                     sourceBadges: finalSources.map((s) => String(s.index)),
                                     sourceCount: finalSources.length,
                                 },
-                                createStep("generating", "Finalizing answer..."),
+                                createStep("generating", "Đang hoàn thiện câu trả lời..."),
                             ];
                             syncSteps(localSteps);
                             continue;
                         }
 
                         if (event.type === "error") {
-                            throw new Error(String(event.data ?? "Unknown stream error"));
+                            throw new Error(String(event.data ?? "Lỗi stream không xác định"));
                         }
 
                         if (event.type === "done") {
@@ -256,7 +256,7 @@ export function useRAGChatStream(workspaceId: string): RAGStreamResult {
                 flushTokenBuffer();
 
                 const totalMs = Date.now() - streamStartRef.current;
-                localSteps = [...completeActiveStep(localSteps), createStep("done", `Done in ${totalMs >= 1000 ? `${(totalMs / 1000).toFixed(1)}s` : `${totalMs}ms`}`, "completed")];
+                localSteps = [...completeActiveStep(localSteps), createStep("done", `Hoàn tất trong ${totalMs >= 1000 ? `${(totalMs / 1000).toFixed(1)}s` : `${totalMs}ms`}`, "completed")];
                 syncSteps(localSteps);
 
                 setStatus("idle");

@@ -21,8 +21,8 @@ export const UploadZone = memo(function UploadZone({ onUpload, isUploading, comp
 
     const validateFile = useCallback((file: File): string | null => {
         const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
-        if (!ACCEPTED_EXTENSIONS.has(ext)) return `Unsupported format: .${ext}`;
-        if (file.size > MAX_SIZE_MB * 1024 * 1024) return `File too large (max ${MAX_SIZE_MB}MB)`;
+        if (!ACCEPTED_EXTENSIONS.has(ext)) return `Định dạng không được hỗ trợ: .${ext}`;
+        if (file.size > MAX_SIZE_MB * 1024 * 1024) return `Tệp quá lớn (tối đa ${MAX_SIZE_MB}MB)`;
         return null;
     }, []);
 

@@ -30,7 +30,7 @@ export const TopBar = memo(function TopBar({ actions, className }: TopBarProps) 
     const segments: { label: string; active: boolean }[] = [{ label: "NexusRAG", active: false }];
 
     if (location.pathname === "/") {
-        segments.push({ label: "Knowledge Bases", active: true });
+        segments.push({ label: "Knowledge Base", active: true });
     } else if (location.pathname.startsWith("/knowledge-bases/")) {
         segments.push({ label: "Workspace", active: true });
     }
@@ -56,17 +56,17 @@ export const TopBar = memo(function TopBar({ actions, className }: TopBarProps) 
                                 "flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium",
                                 config.llm_provider === "ollama" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-blue-500/10 text-blue-600 dark:text-blue-400",
                             )}
-                            title={`LLM provider: ${config.llm_provider}`}
+                            title={`Nha cung cap LLM: ${config.llm_provider}`}
                         >
                             <Cpu className="w-3 h-3" />
                             <span>{config.llm_provider}</span>
                         </div>
-                        <div className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-500/10 text-purple-600 dark:text-purple-400" title={`Embedding provider: ${config.embedding_provider}`}>
+                        <div className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-500/10 text-purple-600 dark:text-purple-400" title={`Nha cung cap Embedding: ${config.embedding_provider}`}>
                             <Database className="w-3 h-3" />
                             <span>
                                 {config.embedding_provider}
-                                {!config.embedding_loaded ? " (loading)" : ""}
-                                {!config.reranker_loaded ? " / no-reranker" : ""}
+                                {!config.embedding_loaded ? " (đang tải)" : ""}
+                                {!config.reranker_loaded ? " / chua co reranker" : ""}
                             </span>
                         </div>
                     </div>

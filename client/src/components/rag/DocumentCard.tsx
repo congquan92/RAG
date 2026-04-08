@@ -26,8 +26,8 @@ function getFileConfig(fileType: string) {
 // ---------------------------------------------------------------------------
 const STATUS_CONFIG: Record<DocumentStatus, { label: string; className: string; icon: typeof CheckCircle2 }> = {
     pending: { label: "Chờ xử lý", className: "bg-muted text-muted-foreground", icon: Clock },
-    parsing: { label: "Đang parsing", className: "bg-blue-400/15 text-blue-400", icon: Loader2 },
-    indexing: { label: "Đang indexing", className: "bg-amber-400/15 text-amber-400", icon: Loader2 },
+    parsing: { label: "Đang parse", className: "bg-blue-400/15 text-blue-400", icon: Loader2 },
+    indexing: { label: "Đang index", className: "bg-amber-400/15 text-amber-400", icon: Loader2 },
     processing: { label: "Đang xử lý", className: "bg-amber-400/15 text-amber-400", icon: Loader2 },
     completed: { label: "Hoàn tất", className: "bg-emerald-500/15 text-emerald-500", icon: CheckCircle2 },
     indexed: { label: "Đã index", className: "bg-primary/15 text-primary", icon: CheckCircle2 },
@@ -52,10 +52,10 @@ function StatusBadge({ status }: { status: DocumentStatus }) {
 // ---------------------------------------------------------------------------
 function MetadataChips({ doc }: { doc: Document }) {
     const chips: { label: string; value: number }[] = [];
-    if (doc.page_count && doc.page_count > 0) chips.push({ label: "pages", value: doc.page_count });
+    if (doc.page_count && doc.page_count > 0) chips.push({ label: "trang", value: doc.page_count });
     if (doc.chunk_count > 0) chips.push({ label: "chunks", value: doc.chunk_count });
-    if (doc.image_count && doc.image_count > 0) chips.push({ label: "images", value: doc.image_count });
-    if (doc.table_count && doc.table_count > 0) chips.push({ label: "tables", value: doc.table_count });
+    if (doc.image_count && doc.image_count > 0) chips.push({ label: "hinh", value: doc.image_count });
+    if (doc.table_count && doc.table_count > 0) chips.push({ label: "bang", value: doc.table_count });
 
     if (chips.length === 0) return null;
 

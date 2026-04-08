@@ -23,10 +23,10 @@ export const StatsBar = memo(function StatsBar({ stats, processingCount = 0 }: S
 
     return (
         <div className="flex items-center gap-4 flex-wrap">
-            <StatItem icon={FileText} label="Documents" value={stats.total_documents} />
-            <StatItem icon={Database} label="Indexed" value={stats.indexed_documents} accent />
+            <StatItem icon={FileText} label="Tài liệu" value={stats.total_documents} />
+            <StatItem icon={Database} label="Đã index" value={stats.indexed_documents} accent />
             <StatItem icon={Database} label="Chunks" value={stats.total_chunks} />
-            {(stats.image_count ?? 0) > 0 && <StatItem icon={Image} label="Images" value={stats.image_count!} />}
+            {(stats.image_count ?? 0) > 0 && <StatItem icon={Image} label="Hình" value={stats.image_count!} />}
 
             {processingCount > 0 && (
                 <div className="flex items-center gap-1.5 ml-auto">

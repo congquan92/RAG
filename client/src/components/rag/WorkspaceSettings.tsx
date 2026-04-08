@@ -10,15 +10,15 @@ import type { KnowledgeBase, UpdateWorkspace } from "@/types";
 // ---------------------------------------------------------------------------
 
 const LANGUAGE_OPTIONS = [
-    { value: "", label: "Default (from server)" },
-    { value: "English", label: "English" },
-    { value: "Vietnamese", label: "Vietnamese" },
-    { value: "Chinese", label: "Chinese" },
-    { value: "Japanese", label: "Japanese" },
-    { value: "Korean", label: "Korean" },
-    { value: "French", label: "French" },
-    { value: "German", label: "German" },
-    { value: "Spanish", label: "Spanish" },
+    { value: "", label: "Mặc định (theo server)" },
+    { value: "English", label: "Tiếng Anh" },
+    { value: "Vietnamese", label: "Tiếng Việt" },
+    { value: "Chinese", label: "Tiếng Trung" },
+    { value: "Japanese", label: "Tiếng Nhật" },
+    { value: "Korean", label: "Tiếng Hàn" },
+    { value: "French", label: "Tiếng Pháp" },
+    { value: "German", label: "Tiếng Đức" },
+    { value: "Spanish", label: "Tiếng Tây Ban Nha" },
 ];
 
 const DEFAULT_ENTITY_TYPES = ["Organization", "Person", "Product", "Location", "Event", "Financial_Metric", "Technology", "Date", "Regulation"];
@@ -88,7 +88,7 @@ function TagInput({ tags, onChange, placeholder }: { tags: string[]; onChange: (
                 onBlur={() => {
                     if (input.trim()) addTag(input);
                 }}
-                placeholder={tags.length === 0 ? placeholder : "Add type..."}
+                placeholder={tags.length === 0 ? placeholder : "Thêm loại..."}
                 className="flex-1 min-w-[80px] bg-transparent text-xs outline-none placeholder:text-muted-foreground"
             />
         </div>
@@ -119,10 +119,10 @@ export function WorkspaceSettings({ workspace, onSave, open, onClose }: Workspac
                 kg_language: language || null,
                 kg_entity_types: entityTypes.length > 0 ? entityTypes : null,
             });
-            toast.success("Workspace settings saved");
+            toast.success("Đã lưu cài đặt workspace");
             onClose();
         } catch {
-            toast.error("Failed to save settings");
+            toast.error("Không thể lưu cài đặt");
         } finally {
             setSaving(false);
         }
@@ -145,7 +145,7 @@ export function WorkspaceSettings({ workspace, onSave, open, onClose }: Workspac
             <div className="flex items-center justify-between px-3 py-2 border-b flex-shrink-0">
                 <div className="flex items-center gap-2">
                     <Settings2 className="w-4 h-4 text-muted-foreground" />
-                    <h2 className="text-sm font-semibold">Workspace Settings</h2>
+                    <h2 className="text-sm font-semibold">Cài đặt Workspace</h2>
                 </div>
                 <Button variant="ghost" size="icon" onClick={onClose} className="h-7 w-7">
                     <X className="w-4 h-4" />
@@ -158,7 +158,7 @@ export function WorkspaceSettings({ workspace, onSave, open, onClose }: Workspac
                 <div className="space-y-1.5">
                     <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                         <Globe className="w-3.5 h-3.5" />
-                        KG Language
+                        Ngôn ngữ KG
                     </label>
                     <Select value={language} onChange={(e) => setLanguage(e.target.value)} className="h-8 text-xs">
                         {LANGUAGE_OPTIONS.map((opt) => (
@@ -167,7 +167,7 @@ export function WorkspaceSettings({ workspace, onSave, open, onClose }: Workspac
                             </option>
                         ))}
                     </Select>
-                    <p className="text-[10px] text-muted-foreground">Language used for KG entity extraction. Empty = server default.</p>
+                    <p className="text-[10px] text-muted-foreground">Ngôn ngữ dùng để trích xuất entity KG. Để trống = dùng mặc định của server.</p>
                 </div>
 
                 {/* KG Entity Types */}
@@ -175,21 +175,21 @@ export function WorkspaceSettings({ workspace, onSave, open, onClose }: Workspac
                     <div className="flex items-center justify-between">
                         <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                             <Tags className="w-3.5 h-3.5" />
-                            KG Entity Types
+                            Loại entity KG
                         </label>
                         <Button variant="ghost" size="sm" onClick={handleLoadDefaults} className="h-6 text-[10px] px-2 text-muted-foreground">
                             <Plus className="w-3 h-3 mr-0.5" />
-                            Load defaults
+                            Tải mặc định
                         </Button>
                     </div>
                     <TagInput tags={entityTypes} onChange={setEntityTypes} placeholder="Organization, Person, Product..." />
-                    <p className="text-[10px] text-muted-foreground">Entity types for Knowledge Graph extraction. Press Enter or comma to add. Empty = server default.</p>
+                    <p className="text-[10px] text-muted-foreground">Các loại entity dùng để trích xuất Knowledge Graph. Nhấn Enter hoặc dấu phẩy để thêm. Để trống = dùng mặc định của server.</p>
                 </div>
 
                 {/* Info box */}
                 <div className="rounded-md border border-blue-400/20 bg-blue-400/5 p-2.5">
                     <p className="text-[10px] text-muted-foreground leading-relaxed">
-                        These settings affect how documents are processed in this workspace. Changes apply to newly analyzed documents — existing documents keep their current KG data. Re-analyze documents to apply new settings.
+                        Các cài đặt này ảnh hưởng đến cách xử lý tài liệu trong workspace. Thay đổi chỉ áp dụng cho tài liệu phân tích mới; tài liệu cũ vẫn giữ dữ liệu KG hiện tại. Hãy phân tích lại tài liệu để áp dụng cài đặt mới.
                     </p>
                 </div>
             </div>
@@ -198,15 +198,15 @@ export function WorkspaceSettings({ workspace, onSave, open, onClose }: Workspac
             <div className="flex items-center justify-between px-3 py-2 border-t flex-shrink-0">
                 <Button variant="ghost" size="sm" onClick={handleReset} className="h-7 text-xs gap-1">
                     <RotateCcw className="w-3 h-3" />
-                    Reset to defaults
+                    Đặt lại mặc định
                 </Button>
                 <div className="flex items-center gap-1.5">
                     <Button variant="ghost" size="sm" onClick={onClose} className="h-7 text-xs">
-                        Cancel
+                        Hủy
                     </Button>
                     <Button size="sm" onClick={handleSave} disabled={!hasChanges || saving} className="h-7 text-xs gap-1">
                         <Save className="w-3 h-3" />
-                        {saving ? "Saving..." : "Save"}
+                        {saving ? "Đang lưu..." : "Lưu"}
                     </Button>
                 </div>
             </div>
