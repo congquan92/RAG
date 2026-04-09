@@ -261,7 +261,7 @@ export function WorkspacePage() {
     }, [documents, selectedDoc, selectDoc]);
 
     const hasIndexedDocs = ragStats.indexed_documents > 0;
-    const hasDeepragDocs = false;
+    const hasDeepragDocs = hasIndexedDocs;
 
     const uploadDoc = useMutation({
         mutationFn: ({ file, customMetadata }: UploadMutationInput) => api.uploadFile<ServerDocumentUploadResponse>("/documents/upload", file, customMetadata),

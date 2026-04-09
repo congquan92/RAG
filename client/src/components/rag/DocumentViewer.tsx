@@ -9,6 +9,7 @@ import { FileText, List, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import type { Document, ChatSourceChunk } from "@/types";
+import { KnowledgeGraphView } from "./KnowledgeGraphView";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -55,12 +56,27 @@ function ViewerError({ message }: { message: string }) {
 // ---------------------------------------------------------------------------
 // Empty state
 // ---------------------------------------------------------------------------
-function ViewerEmpty() {
+function ViewerEmpty({ workspaceId }: { workspaceId: string }) {
+    return (
+        <div className="h-full min-h-0 flex flex-col px-6 py-5 gap-4">
+            <div className="text-center">
+                <FileText className="w-10 h-10 text-muted-foreground/30 mb-2 mx-auto" />
+                <p className="text-sm text-muted-foreground">Tạm thời chưa xem trước được tài liệu</p>
+                <p className="text-xs text-muted-foreground/60 mt-1">Đang hiển thị Knowledge Graph để bạn vẫn theo dõi được ngữ cảnh dữ liệu</p>
+            </div>
+            <div className="flex-1 min-h-[280px] border rounded-lg p-2 bg-card/30">
+                <KnowledgeGraphView projectId={workspaceId} />
+            </div>
+        </div>
+    );
+}
+
+function ViewerNotReady() {
     return (
         <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
             <FileText className="w-10 h-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground">Tạm thời chưa xem trước được tài liệu</p>
-            <p className="text-xs text-muted-foreground/60 mt-1">Server hiện chưa cung cấp endpoint xem trước markdown cho tài liệu</p>
+            <p className="text-sm text-muted-foreground">Tài liệu đang được xử lý</p>
+            <p className="text-xs text-muted-foreground/60 mt-1">Hệ thống sẽ hiển thị nội dung sau khi indexing hoàn tất</p>
         </div>
     );
 }
@@ -147,6 +163,7 @@ function insertPageDividers(markdown: string): string {
 // ---------------------------------------------------------------------------
 interface DocumentViewerProps {
     doc: Document;
+    workspaceId: string;
     scrollToPage?: number | null;
     scrollToHeading?: string | null;
     scrollToImageSrc?: string | null;
@@ -154,7 +171,7 @@ interface DocumentViewerProps {
     onScrolled?: () => void;
 }
 
-export const DocumentViewer = memo(function DocumentViewer({ doc, scrollToPage, scrollToHeading, scrollToImageSrc, highlightChunks, onScrolled }: DocumentViewerProps) {
+export const DocumentViewer = memo(function DocumentViewer({ doc, workspaceId, scrollToPage, scrollToHeading, scrollToImageSrc, highlightChunks, onScrolled }: DocumentViewerProps) {
     const contentRef = useRef<HTMLDivElement>(null);
     const pageCounterRef = useRef(1);
     const [activeHeading, setActiveHeading] = useState<string | null>(null);
@@ -450,11 +467,11 @@ export const DocumentViewer = memo(function DocumentViewer({ doc, scrollToPage, 
 
     // ---- Loading / error / empty states ----
     if (doc.status !== "indexed") {
-        return <ViewerEmpty />;
+        return <ViewerNotReady />;
     }
     if (isLoading) return <ViewerSkeleton />;
     if (error) return <ViewerError message={(error as Error).message} />;
-    if (!markdown || markdown.trim().length === 0) return <ViewerEmpty />;
+    if (!markdown || markdown.trim().length === 0) return <ViewerEmpty workspaceId={workspaceId} />;
 
     return (
         <div className="flex h-full min-h-0">

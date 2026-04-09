@@ -107,7 +107,7 @@ export const VisualPanel = memo(function VisualPanel({ workspaceId, hasDeepragDo
             {/* Content area */}
             <div className="flex-1 min-h-0 overflow-hidden">
                 {activeTab === "content" ? (
-                    <DocumentViewer doc={selectedDoc} scrollToPage={scrollToPage} scrollToHeading={scrollToHeading} scrollToImageSrc={scrollToImageSrc} highlightChunks={highlightChunks} onScrolled={clearScrollTarget} />
+                    <DocumentViewer doc={selectedDoc} workspaceId={workspaceId} scrollToPage={scrollToPage} scrollToHeading={scrollToHeading} scrollToImageSrc={scrollToImageSrc} highlightChunks={highlightChunks} onScrolled={clearScrollTarget} />
                 ) : (
                     <KGContent workspaceId={workspaceId} highlightEntities={highlightEntities} />
                 )}
