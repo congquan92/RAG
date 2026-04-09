@@ -15,6 +15,7 @@ Workflow:
 from __future__ import annotations
 
 import logging
+import shutil
 import uuid
 from pathlib import Path
 from typing import Any, Optional
@@ -35,9 +36,6 @@ def _get_upload_dir() -> Path:
 
 def _delete_document_chunks_from_chromadb(document_id: str, chunk_count: int) -> None:
     """Best-effort delete of existing document chunks in ChromaDB."""
-    if chunk_count <= 0:
-        return
-
     try:
         import chromadb
 
@@ -47,14 +45,50 @@ def _delete_document_chunks_from_chromadb(document_id: str, chunk_count: int) ->
 
         if collection_name in existing:
             collection = client.get_collection(name=collection_name)
-            chunk_ids = [
-                f"{document_id}_chunk_{i}"
-                for i in range(chunk_count)
-            ]
-            collection.delete(ids=chunk_ids)
-            logger.info("Deleted %d chunks from ChromaDB", len(chunk_ids))
+            # Primary path: delete by metadata filter, works even when chunk_count is stale.
+            collection.delete(where={"document_id": document_id})
+
+            # Fallback for legacy chunks without metadata.
+            if chunk_count > 0:
+                chunk_ids = [
+                    f"{document_id}_chunk_{i}"
+                    for i in range(chunk_count)
+                ]
+                collection.delete(ids=chunk_ids)
+
+            logger.info("Deleted ChromaDB chunks for document %s", document_id)
     except Exception as exc:
         logger.warning("Failed to delete ChromaDB chunks: %s", exc)
+
+
+def _cleanup_chroma_persist_dir_if_empty(remaining_documents: int) -> None:
+    """Remove Chroma persist directory when there are no documents left."""
+    if remaining_documents > 0:
+        return
+
+    persist_dir = Path(settings.chroma_persist_dir)
+    if not persist_dir.exists():
+        return
+
+    try:
+        import chromadb
+
+        client = chromadb.PersistentClient(path=settings.chroma_persist_dir)
+        collection_name = settings.chroma_collection_name
+        existing = [c.name for c in client.list_collections()]
+        if collection_name in existing:
+            client.delete_collection(name=collection_name)
+            logger.info("Deleted empty ChromaDB collection: %s", collection_name)
+    except Exception as exc:
+        logger.warning("Failed to delete empty ChromaDB collection: %s", exc)
+
+    try:
+        shutil.rmtree(persist_dir)
+        logger.info("Removed ChromaDB persist directory: %s", persist_dir)
+    except FileNotFoundError:
+        return
+    except Exception as exc:
+        logger.warning("Failed to remove ChromaDB persist directory: %s", exc)
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -372,5 +406,17 @@ async def delete_document(
     # Xóa DB record (cascade xóa luôn ingestion_tasks)
     await db.delete(document)
 
-    logger.info("Document deleted: id=%s, filename=%s", document_id, document.filename)
+    # Flush để count phản ánh state sau khi delete trong transaction hiện tại.
+    await db.flush()
+
+    total_result = await db.execute(select(func.count(Document.id)))
+    remaining_documents = total_result.scalar() or 0
+    _cleanup_chroma_persist_dir_if_empty(int(remaining_documents))
+
+    logger.info(
+        "Document deleted: id=%s, filename=%s, remaining_documents=%d",
+        document_id,
+        document.filename,
+        remaining_documents,
+    )
     return document

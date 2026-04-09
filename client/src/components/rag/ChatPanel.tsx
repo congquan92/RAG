@@ -10,6 +10,7 @@ import type { ChatMessage, ChatSourceChunk, KnowledgeBase, AgentStep } from "@/t
 import { AllSourcesCtx, DebugCtx, WsIdCtx } from "@/components/rag/chat-panel/context";
 import { DEFAULT_SYSTEM_PROMPT, HARD_RULES_SUMMARY } from "@/components/rag/chat-panel/constants";
 import { MessageBubble, SuggestionChips } from "@/components/rag/chat-panel/messageBlocks";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface ChatPanelProps {
     workspaceId: string;
@@ -26,6 +27,7 @@ export const ChatPanel = memo(function ChatPanel({ workspaceId, hasIndexedDocs, 
     const { data: historyData, isLoading: historyLoading } = useChatHistory(workspaceId);
     const clearMutation = useClearChatHistory(workspaceId);
     const [showPromptEditor, setShowPromptEditor] = useState(false);
+    const [clearChatConfirmOpen, setClearChatConfirmOpen] = useState(false);
     const [promptDraft, setPromptDraft] = useState("");
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const scrollAnimRef = useRef<number | undefined>(undefined);
@@ -188,11 +190,12 @@ export const ChatPanel = memo(function ChatPanel({ workspaceId, hasIndexedDocs, 
                 const distance = target - start;
                 const duration = 380;
                 const startTime = performance.now();
+                const scrollContainer = container;
 
                 function animate(now: number) {
                     const t = Math.min((now - startTime) / duration, 1);
                     const ease = 1 - Math.pow(1 - t, 3);
-                    container.scrollTop = start + distance * ease;
+                    scrollContainer.scrollTop = start + distance * ease;
                     if (t < 1) {
                         scrollAnimRef.current = requestAnimationFrame(animate);
                     } else {
@@ -373,6 +376,7 @@ export const ChatPanel = memo(function ChatPanel({ workspaceId, hasIndexedDocs, 
         setMessages([]);
         clearMutation.mutate();
         useWorkspaceStore.getState().clearHighlights();
+        setClearChatConfirmOpen(false);
     };
 
     const allSources = useMemo(() => {
@@ -449,7 +453,7 @@ export const ChatPanel = memo(function ChatPanel({ workspaceId, hasIndexedDocs, 
                                     <Settings className="w-3 h-3" />
                                 </button>
                                 {messages.length > 0 && (
-                                    <button onClick={handleClear} className="p-1 rounded hover:bg-muted transition-colors" title="Xóa chat">
+                                    <button onClick={() => setClearChatConfirmOpen(true)} className="p-1 rounded hover:bg-muted transition-colors" title="Xóa chat">
                                         <Trash2 className="w-3.5 h-3.5 text-muted-foreground" />
                                     </button>
                                 )}
@@ -463,7 +467,9 @@ export const ChatPanel = memo(function ChatPanel({ workspaceId, hasIndexedDocs, 
                                     <div className="px-3 py-2 space-y-2 bg-muted/20">
                                         <div className="flex items-center justify-between">
                                             <span className="text-[11px] font-medium text-muted-foreground">System Prompt</span>
-                                            <span className={cn("text-[9px] px-1.5 py-0.5 rounded-full font-medium", isCustom ? "bg-blue-500/15 text-blue-600 dark:text-blue-400" : "bg-muted text-muted-foreground/50")}>{isCustom ? "Tuy chinh" : "Mac dinh"}</span>
+                                            <span className={cn("text-[9px] px-1.5 py-0.5 rounded-full font-medium", isCustom ? "bg-blue-500/15 text-blue-600 dark:text-blue-400" : "bg-muted text-muted-foreground/50")}>
+                                                {isCustom ? "Tuy chinh" : "Mac dinh"}
+                                            </span>
                                         </div>
                                         <textarea
                                             value={promptDraft}
@@ -574,7 +580,10 @@ export const ChatPanel = memo(function ChatPanel({ workspaceId, hasIndexedDocs, 
                                     <button
                                         onClick={() => handleSend()}
                                         disabled={!input.trim()}
-                                        className={cn("flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center transition-colors", input.trim() ? "bg-primary text-primary-foreground hover:bg-primary/90" : "bg-muted text-muted-foreground cursor-not-allowed")}
+                                        className={cn(
+                                            "flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center transition-colors",
+                                            input.trim() ? "bg-primary text-primary-foreground hover:bg-primary/90" : "bg-muted text-muted-foreground cursor-not-allowed",
+                                        )}
                                     >
                                         <Send className="w-4 h-4" />
                                     </button>
@@ -585,6 +594,17 @@ export const ChatPanel = memo(function ChatPanel({ workspaceId, hasIndexedDocs, 
                     </div>
                 </AllSourcesCtx.Provider>
             </DebugCtx.Provider>
+
+            <ConfirmDialog
+                open={clearChatConfirmOpen}
+                onConfirm={handleClear}
+                onCancel={() => setClearChatConfirmOpen(false)}
+                title="Xóa lịch sử chat"
+                message="Bạn có chắc chắn muốn xóa toàn bộ lịch sử chat trong workspace này không?"
+                confirmLabel="Xóa"
+                cancelLabel="Hủy"
+                variant="danger"
+            />
         </WsIdCtx.Provider>
     );
 });
