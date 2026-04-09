@@ -31,6 +31,7 @@ from app.schemas.chat_schema import (
     ChatSessionCreate,
     ChatSessionDetailResponse,
     ChatSessionResponse,
+    ChatSessionUpdate,
 )
 from app.services import chat_service
 
@@ -116,8 +117,32 @@ async def get_session(
         title=session.title,
         created_at=session.created_at,
         updated_at=session.updated_at,
+        description=session.description,
+        system_prompt=session.system_prompt,
         messages=msg_responses,
     )
+
+
+@router.patch(
+    "/sessions/{session_id}",
+    response_model=ChatSessionResponse,
+    summary="Cập nhật metadata phiên hội thoại",
+)
+async def update_session(
+    session_id: str,
+    body: ChatSessionUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    """Cập nhật metadata workspace/session."""
+    updates = body.model_dump(exclude_unset=True)
+    session = await chat_service.update_session(db, session_id, updates)
+    if not session:
+        raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
+
+    payload = await chat_service.get_session_payload(db, session.id)
+    if payload is None:
+        raise HTTPException(status_code=500, detail="Failed to build session payload.")
+    return ChatSessionResponse(**payload)
 
 
 @router.delete(

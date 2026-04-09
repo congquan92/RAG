@@ -319,11 +319,7 @@ export function WorkspacePage() {
     const handleUpdateWorkspace = useCallback(
         async (data: UpdateWorkspace) => {
             if (!wsId) return;
-            try {
-                await updateWorkspace.mutateAsync({ id: wsId, data });
-            } catch {
-                toast.info("Server hiện chưa hỗ trợ cập nhật metadata/prompt cho workspace.");
-            }
+            await updateWorkspace.mutateAsync({ id: wsId, data });
         },
         [wsId, updateWorkspace],
     );

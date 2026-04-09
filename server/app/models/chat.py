@@ -36,6 +36,8 @@ class ChatSession(Base):
     Columns:
       - id: UUID primary key
       - title: Tiêu đề phiên (auto-gen từ câu hỏi đầu hoặc user đặt)
+        - description: Mô tả ngắn của workspace/session (nullable)
+        - system_prompt: Prompt hệ thống tùy chỉnh (nullable)
       - created_at: Thời điểm tạo phiên
       - updated_at: Cập nhật mỗi khi có message mới
     """
@@ -47,6 +49,12 @@ class ChatSession(Base):
     )
     title: Mapped[str] = mapped_column(
         String(255), default="New Conversation"
+    )
+    description: Mapped[str | None] = mapped_column(
+        Text, nullable=True, default=None
+    )
+    system_prompt: Mapped[str | None] = mapped_column(
+        Text, nullable=True, default=None
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow

@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { generateId } from "@/lib/utils";
+import { cacheAgentSteps } from "@/lib/chatAgentStepsCache";
 import type { ChatSourceChunk, ChatImageRef, ChatStreamStatus, ChatMessage, AgentStep, AgentStepType } from "@/types";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "/api/v1";
@@ -154,6 +155,7 @@ export function useRAGChatStream(workspaceId: string): RAGStreamResult {
             let finalSources: ChatSourceChunk[] = [];
             let fullAnswer = "";
             let hasGenerationStep = false;
+            let assistantMessageId: string | null = null;
 
             abortRef.current = new AbortController();
 
@@ -203,6 +205,11 @@ export function useRAGChatStream(workspaceId: string): RAGStreamResult {
                         }
 
                         if (event.type === "message_ids") {
+                            const ids = event.data as { assistant_message_id?: unknown } | undefined;
+                            if (ids && typeof ids.assistant_message_id === "string" && ids.assistant_message_id) {
+                                assistantMessageId = ids.assistant_message_id;
+                            }
+
                             if (!hasGenerationStep) {
                                 localSteps = [...completeActiveStep(localSteps), createStep("retrieving", "Đang truy xuất ngữ cảnh hỗ trợ...")];
                                 syncSteps(localSteps);
@@ -259,11 +266,15 @@ export function useRAGChatStream(workspaceId: string): RAGStreamResult {
                 localSteps = [...completeActiveStep(localSteps), createStep("done", `Hoàn tất trong ${totalMs >= 1000 ? `${(totalMs / 1000).toFixed(1)}s` : `${totalMs}ms`}`, "completed")];
                 syncSteps(localSteps);
 
+                if (assistantMessageId) {
+                    cacheAgentSteps(workspaceId, assistantMessageId, localSteps);
+                }
+
                 setStatus("idle");
                 setIsStreaming(false);
 
                 return {
-                    id: generateId(),
+                    id: assistantMessageId ?? generateId(),
                     role: "assistant",
                     content: fullAnswer,
                     sources: finalSources,

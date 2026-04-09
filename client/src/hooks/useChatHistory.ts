@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { clearCachedAgentSteps, getCachedAgentSteps } from "@/lib/chatAgentStepsCache";
 import type { ChatHistoryResponse, ChatSourceChunk, PersistedChatMessage } from "@/types";
 
 interface ServerCitationItem {
@@ -35,8 +36,9 @@ function mapCitationToSource(citation: ServerCitationItem, index: number): ChatS
     };
 }
 
-function mapMessage(message: ServerChatMessage): PersistedChatMessage {
+function mapMessage(message: ServerChatMessage, workspaceId: string): PersistedChatMessage {
     const sources = message.citations?.map(mapCitationToSource) ?? null;
+    const cachedAgentSteps = getCachedAgentSteps(workspaceId, message.id);
 
     return {
         id: message.id,
@@ -47,7 +49,7 @@ function mapMessage(message: ServerChatMessage): PersistedChatMessage {
         related_entities: null,
         image_refs: null,
         thinking: null,
-        agent_steps: null,
+        agent_steps: cachedAgentSteps,
         created_at: message.created_at,
     };
 }
@@ -57,7 +59,7 @@ export function useChatHistory(workspaceId: string) {
         queryKey: ["chat-history", workspaceId],
         queryFn: async () => {
             const session = await api.get<ServerSessionDetail>(`/chat/sessions/${workspaceId}`);
-            const messages = session.messages.map(mapMessage);
+            const messages = session.messages.map((message) => mapMessage(message, workspaceId));
             return {
                 workspace_id: session.id,
                 messages,
@@ -75,6 +77,7 @@ export function useClearChatHistory(workspaceId: string) {
     return useMutation({
         mutationFn: async () => api.delete(`/chat/sessions/${workspaceId}/messages`),
         onSuccess: () => {
+            clearCachedAgentSteps(workspaceId);
             queryClient.setQueryData<ChatHistoryResponse>(["chat-history", workspaceId], {
                 workspace_id: workspaceId,
                 messages: [],

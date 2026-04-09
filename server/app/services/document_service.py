@@ -190,10 +190,26 @@ async def process_ingestion_task(
                 embeddings=embeddings,
             )
 
+            if chunks_stored <= 0:
+                task.status = "failed"
+                task.error_message = (
+                    "Không lưu được chunk vào vector index. "
+                    "Vui lòng kiểm tra log ở server."
+                )
+                await db.commit()
+                logger.error(
+                    "Ingestion failed after extraction: task=%s, file=%s, chunks_extracted=%d",
+                    task_id,
+                    document.filename,
+                    len(extraction.chunks),
+                )
+                return
+
             # ── Step 3: Update DB records ────────────────────────────────
             document.chunk_count = chunks_stored
             task.status = "completed"
             task.chunks_processed = chunks_stored
+            task.error_message = None
             await db.commit()
 
             logger.info(
@@ -277,7 +293,7 @@ async def _store_chunks_chromadb(
         logger.error("chromadb not installed, cannot store chunks")
         return 0
     except Exception as exc:
-        logger.error("ChromaDB storage failed: %s", exc)
+        logger.error("ChromaDB storage failed for document %s: %s", document_id, exc)
         return 0
 
 

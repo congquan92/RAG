@@ -76,7 +76,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("═" * 60)
     logger.info("  RAG Server — Ready to serve requests!")
     logger.info("  LLM Provider : %s", settings.llm_provider)
-    logger.info("  Embed Provider: %s", settings.embedding_provider)
+    logger.info("  LLM Model    : %s", settings.llm_model)
+    logger.info("  Embedding model: %s", settings.embedding_model)
     logger.info("  CORS Origins  : %s", settings.cors_origin_list)
     logger.info("═" * 60)
 

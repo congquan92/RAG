@@ -10,8 +10,6 @@ interface ServerChatSession {
     message_count: number;
     description?: string | null;
     system_prompt?: string | null;
-    kg_language?: string | null;
-    kg_entity_types?: string[] | null;
 }
 
 interface ServerChatSessionDetail {
@@ -22,8 +20,6 @@ interface ServerChatSessionDetail {
     messages: Array<{ id: string }>;
     description?: string | null;
     system_prompt?: string | null;
-    kg_language?: string | null;
-    kg_entity_types?: string[] | null;
 }
 
 function mapSessionToWorkspace(session: ServerChatSession): KnowledgeBase {
@@ -32,8 +28,6 @@ function mapSessionToWorkspace(session: ServerChatSession): KnowledgeBase {
         name: session.title,
         description: session.description ?? null,
         system_prompt: session.system_prompt ?? null,
-        kg_language: session.kg_language ?? null,
-        kg_entity_types: session.kg_entity_types ?? null,
         document_count: session.message_count,
         indexed_count: 0,
         created_at: session.created_at,
@@ -61,8 +55,6 @@ export function useWorkspace(workspaceId: string | null) {
                 name: session.title,
                 description: session.description ?? null,
                 system_prompt: session.system_prompt ?? null,
-                kg_language: session.kg_language ?? null,
-                kg_entity_types: session.kg_entity_types ?? null,
                 document_count: session.messages.length,
                 indexed_count: 0,
                 created_at: session.created_at,
@@ -99,9 +91,14 @@ export function useCreateWorkspace() {
 }
 
 export function useUpdateWorkspace() {
+    const queryClient = useQueryClient();
+
     return useMutation({
-        mutationFn: async (_params: { id: string; data: UpdateWorkspace }) => {
-            throw new Error("Workspace metadata/prompt update is not supported by this server yet.");
+        mutationFn: ({ id, data }: { id: string; data: UpdateWorkspace }) => api.patch<ServerChatSession>(`/chat/sessions/${id}`, data).then(mapSessionToWorkspace),
+        onSuccess: (_updatedWorkspace, variables) => {
+            queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+            queryClient.invalidateQueries({ queryKey: ["workspaces", variables.id] });
+            queryClient.invalidateQueries({ queryKey: ["workspaces", "summary"] });
         },
     });
 }

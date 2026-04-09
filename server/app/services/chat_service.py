@@ -41,6 +41,8 @@ async def _build_session_payload(db: AsyncSession, session: ChatSession) -> dict
         "title": session.title,
         "created_at": session.created_at,
         "updated_at": session.updated_at,
+        "description": session.description,
+        "system_prompt": session.system_prompt,
         "message_count": await _get_message_count(db, session.id),
     }
 
@@ -142,6 +144,31 @@ async def clear_session_messages(
     session.updated_at = datetime.now(timezone.utc)
     logger.info("Cleared chat history for session: id=%s", session_id)
     return True
+
+
+async def update_session(
+    db: AsyncSession,
+    session_id: str,
+    updates: dict[str, Any],
+) -> Optional[ChatSession]:
+    """Cập nhật metadata session/workspace theo PATCH payload."""
+    session = await db.get(ChatSession, session_id)
+    if not session:
+        return None
+
+    if "title" in updates and updates["title"] is not None:
+        session.title = str(updates["title"]).strip() or session.title
+
+    if "description" in updates:
+        session.description = updates["description"]
+
+    if "system_prompt" in updates:
+        session.system_prompt = updates["system_prompt"]
+
+    session.updated_at = datetime.now(timezone.utc)
+    await db.flush()
+    logger.info("Updated session metadata: id=%s", session_id)
+    return session
 
 
 # ═════════════════════════════════════════════════════════════════════════════

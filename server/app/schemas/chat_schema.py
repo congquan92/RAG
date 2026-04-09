@@ -30,6 +30,25 @@ class ChatSessionCreate(BaseModel):
     )
 
 
+class ChatSessionUpdate(BaseModel):
+    """Request cập nhật metadata phiên hội thoại."""
+
+    title: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        max_length=255,
+        description="Tiêu đề phiên chat.",
+    )
+    description: Optional[str] = Field(
+        default=None,
+        description="Mô tả workspace/session.",
+    )
+    system_prompt: Optional[str] = Field(
+        default=None,
+        description="Prompt hệ thống tùy chỉnh.",
+    )
+
+
 class ChatQueryRequest(BaseModel):
     """Request gửi câu hỏi trong phiên chat."""
 
@@ -90,6 +109,8 @@ class ChatSessionResponse(BaseModel):
     title: str
     created_at: datetime
     updated_at: datetime
+    description: Optional[str] = None
+    system_prompt: Optional[str] = None
     message_count: int = Field(
         default=0,
         description="Tổng số tin nhắn trong phiên.",
@@ -105,6 +126,8 @@ class ChatSessionDetailResponse(BaseModel):
     title: str
     created_at: datetime
     updated_at: datetime
+    description: Optional[str] = None
+    system_prompt: Optional[str] = None
     messages: list[ChatMessageResponse] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}

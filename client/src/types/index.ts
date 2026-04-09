@@ -4,8 +4,6 @@ export interface KnowledgeBase {
     name: string;
     description: string | null;
     system_prompt: string | null;
-    kg_language: string | null;
-    kg_entity_types: string[] | null;
     document_count: number;
     indexed_count: number;
     created_at: string;
@@ -21,8 +19,6 @@ export interface UpdateWorkspace {
     name?: string;
     description?: string;
     system_prompt?: string | null;
-    kg_language?: string | null;
-    kg_entity_types?: string[] | null;
 }
 
 export interface WorkspaceSummary {

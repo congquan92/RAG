@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 from typing import AsyncGenerator
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -53,6 +54,29 @@ async_session_factory: async_sessionmaker[AsyncSession] = async_sessionmaker(
 )
 
 
+_CHAT_SESSION_SQLITE_COLUMNS: dict[str, str] = {
+    "description": "TEXT",
+    "system_prompt": "TEXT",
+}
+
+
+async def _get_sqlite_table_columns(conn, table_name: str) -> set[str]:
+    result = await conn.execute(text(f"PRAGMA table_info({table_name})"))
+    rows = result.fetchall()
+    return {str(row[1]) for row in rows}
+
+
+async def _ensure_sqlite_chat_session_columns(conn) -> None:
+    existing_columns = await _get_sqlite_table_columns(conn, "chat_sessions")
+    for column_name, column_def in _CHAT_SESSION_SQLITE_COLUMNS.items():
+        if column_name in existing_columns:
+            continue
+        await conn.execute(
+            text(f"ALTER TABLE chat_sessions ADD COLUMN {column_name} {column_def}")
+        )
+        logger.info("Added missing SQLite column: chat_sessions.%s", column_name)
+
+
 # ═════════════════════════════════════════════════════════════════════════════
 # Lifecycle helpers (gọi từ main.py lifespan)
 # ═════════════════════════════════════════════════════════════════════════════
@@ -73,6 +97,8 @@ async def init_db() -> None:
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        if "sqlite" in db_url:
+            await _ensure_sqlite_chat_session_columns(conn)
     logger.info("Database tables initialized: %s", settings.database_url)
 
 

@@ -2,14 +2,13 @@ import { useState, useMemo, useCallback, memo } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { AnimatePresence } from "framer-motion";
-import { ArrowLeft, FileText, Pencil, Check, X, Loader2, Sparkles, Settings2 } from "lucide-react";
+import { ArrowLeft, FileText, Pencil, Check, X, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { UploadZone } from "./UploadZone";
 import { StatsBar } from "./StatsBar";
 import { DocumentFilters, type FilterStatus } from "./DocumentFilters";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { WorkspaceSettings } from "./WorkspaceSettings";
 import { CustomMetadataInput } from "./CustomMetadataInput";
 import { DocumentCard } from "./DocumentCard";
 import { cn } from "@/lib/utils";
@@ -58,7 +57,6 @@ export const DataPanel = memo(function DataPanel({ workspace, documents, pending
     const [isEditingName, setIsEditingName] = useState(false);
     const [editName, setEditName] = useState("");
     const [editDesc, setEditDesc] = useState("");
-    const [settingsOpen, setSettingsOpen] = useState(false);
     const [customMetadata, setCustomMetadata] = useState<{ key: string; value: string }[]>([]);
 
     const handleUpload = useCallback(
@@ -147,9 +145,6 @@ export const DataPanel = memo(function DataPanel({ workspace, documents, pending
                             <h1 className="text-sm font-bold truncate">{workspace?.name || "Knowledge Base"}</h1>
                             {workspace?.description && <p className="text-[10px] text-muted-foreground truncate">{workspace.description}</p>}
                         </div>
-                        <Button size="icon" variant="ghost" onClick={() => setSettingsOpen(true)} className="h-6 w-6 flex-shrink-0" title="Cài đặt workspace">
-                            <Settings2 className="w-3 h-3" />
-                        </Button>
                         <Button size="icon" variant="ghost" onClick={handleStartEdit} className="h-6 w-6 flex-shrink-0">
                             <Pencil className="w-3 h-3" />
                         </Button>
@@ -247,9 +242,6 @@ export const DataPanel = memo(function DataPanel({ workspace, documents, pending
                     </>
                 )}
             </div>
-
-            {/* Workspace settings overlay */}
-            {workspace && <WorkspaceSettings workspace={workspace} onSave={onUpdateWorkspace} open={settingsOpen} onClose={() => setSettingsOpen(false)} />}
 
             {/* Delete confirmation */}
             <ConfirmDialog
