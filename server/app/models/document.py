@@ -46,6 +46,9 @@ class Document(Base):
     id: Mapped[str] = mapped_column(
         String(36), primary_key=True, default=_generate_uuid
     )
+    workspace_id: Mapped[str | None] = mapped_column(
+        String(36), nullable=True, index=True, default=None
+    )
     filename: Mapped[str] = mapped_column(String(500))
     file_path: Mapped[str] = mapped_column(String(1000))
     file_size: Mapped[int] = mapped_column(BigInteger, default=0)

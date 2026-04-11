@@ -15,12 +15,21 @@ Tất cả AI models (embeddings, reranker) được lấy từ app.state
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
 from app.core.settings import settings
 
 logger = logging.getLogger(__name__)
+
+_TOKEN_RE = re.compile(r"[A-Za-zÀ-ỹ0-9_]{2,}", re.UNICODE)
+_GRAPH_QUERY_DEGRADED_REASON: str | None = None
+
+
+def _tokenize_for_keyword(text: str) -> list[str]:
+    """Tokenize EN/VI text with Unicode-aware regex instead of plain split()."""
+    return [token.lower() for token in _TOKEN_RE.findall(text or "")]
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -74,6 +83,10 @@ def search_semantic(
     _chroma_dir = chroma_dir or settings.chroma_persist_dir
     _collection_name = collection_name or settings.chroma_collection_name
 
+    if embeddings is None:
+        logger.warning("Embeddings not available, semantic search skipped")
+        return []
+
     try:
         import chromadb
 
@@ -124,7 +137,15 @@ def search_semantic(
         logger.error("chromadb not installed")
         return []
     except Exception as exc:
-        logger.error("Semantic search failed: %s", exc)
+        message = str(exc)
+        if "dimension" in message.lower():
+            logger.warning(
+                "Semantic search skipped due to embedding dimension mismatch. "
+                "Re-index documents after changing embedding model. detail=%s",
+                message,
+            )
+        else:
+            logger.error("Semantic search failed: %s", exc)
         return []
 
 
@@ -172,10 +193,12 @@ def search_keyword(
         # BM25 ranking
         from rank_bm25 import BM25Okapi
 
-        tokenized_docs = [doc.lower().split() for doc in documents]
+        tokenized_docs = [_tokenize_for_keyword(doc) for doc in documents]
         bm25 = BM25Okapi(tokenized_docs)
 
-        query_tokens = query.lower().split()
+        query_tokens = _tokenize_for_keyword(query)
+        if not query_tokens:
+            return []
         scores = bm25.get_scores(query_tokens)
 
         # Lấy top-K theo score
@@ -223,6 +246,11 @@ def search_graph(
     """
     _top_k = top_k or settings.retrieval_top_k
 
+    global _GRAPH_QUERY_DEGRADED_REASON
+    if _GRAPH_QUERY_DEGRADED_REASON is not None:
+        logger.debug("Graph search disabled: %s", _GRAPH_QUERY_DEGRADED_REASON)
+        return []
+
     try:
         from lightrag import LightRAG as LightRAGEngine
         from lightrag import QueryParam
@@ -254,6 +282,16 @@ def search_graph(
         logger.warning("lightrag not installed, graph search disabled")
         return []
     except Exception as exc:
+        message = str(exc)
+        if "embedding_func is required" in message.lower():
+            _GRAPH_QUERY_DEGRADED_REASON = message
+            logger.warning(
+                "Graph search degraded (missing LightRAG embedding function). "
+                "Falling back to semantic + keyword retrieval only. detail=%s",
+                message,
+            )
+            return []
+
         logger.error("Graph search failed: %s", exc)
         return []
 

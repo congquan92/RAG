@@ -20,7 +20,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db, get_embeddings
@@ -52,6 +52,7 @@ router = APIRouter(prefix="/documents", tags=["Documents"])
 async def upload_document(
     file: UploadFile,
     background_tasks: BackgroundTasks,
+    workspace_id: str | None = Form(default=None),
     db: AsyncSession = Depends(get_db),
     embeddings: Any = Depends(get_embeddings),
 ):
@@ -64,6 +65,10 @@ async def upload_document(
     # ── Validation ───────────────────────────────────────────────────────
     if not file.filename:
         raise HTTPException(status_code=400, detail="Filename is required.")
+
+    runtime_workspace_id = (workspace_id or "").strip()
+    if not runtime_workspace_id:
+        raise HTTPException(status_code=400, detail="workspace_id is required.")
 
     # Đọc nội dung file
     file_content = await file.read()
@@ -86,6 +91,7 @@ async def upload_document(
         db=db,
         filename=file.filename,
         file_content=file_content,
+        workspace_id=runtime_workspace_id,
     )
 
     # Commit trước khi queue background task để tránh race condition:
@@ -118,6 +124,7 @@ async def upload_document(
 
     return DocumentUploadResponse(
         document_id=document.id,
+        workspace_id=document.workspace_id,
         task_id=task.id,
         filename=document.filename,
         file_size=document.file_size,
@@ -164,16 +171,27 @@ async def get_ingestion_status(
     summary="Liệt kê documents",
 )
 async def list_documents(
+    workspace_id: str,
     skip: int = 0,
     limit: int = 50,
     db: AsyncSession = Depends(get_db),
 ):
     """Danh sách documents đã upload với pagination."""
-    documents, total = await document_service.list_documents(db, skip=skip, limit=limit)
+    runtime_workspace_id = workspace_id.strip()
+    if not runtime_workspace_id:
+        raise HTTPException(status_code=400, detail="workspace_id is required.")
+
+    documents, total = await document_service.list_documents(
+        db,
+        workspace_id=runtime_workspace_id,
+        skip=skip,
+        limit=limit,
+    )
 
     doc_responses = [
         DocumentResponse(
             id=doc.id,
+            workspace_id=doc.workspace_id,
             filename=doc.filename,
             file_size=doc.file_size,
             mime_type=doc.mime_type or "unknown",
@@ -193,15 +211,25 @@ async def list_documents(
 )
 async def get_document(
     document_id: str,
+    workspace_id: str,
     db: AsyncSession = Depends(get_db),
 ):
     """Lấy thông tin document theo ID."""
-    document = await document_service.get_document(db, document_id)
+    runtime_workspace_id = workspace_id.strip()
+    if not runtime_workspace_id:
+        raise HTTPException(status_code=400, detail="workspace_id is required.")
+
+    document = await document_service.get_document(
+        db,
+        document_id,
+        workspace_id=runtime_workspace_id,
+    )
     if not document:
         raise HTTPException(status_code=404, detail=f"Document not found: {document_id}")
 
     return DocumentResponse(
         id=document.id,
+        workspace_id=document.workspace_id,
         filename=document.filename,
         file_size=document.file_size,
         mime_type=document.mime_type or "unknown",
@@ -217,10 +245,19 @@ async def get_document(
 )
 async def delete_document(
     document_id: str,
+    workspace_id: str,
     db: AsyncSession = Depends(get_db),
 ):
     """Xóa document: DB record + file vật lý + ChromaDB chunks."""
-    document = await document_service.delete_document(db, document_id)
+    runtime_workspace_id = workspace_id.strip()
+    if not runtime_workspace_id:
+        raise HTTPException(status_code=400, detail="workspace_id is required.")
+
+    document = await document_service.delete_document(
+        db,
+        document_id,
+        workspace_id=runtime_workspace_id,
+    )
     if not document:
         raise HTTPException(status_code=404, detail=f"Document not found: {document_id}")
 

@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { generateId } from "@/lib/utils";
 import { cacheAgentSteps } from "@/lib/chatAgentStepsCache";
-import type { ChatSourceChunk, ChatImageRef, ChatStreamStatus, ChatMessage, AgentStep, AgentStepType } from "@/types";
+import type { ChatSourceChunk, ChatImageRef, ChatStreamStatus, ChatMessage, AgentStep, AgentStepType, ChatRuntimeOptions } from "@/types";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "/api/v1";
 
@@ -26,7 +26,7 @@ export interface RAGStreamResult {
     error: string | null;
     isStreaming: boolean;
     agentSteps: AgentStep[];
-    sendMessage: (message: string, history: { role: string; content: string }[], enableThinking: boolean, forceSearch?: boolean) => Promise<ChatMessage | null>;
+    sendMessage: (message: string, history: { role: string; content: string }[], enableThinking: boolean, forceSearch: boolean | undefined, runtimeOptions: ChatRuntimeOptions) => Promise<ChatMessage | null>;
     cancel: () => void;
     reset: () => void;
 }
@@ -74,12 +74,15 @@ export function useRAGChatStream(workspaceId: string): RAGStreamResult {
     const [agentSteps, setAgentSteps] = useState<AgentStep[]>([]);
 
     const abortRef = useRef<AbortController | null>(null);
+    const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
     const bufferRef = useRef("");
     const rafRef = useRef<number | undefined>(undefined);
     const streamStartRef = useRef(0);
 
     useEffect(() => {
         return () => {
+            void readerRef.current?.cancel().catch(() => undefined);
+            readerRef.current = null;
             abortRef.current?.abort();
             if (rafRef.current) cancelAnimationFrame(rafRef.current);
         };
@@ -129,6 +132,8 @@ export function useRAGChatStream(workspaceId: string): RAGStreamResult {
     }, []);
 
     const cancel = useCallback(() => {
+        void readerRef.current?.cancel().catch(() => undefined);
+        readerRef.current = null;
         abortRef.current?.abort();
         abortRef.current = null;
         flushTokenBuffer();
@@ -137,7 +142,7 @@ export function useRAGChatStream(workspaceId: string): RAGStreamResult {
     }, [flushTokenBuffer]);
 
     const sendMessage = useCallback(
-        async (message: string, _history: { role: string; content: string }[], _enableThinking: boolean, _forceSearch: boolean = false): Promise<ChatMessage | null> => {
+        async (message: string, _history: { role: string; content: string }[], _enableThinking: boolean, _forceSearch: boolean = false, runtimeOptions: ChatRuntimeOptions): Promise<ChatMessage | null> => {
             setStreamingContent("");
             setThinkingText("");
             setPendingSources([]);
@@ -167,6 +172,9 @@ export function useRAGChatStream(workspaceId: string): RAGStreamResult {
                         session_id: workspaceId,
                         query: message,
                         stream: true,
+                        rag_mode: runtimeOptions.ragMode,
+                        gemini_api_key: runtimeOptions.geminiApiKey,
+                        gemini_model: runtimeOptions.geminiModel,
                     }),
                     signal: abortRef.current.signal,
                 });
@@ -178,6 +186,7 @@ export function useRAGChatStream(workspaceId: string): RAGStreamResult {
 
                 const reader = response.body?.getReader();
                 if (!reader) throw new Error("Không có dữ liệu phản hồi");
+                readerRef.current = reader;
 
                 const decoder = new TextDecoder();
                 let sseBuffer = "";
@@ -296,6 +305,8 @@ export function useRAGChatStream(workspaceId: string): RAGStreamResult {
                 syncSteps((prev) => markActiveError(prev));
                 return null;
             } finally {
+                void readerRef.current?.cancel().catch(() => undefined);
+                readerRef.current = null;
                 abortRef.current = null;
             }
         },

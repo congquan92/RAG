@@ -80,9 +80,13 @@ class ApiClient {
         URL.revokeObjectURL(url);
     }
 
-    async uploadFile<T>(path: string, file: File, customMetadata?: { key: string; value: string }[]): Promise<T> {
+    async uploadFile<T>(path: string, file: File, customMetadata?: { key: string; value: string }[], workspaceId?: string): Promise<T> {
         const formData = new FormData();
         formData.append("file", file);
+
+        if (workspaceId && workspaceId.trim()) {
+            formData.append("workspace_id", workspaceId.trim());
+        }
 
         if (customMetadata && customMetadata.length > 0) {
             formData.append("custom_metadata", JSON.stringify(customMetadata));

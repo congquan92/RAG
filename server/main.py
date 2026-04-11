@@ -133,6 +133,8 @@ async def health_check():
         "status": "healthy",
         "llm_provider": settings.llm_provider,
         "llm_model": settings.llm_model,
+        "gemini_model_default": settings.gemini_model,
+        "server_has_gemini_key": bool((settings.gemini_api_key or "").strip()),
         "embedding_model": settings.embedding_model,
         "embedding_loaded": getattr(app.state, "embeddings", None) is not None,
         "reranker_loaded": getattr(app.state, "reranker", None) is not None,      

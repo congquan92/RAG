@@ -9,6 +9,7 @@ Usage:
 """
 
 import asyncio
+import json
 import sys
 import tempfile
 from pathlib import Path
@@ -232,6 +233,68 @@ async def test_document_delete():
         print("  ✅ Document delete works!\n")
 
 
+async def test_chat_stream_cancel_cleanup():
+    """Test stream cancel: không được để assistant placeholder rỗng trong DB."""
+    from app.core.database import async_session_factory
+    from app.rag.retriever import RetrievalResult
+    from app.services import chat_service
+
+    print("=" * 60)
+    print("  TEST: Chat Service — Stream Cancel Cleanup")
+    print("=" * 60)
+
+    async with async_session_factory() as db:
+        session = await chat_service.create_session(db, title="Cancel Stream Session")
+        await db.commit()
+
+        disconnect_state = {"value": False}
+
+        async def is_client_disconnected() -> bool:
+            return bool(disconnect_state["value"])
+
+        original_retrieve = chat_service.retrieve
+        chat_service.retrieve = lambda **_: RetrievalResult(
+            chunks=[],
+            raw_semantic=[],
+            raw_keyword=[],
+            raw_graph=[],
+        )
+
+        try:
+            seen_event_types: list[str] = []
+            async for event_str in chat_service.ask_question_stream(
+                db=db,
+                session_id=session.id,
+                query="Test stop stream",
+                embeddings=None,
+                reranker=None,
+                llm=None,
+                is_client_disconnected=is_client_disconnected,
+            ):
+                event = json.loads(event_str)
+                event_type = str(event.get("type", ""))
+                seen_event_types.append(event_type)
+                if event_type == "message_ids":
+                    disconnect_state["value"] = True
+
+            await db.commit()
+
+            messages = await chat_service.get_session_messages(db, session.id)
+            assert messages is not None
+            assert len(messages) == 1, f"Expected only user message after cancel, got {len(messages)}"
+            assert messages[0].role == "user", "Only user message should remain after early cancel"
+            assert "message_ids" in seen_event_types, "Expected message_ids event before cancellation"
+
+            print(f"  Events:        {seen_event_types}")
+            print("  ✅ Placeholder assistant message cleaned up on cancel!\n")
+        finally:
+            chat_service.retrieve = original_retrieve
+            persisted_session = await db.get(session.__class__, session.id)
+            if persisted_session is not None:
+                await db.delete(persisted_session)
+                await db.commit()
+
+
 async def main():
     await test_document_service_upload()
     await test_document_service_list()
@@ -239,6 +302,7 @@ async def main():
     await test_chat_service_session()
     await test_chat_service_ask_no_context()
     await test_document_delete()
+    await test_chat_stream_cancel_cleanup()
 
     # Final cleanup
     from app.core.database import dispose_db

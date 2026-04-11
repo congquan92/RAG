@@ -23,6 +23,10 @@ class DocumentUploadResponse(BaseModel):
     """Response sau khi upload file — trả về task_id để theo dõi."""
 
     document_id: str = Field(..., description="ID document vừa tạo.")
+    workspace_id: Optional[str] = Field(
+        default=None,
+        description="Workspace/session ID sở hữu document (nullable cho dữ liệu cũ).",
+    )
     task_id: str = Field(
         ...,
         description="ID ingestion task — dùng để poll trạng thái.",
@@ -62,6 +66,10 @@ class DocumentResponse(BaseModel):
     """Response thông tin 1 document đã upload."""
 
     id: str
+    workspace_id: Optional[str] = Field(
+        default=None,
+        description="Workspace/session ID của document.",
+    )
     filename: str
     file_size: int
     mime_type: str

@@ -15,15 +15,17 @@ Route handlers giữ mỏng: parse request → gọi service → trả response.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db, get_embeddings, get_llm, get_reranker
+from app.api.deps import get_db, get_embeddings, get_reranker, get_settings
+from app.core.settings import Settings
 from app.schemas.chat_schema import (
     ChatAnswerResponse,
     ChatMessageResponse,
@@ -38,6 +40,62 @@ from app.services import chat_service
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
+
+
+def _resolve_runtime_llm(
+    body: ChatQueryRequest,
+    settings: Settings,
+) -> tuple[Any, bool]:
+    """
+    Resolve runtime chat mode + LLM instance.
+
+    Returns:
+        (llm, enable_graph_search)
+    """
+    from app.core.llm_factory import get_llm, get_llm_with_overrides
+
+    if body.rag_mode == "graphrag_gemini":
+        runtime_key = (body.gemini_api_key or settings.gemini_api_key or "").strip()
+        if not runtime_key:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Gemini API key is required when rag_mode='graphrag_gemini' "
+                    "(pass from UI or configure GEMINI_API_KEY in server/.env)."
+                ),
+            )
+
+        runtime_model = (body.gemini_model or settings.gemini_model).strip()
+        try:
+            llm = get_llm_with_overrides(
+                settings=settings,
+                provider_override="gemini",
+                model_override=runtime_model,
+                gemini_api_key_override=runtime_key,
+            )
+            return llm, True
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        except Exception as exc:
+            logger.error("Runtime Gemini initialization failed: %s", exc)
+            raise HTTPException(
+                status_code=503,
+                detail="Gemini runtime unavailable. Check key/model and server logs.",
+            )
+
+    try:
+        return get_llm(settings), False
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"LLM initialization failed: {exc}",
+        )
+    except Exception as exc:
+        logger.error("Unexpected error creating default LLM: %s", exc)
+        raise HTTPException(
+            status_code=503,
+            detail="LLM service unavailable. Check server configuration.",
+        )
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -188,10 +246,11 @@ async def clear_session_messages(
 )
 async def ask_question(
     body: ChatQueryRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     embeddings: Any = Depends(get_embeddings),
     reranker: Any = Depends(get_reranker),
-    llm: Any = Depends(get_llm),
+    settings: Settings = Depends(get_settings),
 ):
     """
     Full RAG pipeline: Query → Tri-Search → Rerank → Generate → Save.
@@ -205,6 +264,9 @@ async def ask_question(
         )
 
     try:
+        settings = request.app.state.settings if hasattr(request.app.state, "settings") else settings
+        llm, enable_graph_search = _resolve_runtime_llm(body, settings)
+
         result = await chat_service.ask_question(
             db=db,
             session_id=body.session_id,
@@ -212,6 +274,7 @@ async def ask_question(
             embeddings=embeddings,
             reranker=reranker,
             llm=llm,
+            enable_graph_search=enable_graph_search,
         )
         return ChatAnswerResponse(**result)
     except ValueError as exc:
@@ -231,10 +294,11 @@ async def ask_question(
 )
 async def ask_question_stream(
     body: ChatQueryRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     embeddings: Any = Depends(get_embeddings),
     reranker: Any = Depends(get_reranker),
-    llm: Any = Depends(get_llm),
+    settings: Settings = Depends(get_settings),
 ):
     """
     Streaming RAG pipeline qua Server-Sent Events.
@@ -246,6 +310,9 @@ async def ask_question_stream(
       - {type: "done"}
       - {type: "error", data: <message>}
     """
+    settings = request.app.state.settings if hasattr(request.app.state, "settings") else settings
+    llm, enable_graph_search = _resolve_runtime_llm(body, settings)
+
     async def event_generator():
         try:
             async for event_str in chat_service.ask_question_stream(
@@ -255,12 +322,21 @@ async def ask_question_stream(
                 embeddings=embeddings,
                 reranker=reranker,
                 llm=llm,
+                enable_graph_search=enable_graph_search,
+                is_client_disconnected=request.is_disconnected,
             ):
+                if await request.is_disconnected():
+                    logger.info("Client disconnected; stop streaming session=%s", body.session_id)
+                    break
                 yield f"data: {event_str}\n\n"
+        except asyncio.CancelledError:
+            logger.info("SSE task cancelled by disconnect: session=%s", body.session_id)
+            return
         except Exception as exc:
             logger.error("Stream error: %s", exc, exc_info=True)
-            error_event = json.dumps({"type": "error", "data": str(exc)})
-            yield f"data: {error_event}\n\n"
+            if not await request.is_disconnected():
+                error_event = json.dumps({"type": "error", "data": str(exc)})
+                yield f"data: {error_event}\n\n"
 
     return StreamingResponse(
         event_generator(),

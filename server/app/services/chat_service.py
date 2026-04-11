@@ -14,10 +14,11 @@ Quản lý sessions:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Any, AsyncGenerator, Optional
+from typing import Any, AsyncGenerator, Awaitable, Callable, Optional
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -182,6 +183,7 @@ async def ask_question(
     embeddings: Any,
     reranker: Any,
     llm: Any,
+    enable_graph_search: bool = True,
 ) -> dict[str, Any]:
     """
     Full RAG pipeline: Query → Retrieve → Generate → Save History.
@@ -221,6 +223,7 @@ async def ask_question(
         query=query,
         embeddings=embeddings,
         reranker=reranker,
+        enable_graph=enable_graph_search,
     )
 
     logger.info(
@@ -280,6 +283,8 @@ async def ask_question_stream(
     embeddings: Any,
     reranker: Any,
     llm: Any,
+    enable_graph_search: bool = True,
+    is_client_disconnected: Callable[[], Awaitable[bool]] | None = None,
 ) -> AsyncGenerator[str, None]:
     """
     Streaming RAG pipeline: Query → Retrieve → Stream Generate → Save History.
@@ -292,10 +297,18 @@ async def ask_question_stream(
           - {type: "done"}
           - {type: "error", data: <message>}
     """
+    if is_client_disconnected is not None and await is_client_disconnected():
+        logger.info("Stream request cancelled before session validation")
+        return
+
     # Validate session
     session = await db.get(ChatSession, session_id)
     if not session:
         yield json.dumps({"type": "error", "data": f"Session not found: {session_id}"})
+        return
+
+    if is_client_disconnected is not None and await is_client_disconnected():
+        logger.info("Stream request cancelled before message persistence")
         return
 
     # ── 1. Lưu user message ──────────────────────────────────────────
@@ -316,6 +329,15 @@ async def ask_question_stream(
     db.add(assistant_message)
     await db.flush()
 
+    async def _delete_placeholder_if_exists() -> None:
+        """Xóa placeholder assistant khi stream bị hủy quá sớm."""
+        if not assistant_message.id:
+            return
+        existing = await db.get(ChatMessage, assistant_message.id)
+        if existing is not None:
+            await db.delete(existing)
+            await db.flush()
+
     # Gửi message IDs cho frontend
     yield json.dumps({
         "type": "message_ids",
@@ -330,48 +352,71 @@ async def ask_question_stream(
         query=query,
         embeddings=embeddings,
         reranker=reranker,
+        enable_graph=enable_graph_search,
     )
+
+    if is_client_disconnected is not None and await is_client_disconnected():
+        await _delete_placeholder_if_exists()
+        logger.info("Stream request cancelled before token generation")
+        return
 
     # ── 3. Stream Generate ───────────────────────────────────────────
     full_answer = ""
     citations_data: list[dict] = []
 
-    async for event_str in generate_stream(
-        query=query,
-        chunks=retrieval_result.chunks,
-        llm=llm,
-    ):
-        event = json.loads(event_str)
+    try:
+        async for event_str in generate_stream(
+            query=query,
+            chunks=retrieval_result.chunks,
+            llm=llm,
+            should_stop=is_client_disconnected,
+        ):
+            event = json.loads(event_str)
 
-        if event["type"] == "token":
-            full_answer += event["data"]
-            yield event_str  # Forward token event
+            if event["type"] == "token":
+                full_answer += event["data"]
+                yield event_str
+                continue
 
-        elif event["type"] == "citations":
-            citations_data = event["data"]
-            yield event_str  # Forward citations event
+            if event["type"] == "citations":
+                citations_data = event["data"]
+                yield event_str
+                continue
 
-        elif event["type"] == "done":
-            # ── 4. Update assistant message with full content ─────────
+            if event["type"] == "done":
+                assistant_message.content = full_answer
+                assistant_message.citations = json.dumps(citations_data, ensure_ascii=False)
+
+                if session.title == "New Conversation":
+                    session.title = query[:100]
+
+                await db.flush()
+                logger.info(
+                    "Stream saved: session=%s, answer=%d chars, citations=%d",
+                    session_id, len(full_answer), len(citations_data),
+                )
+                yield event_str
+                return
+
+            if event["type"] == "error":
+                assistant_message.content = f"Error: {event.get('data', 'Unknown')}"
+                await db.flush()
+                yield event_str
+                return
+    except asyncio.CancelledError:
+        if full_answer.strip():
             assistant_message.content = full_answer
             assistant_message.citations = json.dumps(citations_data, ensure_ascii=False)
-
-            # Auto-update session title
-            if session.title == "New Conversation":
-                session.title = query[:100]
-
             await db.flush()
-
             logger.info(
-                "Stream saved: session=%s, answer=%d chars, citations=%d",
-                session_id, len(full_answer), len(citations_data),
+                "Stream cancelled with partial answer persisted: session=%s, chars=%d",
+                session_id,
+                len(full_answer),
             )
-            yield event_str  # Forward done event
-
-        elif event["type"] == "error":
-            assistant_message.content = f"Error: {event.get('data', 'Unknown')}"
-            await db.flush()
-            yield event_str
+        else:
+            await _delete_placeholder_if_exists()
+            logger.info("Stream cancelled before first token: placeholder removed session=%s", session_id)
+        return
 
 
 # ═════════════════════════════════════════════════════════════════════════════

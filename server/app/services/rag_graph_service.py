@@ -93,7 +93,10 @@ def _extract_entities(text: str, max_entities: int = 10) -> list[str]:
     return entities
 
 
-def _load_indexed_chunks(max_chunks: int = 2500) -> list[tuple[str, dict[str, Any]]]:
+def _load_indexed_chunks(
+    allowed_document_ids: set[str] | None = None,
+    max_chunks: int = 2500,
+) -> list[tuple[str, dict[str, Any]]]:
     """Load indexed chunk texts + metadata from ChromaDB."""
     try:
         import chromadb
@@ -113,6 +116,12 @@ def _load_indexed_chunks(max_chunks: int = 2500) -> list[tuple[str, dict[str, An
             if not text:
                 continue
             meta = metas[i] if i < len(metas) and isinstance(metas[i], dict) else {}
+
+            if allowed_document_ids is not None:
+                meta_doc_id = str(meta.get("document_id", "") or "").strip()
+                if meta_doc_id not in allowed_document_ids:
+                    continue
+
             rows.append((str(text), meta))
         return rows
     except ImportError:
@@ -123,8 +132,11 @@ def _load_indexed_chunks(max_chunks: int = 2500) -> list[tuple[str, dict[str, An
         return []
 
 
-def _build_graph(max_nodes: int) -> _GraphBuildResult:
-    chunk_rows = _load_indexed_chunks()
+def _build_graph(
+    max_nodes: int,
+    allowed_document_ids: set[str] | None = None,
+) -> _GraphBuildResult:
+    chunk_rows = _load_indexed_chunks(allowed_document_ids=allowed_document_ids)
     if not chunk_rows:
         return _GraphBuildResult(nodes=[], edges=[], frequency_by_id={}, is_truncated=False)
 
@@ -207,11 +219,10 @@ async def get_graph_data(
     """
     Return graph payload for frontend KG canvas.
 
-    Workspace/session scoping for documents is not available in current data model,
-    so this endpoint serves graph built from all indexed chunks.
+    Scope graph theo workspace bằng danh sách document thuộc workspace đó.
     """
-    _ = (db, workspace_id)  # Explicitly acknowledge currently-unused scope.
-    graph = _build_graph(max_nodes=max_nodes)
+    workspace_document_ids = await _get_workspace_indexed_document_ids(db, workspace_id)
+    graph = _build_graph(max_nodes=max_nodes, allowed_document_ids=workspace_document_ids)
     return {
         "nodes": graph.nodes,
         "edges": graph.edges,
@@ -224,8 +235,11 @@ async def get_entities(
     workspace_id: str,
     limit: int,
 ) -> list[dict[str, Any]]:
-    _ = (db, workspace_id)
-    graph = _build_graph(max_nodes=max(limit, 50))
+    workspace_document_ids = await _get_workspace_indexed_document_ids(db, workspace_id)
+    graph = _build_graph(
+        max_nodes=max(limit, 50),
+        allowed_document_ids=workspace_document_ids,
+    )
 
     entities = [
         {
@@ -245,8 +259,8 @@ async def get_relationships(
     entity: str,
     limit: int,
 ) -> list[dict[str, Any]]:
-    _ = (db, workspace_id)
-    graph = _build_graph(max_nodes=300)
+    workspace_document_ids = await _get_workspace_indexed_document_ids(db, workspace_id)
+    graph = _build_graph(max_nodes=300, allowed_document_ids=workspace_document_ids)
     if not graph.nodes:
         return []
 
@@ -289,12 +303,22 @@ async def get_project_analytics(
     db: AsyncSession,
     workspace_id: str,
 ) -> dict[str, Any]:
-    documents, _total = await document_service.list_documents(db, skip=0, limit=5000)
+    documents, _total = await document_service.list_documents(
+        db,
+        workspace_id=workspace_id,
+        skip=0,
+        limit=5000,
+    )
 
     indexed_documents = sum(1 for doc in documents if (doc.chunk_count or 0) > 0)
     total_chunks = sum(int(doc.chunk_count or 0) for doc in documents)
 
-    graph = _build_graph(max_nodes=150)
+    workspace_document_ids = {
+        str(doc.id)
+        for doc in documents
+        if int(doc.chunk_count or 0) > 0
+    }
+    graph = _build_graph(max_nodes=150, allowed_document_ids=workspace_document_ids)
     entity_types = Counter(node["entity_type"] for node in graph.nodes)
 
     kg_analytics: dict[str, Any] | None = None
@@ -349,4 +373,21 @@ async def get_project_analytics(
         },
         "kg_analytics": kg_analytics,
         "document_breakdown": document_breakdown,
+    }
+
+
+async def _get_workspace_indexed_document_ids(
+    db: AsyncSession,
+    workspace_id: str,
+) -> set[str]:
+    documents, _total = await document_service.list_documents(
+        db,
+        workspace_id=workspace_id,
+        skip=0,
+        limit=5000,
+    )
+    return {
+        str(doc.id)
+        for doc in documents
+        if int(doc.chunk_count or 0) > 0
     }

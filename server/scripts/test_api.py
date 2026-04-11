@@ -257,7 +257,7 @@ async def test_delete_session_not_found(client):
     print("  ✅ 404 on delete handled\n")
 
 
-async def test_upload_document(client) -> dict:
+async def test_upload_document(client, workspace_id: str) -> dict:
     """Test upload file → nhận task_id."""
     print("=" * 60)
     print("  TEST: POST /api/v1/documents/upload")
@@ -265,10 +265,13 @@ async def test_upload_document(client) -> dict:
 
     file_content = b"This is a test document for API upload testing. " * 10
 
-    resp = await client.post(
-        "/api/v1/documents/upload",
-        files={"file": ("test_api_upload.txt", file_content, "text/plain")},
-    )
+    # Mock background ingestion để test API contract không bị nhiễu bởi worker thực.
+    with patch("app.services.document_service.process_ingestion_task", new=AsyncMock(return_value=None)):
+        resp = await client.post(
+            "/api/v1/documents/upload",
+            data={"workspace_id": workspace_id},
+            files={"file": ("test_api_upload.txt", file_content, "text/plain")},
+        )
     assert resp.status_code == 202, f"Expected 202, got {resp.status_code}: {resp.text}"
     data = resp.json()
 
@@ -295,6 +298,7 @@ async def test_upload_empty_file(client):
 
     resp = await client.post(
         "/api/v1/documents/upload",
+        data={"workspace_id": "workspace-api-tests"},
         files={"file": ("empty.txt", b"", "text/plain")},
     )
     assert resp.status_code == 400
@@ -333,13 +337,13 @@ async def test_get_ingestion_status_not_found(client):
     print("  ✅ 404 on status handled\n")
 
 
-async def test_list_documents(client):
+async def test_list_documents(client, workspace_id: str):
     """Test liệt kê documents."""
     print("=" * 60)
     print("  TEST: GET /api/v1/documents")
     print("=" * 60)
 
-    resp = await client.get("/api/v1/documents")
+    resp = await client.get(f"/api/v1/documents?workspace_id={workspace_id}")
     assert resp.status_code == 200
     data = resp.json()
     assert "documents" in data
@@ -351,13 +355,13 @@ async def test_list_documents(client):
     print("  ✅ List documents OK\n")
 
 
-async def test_get_document(client, document_id: str):
+async def test_get_document(client, document_id: str, workspace_id: str):
     """Test lấy chi tiết 1 document."""
     print("=" * 60)
     print("  TEST: GET /api/v1/documents/{id}")
     print("=" * 60)
 
-    resp = await client.get(f"/api/v1/documents/{document_id}")
+    resp = await client.get(f"/api/v1/documents/{document_id}?workspace_id={workspace_id}")
     assert resp.status_code == 200
     data = resp.json()
     assert data["id"] == document_id
@@ -368,25 +372,25 @@ async def test_get_document(client, document_id: str):
     print("  ✅ Get document OK\n")
 
 
-async def test_get_document_not_found(client):
+async def test_get_document_not_found(client, workspace_id: str):
     """Test 404 khi document không tồn tại."""
     print("=" * 60)
     print("  TEST: GET /api/v1/documents/{invalid} → 404")
     print("=" * 60)
 
-    resp = await client.get("/api/v1/documents/ghost-doc-12345")
+    resp = await client.get(f"/api/v1/documents/ghost-doc-12345?workspace_id={workspace_id}")
     assert resp.status_code == 404
     print(f"  Status: {resp.status_code}")
     print("  ✅ 404 handled\n")
 
 
-async def test_delete_document(client, document_id: str):
+async def test_delete_document(client, document_id: str, workspace_id: str):
     """Test xóa document + cleanup."""
     print("=" * 60)
     print("  TEST: DELETE /api/v1/documents/{id}")
     print("=" * 60)
 
-    resp = await client.delete(f"/api/v1/documents/{document_id}")
+    resp = await client.delete(f"/api/v1/documents/{document_id}?workspace_id={workspace_id}")
     assert resp.status_code == 200
     data = resp.json()
     assert data["document_id"] == document_id
@@ -394,7 +398,7 @@ async def test_delete_document(client, document_id: str):
     print(f"  Message:  {data['message']}")
 
     # Verify
-    verify = await client.get(f"/api/v1/documents/{document_id}")
+    verify = await client.get(f"/api/v1/documents/{document_id}?workspace_id={workspace_id}")
     assert verify.status_code == 404
     print("  Verified: document no longer exists")
     print("  ✅ Delete document OK\n")
@@ -498,14 +502,15 @@ async def main():
             await test_delete_session_not_found(client)
 
             # ── Documents ────────────────────────────────────────────────
-            upload_data = await test_upload_document(client)
+            docs_workspace_id = "workspace-api-tests"
+            upload_data = await test_upload_document(client, docs_workspace_id)
             await test_upload_empty_file(client)
             await test_get_ingestion_status(client, upload_data["task_id"])
             await test_get_ingestion_status_not_found(client)
-            await test_list_documents(client)
-            await test_get_document(client, upload_data["document_id"])
-            await test_get_document_not_found(client)
-            await test_delete_document(client, upload_data["document_id"])
+            await test_list_documents(client, docs_workspace_id)
+            await test_get_document(client, upload_data["document_id"], docs_workspace_id)
+            await test_get_document_not_found(client, docs_workspace_id)
+            await test_delete_document(client, upload_data["document_id"], docs_workspace_id)
 
     # Cleanup test DB file
     test_db_path.unlink(missing_ok=True)

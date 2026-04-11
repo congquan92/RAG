@@ -1,12 +1,14 @@
 import { useState, useRef, useEffect, useCallback, useMemo, memo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
-import { Send, Square, Bot, Loader2, Trash2, Brain, Settings, RotateCcw, Info, Save, DatabaseZap } from "lucide-react";
+import { Send, Square, Bot, Loader2, Trash2, Brain, Settings, RotateCcw, Info, Save, DatabaseZap, Cpu, Sparkles, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 import { cn, generateId } from "@/lib/utils";
+import { api } from "@/lib/api";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useChatHistory, useClearChatHistory } from "@/hooks/useChatHistory";
 import { useRAGChatStream } from "@/hooks/useRAGChatStream";
-import type { ChatMessage, ChatSourceChunk, KnowledgeBase, AgentStep } from "@/types";
+import type { ChatMessage, ChatSourceChunk, KnowledgeBase, AgentStep, ChatRuntimeMode, ChatRuntimeOptions } from "@/types";
 import { AllSourcesCtx, DebugCtx, WsIdCtx } from "@/components/rag/chat-panel/context";
 import { DEFAULT_SYSTEM_PROMPT, HARD_RULES_SUMMARY } from "@/components/rag/chat-panel/constants";
 import { MessageBubble, SuggestionChips } from "@/components/rag/chat-panel/messageBlocks";
@@ -18,11 +20,39 @@ interface ChatPanelProps {
     workspace: KnowledgeBase | null;
 }
 
+interface RuntimeHealthResponse {
+    status: string;
+    gemini_model_default?: string;
+    server_has_gemini_key?: boolean;
+}
+
+const DEFAULT_GEMINI_RUNTIME_MODEL = "gemini-2.0-flash";
+
 export const ChatPanel = memo(function ChatPanel({ workspaceId, hasIndexedDocs, workspace }: ChatPanelProps) {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState("");
     const [enableThinking, setEnableThinking] = useState(false);
     const [forceSearch, setForceSearch] = useState(false);
+    const [ragMode, setRagMode] = useState<ChatRuntimeMode>("local_rag");
+    const [showGeminiModeDialog, setShowGeminiModeDialog] = useState(false);
+    const [geminiApiKey, setGeminiApiKey] = useState("");
+    const [geminiModel, setGeminiModel] = useState(DEFAULT_GEMINI_RUNTIME_MODEL);
+
+    const { data: runtimeHealth } = useQuery({
+        queryKey: ["runtime-health"],
+        queryFn: () => api.get<RuntimeHealthResponse>("/health"),
+        staleTime: 5 * 60 * 1000,
+    });
+
+    const serverHasGeminiKey = Boolean(runtimeHealth?.server_has_gemini_key);
+
+    useEffect(() => {
+        const serverDefaultModel = runtimeHealth?.gemini_model_default?.trim();
+        if (!serverDefaultModel) return;
+        if (geminiModel.trim() === "" || geminiModel === DEFAULT_GEMINI_RUNTIME_MODEL) {
+            setGeminiModel(serverDefaultModel);
+        }
+    }, [runtimeHealth, geminiModel]);
 
     const { data: historyData, isLoading: historyLoading } = useChatHistory(workspaceId);
     const clearMutation = useClearChatHistory(workspaceId);
@@ -108,6 +138,44 @@ export const ChatPanel = memo(function ChatPanel({ workspaceId, hasIndexedDocs, 
             agentStepsRef.current = stream.agentSteps;
         }
     }, [stream.agentSteps]);
+
+    const runtimeChatOptions = useMemo<ChatRuntimeOptions>(() => {
+        if (ragMode === "graphrag_gemini") {
+            return {
+                ragMode,
+                geminiApiKey: geminiApiKey.trim() || undefined,
+                geminiModel: geminiModel.trim() || DEFAULT_GEMINI_RUNTIME_MODEL,
+            };
+        }
+
+        return { ragMode };
+    }, [ragMode, geminiApiKey, geminiModel]);
+
+    const isGraphModeReady = useMemo(() => {
+        const hasModel = geminiModel.trim().length > 0;
+        const hasKey = geminiApiKey.trim().length > 0 || serverHasGeminiKey;
+        return hasModel && hasKey;
+    }, [geminiApiKey, geminiModel, serverHasGeminiKey]);
+
+    const switchToLocalMode = useCallback(() => {
+        setRagMode("local_rag");
+        toast.info("Đã chuyển sang Local RAG.");
+    }, []);
+
+    const openGraphModeDialog = useCallback(() => {
+        setShowGeminiModeDialog(true);
+    }, []);
+
+    const confirmGraphMode = useCallback(() => {
+        if (!isGraphModeReady) {
+            toast.error("Thiếu Gemini model hoặc API key (UI hoặc server .env).");
+            return;
+        }
+
+        setRagMode("graphrag_gemini");
+        setShowGeminiModeDialog(false);
+        toast.success("Đã bật GraphRAG Gemini.");
+    }, [isGraphModeReady]);
 
     const scrollToBottom = useCallback((smooth = true) => {
         const container = scrollContainerRef.current;
@@ -302,6 +370,12 @@ export const ChatPanel = memo(function ChatPanel({ workspaceId, hasIndexedDocs, 
                 return;
             }
 
+            if (ragMode === "graphrag_gemini" && !isGraphModeReady) {
+                setShowGeminiModeDialog(true);
+                toast.error("GraphRAG Gemini cần API key từ UI hoặc GEMINI_API_KEY trong .env.");
+                return;
+            }
+
             const userMessage: ChatMessage = {
                 id: generateId(),
                 role: "user",
@@ -328,7 +402,7 @@ export const ChatPanel = memo(function ChatPanel({ workspaceId, hasIndexedDocs, 
                 content: message.content,
             }));
 
-            const finalMessage = await stream.sendMessage(messageText, history, thinkingSupported && enableThinking, forceSearch);
+            const finalMessage = await stream.sendMessage(messageText, history, thinkingSupported && enableThinking, forceSearch, runtimeChatOptions);
 
             if (finalMessage) {
                 setMessages((prev) =>
@@ -357,12 +431,12 @@ export const ChatPanel = memo(function ChatPanel({ workspaceId, hasIndexedDocs, 
                     ),
                 );
             } else {
-                setMessages((prev) => prev.map((message) => (message.id === assistantId ? { ...message, isStreaming: false } : message)));
+                setMessages((prev) => prev.map((message) => (message.id === assistantId ? { ...message, isStreaming: false } : message)).filter((message) => !(message.id === assistantId && message.role === "assistant" && !message.content.trim())));
             }
 
             streamingMsgIdRef.current = null;
         },
-        [input, messages, stream, thinkingSupported, enableThinking, forceSearch, scrollUserMsgToTop],
+        [input, messages, stream, thinkingSupported, enableThinking, forceSearch, scrollUserMsgToTop, ragMode, isGraphModeReady, runtimeChatOptions],
     );
 
     const handleKeyDown = (event: React.KeyboardEvent) => {
@@ -421,43 +495,91 @@ export const ChatPanel = memo(function ChatPanel({ workspaceId, hasIndexedDocs, 
             <DebugCtx.Provider value={debugMode}>
                 <AllSourcesCtx.Provider value={allSources}>
                     <div className="h-full flex flex-col border-r min-h-0">
-                        <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-b">
-                            <div className="flex items-center gap-2">
-                                <Bot className="w-4 h-4 text-primary" />
-                                <span className="text-sm font-semibold">Trợ lý AI</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                                {thinkingSupported && (
+                        <div className="flex-shrink-0 border-b">
+                            <div className="flex items-center justify-between px-3 py-2">
+                                <div className="flex items-center gap-2">
+                                    <Bot className="w-4 h-4 text-primary" />
+                                    <span className="text-sm font-semibold">Trợ lý AI</span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                    {thinkingSupported && (
+                                        <button
+                                            onClick={() => setEnableThinking((prev) => !prev)}
+                                            className={cn(
+                                                "flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] transition-colors",
+                                                enableThinking ? "text-violet-400 bg-violet-400/10 hover:bg-violet-400/15" : "text-muted-foreground hover:bg-muted",
+                                            )}
+                                            title={enableThinking ? "Đã bật chế độ Thinking" : "Đã tắt chế độ Thinking"}
+                                        >
+                                            <Brain className="w-3 h-3" />
+                                            <span>Thinking</span>
+                                        </button>
+                                    )}
                                     <button
-                                        onClick={() => setEnableThinking((prev) => !prev)}
-                                        className={cn("flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] transition-colors", enableThinking ? "text-violet-400 bg-violet-400/10 hover:bg-violet-400/15" : "text-muted-foreground hover:bg-muted")}
-                                        title={enableThinking ? "Đã bật chế độ Thinking" : "Đã tắt chế độ Thinking"}
+                                        onClick={() => setForceSearch((prev) => !prev)}
+                                        className={cn("flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] transition-colors", forceSearch ? "text-amber-500 bg-amber-500/10 hover:bg-amber-500/15" : "text-muted-foreground hover:bg-muted")}
+                                        title={forceSearch ? "Đã bật Force Search — tìm kiếm trước mỗi câu trả lời" : "Đã tắt Force Search — AI tự quyết định khi nào tìm kiếm"}
                                     >
-                                        <Brain className="w-3 h-3" />
-                                        <span>Thinking</span>
+                                        <DatabaseZap className="w-3 h-3" />
+                                        <span>Tìm kiếm</span>
                                     </button>
-                                )}
-                                <button
-                                    onClick={() => setForceSearch((prev) => !prev)}
-                                    className={cn("flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] transition-colors", forceSearch ? "text-amber-500 bg-amber-500/10 hover:bg-amber-500/15" : "text-muted-foreground hover:bg-muted")}
-                                    title={forceSearch ? "Đã bật Force Search — tìm kiếm trước mỗi câu trả lời" : "Đã tắt Force Search — AI tự quyết định khi nào tìm kiếm"}
-                                >
-                                    <DatabaseZap className="w-3 h-3" />
-                                    <span>Tìm kiếm</span>
-                                </button>
-                                <button
-                                    onClick={() => setShowPromptEditor((prev) => !prev)}
-                                    className={cn("flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] transition-colors", showPromptEditor ? "text-blue-500 bg-blue-500/10 hover:bg-blue-500/15" : "text-muted-foreground hover:bg-muted")}
-                                    title="Cai dat system prompt"
-                                >
-                                    <Settings className="w-3 h-3" />
-                                </button>
-                                {messages.length > 0 && (
-                                    <button onClick={() => setClearChatConfirmOpen(true)} className="p-1 rounded hover:bg-muted transition-colors" title="Xóa chat">
-                                        <Trash2 className="w-3.5 h-3.5 text-muted-foreground" />
+                                    <button
+                                        onClick={() => setShowPromptEditor((prev) => !prev)}
+                                        className={cn("flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] transition-colors", showPromptEditor ? "text-blue-500 bg-blue-500/10 hover:bg-blue-500/15" : "text-muted-foreground hover:bg-muted")}
+                                        title="Cai dat system prompt"
+                                    >
+                                        <Settings className="w-3 h-3" />
                                     </button>
-                                )}
-                                {debugMode && <span className="text-[8px] px-1 py-0.5 rounded bg-amber-500/15 text-amber-500 font-mono font-semibold">DEBUG</span>}
+                                    {messages.length > 0 && (
+                                        <button onClick={() => setClearChatConfirmOpen(true)} className="p-1 rounded hover:bg-muted transition-colors" title="Xóa chat">
+                                            <Trash2 className="w-3.5 h-3.5 text-muted-foreground" />
+                                        </button>
+                                    )}
+                                    {debugMode && <span className="text-[8px] px-1 py-0.5 rounded bg-amber-500/15 text-amber-500 font-mono font-semibold">DEBUG</span>}
+                                </div>
+                            </div>
+
+                            <div className="px-3 pb-2 space-y-2">
+                                <div className="inline-flex items-center gap-1 rounded-lg border bg-background p-1">
+                                    <button
+                                        onClick={switchToLocalMode}
+                                        className={cn(
+                                            "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors",
+                                            ragMode === "local_rag" ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" : "text-muted-foreground hover:bg-muted",
+                                        )}
+                                        title="Dùng model local theo .env"
+                                    >
+                                        <Cpu className="h-3.5 w-3.5" />
+                                        <span>Local RAG</span>
+                                    </button>
+                                    <button
+                                        onClick={openGraphModeDialog}
+                                        className={cn(
+                                            "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors",
+                                            ragMode === "graphrag_gemini" ? "bg-blue-500/15 text-blue-600 dark:text-blue-400" : "text-muted-foreground hover:bg-muted",
+                                        )}
+                                        title="Bật GraphRAG với Gemini runtime"
+                                    >
+                                        <Sparkles className="h-3.5 w-3.5" />
+                                        <span>GraphRAG Gemini</span>
+                                    </button>
+                                </div>
+
+                                <div
+                                    className={cn(
+                                        "flex items-center gap-1.5 rounded-lg border px-2 py-1.5 text-[10px]",
+                                        ragMode === "graphrag_gemini" ? "border-blue-500/25 bg-blue-500/10 text-blue-700 dark:text-blue-300" : "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+                                    )}
+                                >
+                                    {ragMode === "graphrag_gemini" ? <KeyRound className="h-3.5 w-3.5" /> : <Cpu className="h-3.5 w-3.5" />}
+                                    <span>
+                                        {ragMode === "graphrag_gemini"
+                                            ? serverHasGeminiKey && !geminiApiKey.trim()
+                                                ? "GraphRAG dùng Gemini từ server .env. Nếu Gemini lỗi sẽ trả lỗi Gemini, không fallback local."
+                                                : "GraphRAG dùng Gemini runtime key. Nếu Gemini lỗi sẽ trả lỗi Gemini, không fallback local."
+                                            : "Local RAG đang dùng provider/model từ .env hiện tại."}
+                                    </span>
+                                </div>
                             </div>
                         </div>
 
@@ -594,6 +716,70 @@ export const ChatPanel = memo(function ChatPanel({ workspaceId, hasIndexedDocs, 
                     </div>
                 </AllSourcesCtx.Provider>
             </DebugCtx.Provider>
+
+            <AnimatePresence>
+                {showGeminiModeDialog && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center">
+                        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowGeminiModeDialog(false)} />
+                        <motion.div
+                            initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 12, scale: 0.98 }}
+                            className="relative z-10 mx-4 w-full max-w-md rounded-xl border bg-card p-4 shadow-2xl"
+                        >
+                            <div className="mb-3 flex items-start gap-2">
+                                <div className="rounded-lg bg-blue-500/15 p-2 text-blue-500">
+                                    <Sparkles className="h-4 w-4" />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-semibold">Kích hoạt GraphRAG Gemini</h3>
+                                    <p className="mt-1 text-xs text-muted-foreground">GraphRAG sẽ gọi Gemini theo cấu hình bạn chọn. Nếu Gemini lỗi hoặc quá tải, hệ thống sẽ trả đúng lỗi Gemini thay vì fallback local.</p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-3">
+                                <div className="space-y-1">
+                                    <label className="text-xs font-medium">Gemini API key</label>
+                                    <input
+                                        type="password"
+                                        value={geminiApiKey}
+                                        onChange={(event) => setGeminiApiKey(event.target.value)}
+                                        placeholder={serverHasGeminiKey ? "Để trống để dùng key từ server .env" : "AIza..."}
+                                        className="h-9 w-full rounded-md border bg-background px-2.5 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                    />
+                                </div>
+
+                                {serverHasGeminiKey && <p className="text-[10px] text-emerald-600 dark:text-emerald-400">Server đã có GEMINI_API_KEY trong .env, bạn có thể bỏ trống ô API key.</p>}
+
+                                <div className="space-y-1">
+                                    <label className="text-xs font-medium">Gemini model</label>
+                                    <input
+                                        type="text"
+                                        value={geminiModel}
+                                        onChange={(event) => setGeminiModel(event.target.value)}
+                                        placeholder={DEFAULT_GEMINI_RUNTIME_MODEL}
+                                        className="h-9 w-full rounded-md border bg-background px-2.5 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="mt-4 flex items-center justify-end gap-2">
+                                <button onClick={() => setShowGeminiModeDialog(false)} className="rounded-md border px-3 py-1.5 text-xs hover:bg-muted">
+                                    Hủy
+                                </button>
+                                <button
+                                    onClick={confirmGraphMode}
+                                    disabled={!isGraphModeReady}
+                                    className={cn("inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium", isGraphModeReady ? "bg-blue-500 text-white hover:bg-blue-500/90" : "cursor-not-allowed bg-muted text-muted-foreground")}
+                                >
+                                    <KeyRound className="h-3.5 w-3.5" />
+                                    Xác nhận bật GraphRAG
+                                </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             <ConfirmDialog
                 open={clearChatConfirmOpen}

@@ -14,6 +14,7 @@ const PROCESSING_STATUSES = new Set<DocumentStatus>(["pending", "processing", "p
 
 interface ServerDocumentItem {
     id: string;
+    workspace_id?: string | null;
     filename: string;
     file_size: number;
     mime_type: string;
@@ -29,6 +30,7 @@ interface ServerDocumentListResponse {
 
 interface ServerDocumentUploadResponse {
     document_id: string;
+    workspace_id?: string | null;
     task_id: string;
 }
 
@@ -112,7 +114,7 @@ function mapServerDocument(document: ServerDocumentItem, workspaceId: string, ru
 
     return {
         id: document.id,
-        workspace_id: workspaceId,
+        workspace_id: document.workspace_id ?? workspaceId,
         filename: document.filename,
         original_filename: document.filename,
         file_type: getFileType(document.filename, document.mime_type),
@@ -176,13 +178,13 @@ export function WorkspacePage() {
 
                     if (task.status === "completed") {
                         setPendingUploads((prev) => prev.filter((item) => item.documentId !== documentId));
-                        queryClient.invalidateQueries({ queryKey: ["documents"] });
+                        queryClient.invalidateQueries({ queryKey: ["documents", wsId] });
                         return;
                     }
 
                     if (task.status === "failed") {
                         setPendingUploads((prev) => prev.map((item) => (item.documentId === documentId ? { ...item, phase: "failed", error: task.error_message ?? "Xử lý tài liệu thất bại" } : item)));
-                        queryClient.invalidateQueries({ queryKey: ["documents"] });
+                        queryClient.invalidateQueries({ queryKey: ["documents", wsId] });
                         toast.error(task.error_message || "Xử lý tài liệu thất bại");
                         return;
                     }
@@ -202,20 +204,21 @@ export function WorkspacePage() {
                 },
             }));
             setPendingUploads((prev) => prev.map((item) => (item.documentId === documentId ? { ...item, phase: "failed", error: "Hết thời gian chờ xử lý (timeout)." } : item)));
-            queryClient.invalidateQueries({ queryKey: ["documents"] });
+            queryClient.invalidateQueries({ queryKey: ["documents", wsId] });
 
             toast.warning("Xử lý tài liệu đang lâu hơn dự kiến. Vui lòng tải lại danh sách tài liệu.");
         },
-        [queryClient],
+        [queryClient, wsId],
     );
 
     const { data: documentList, isLoading: docsLoading } = useQuery({
-        queryKey: ["documents"],
-        queryFn: () => api.get<ServerDocumentListResponse>("/documents?skip=0&limit=200"),
+        queryKey: ["documents", wsId],
+        queryFn: () => api.get<ServerDocumentListResponse>(`/documents?workspace_id=${encodeURIComponent(wsId ?? "")}&skip=0&limit=200`),
         refetchInterval: () => {
             const hasRunningTasks = Object.values(taskStateByDocId).some((task) => PROCESSING_STATUSES.has(task.status));
             return hasRunningTasks ? 2500 : false;
         },
+        enabled: !!wsId,
     });
 
     const documents = useMemo(() => {
@@ -264,7 +267,7 @@ export function WorkspacePage() {
     const hasDeepragDocs = hasIndexedDocs;
 
     const uploadDoc = useMutation({
-        mutationFn: ({ file, customMetadata }: UploadMutationInput) => api.uploadFile<ServerDocumentUploadResponse>("/documents/upload", file, customMetadata),
+        mutationFn: ({ file, customMetadata }: UploadMutationInput) => api.uploadFile<ServerDocumentUploadResponse>("/documents/upload", file, customMetadata, wsId ?? undefined),
         onSuccess: (payload, variables) => {
             setPendingUploads((prev) => prev.map((item) => (item.id === variables.clientId ? { ...item, phase: "pending", documentId: payload.document_id, chunksProcessed: 0, error: null } : item)));
             setTaskStateByDocId((prev) => ({
@@ -276,7 +279,7 @@ export function WorkspacePage() {
                 },
             }));
 
-            queryClient.invalidateQueries({ queryKey: ["documents"] });
+            queryClient.invalidateQueries({ queryKey: ["documents", wsId] });
             queryClient.invalidateQueries({ queryKey: ["workspaces"] });
             toast.success("Đã nhận file. Hệ thống đang xử lý ở nền.");
 
@@ -289,14 +292,14 @@ export function WorkspacePage() {
     });
 
     const deleteDoc = useMutation({
-        mutationFn: (docId: string) => api.delete(`/documents/${docId}`),
+        mutationFn: (docId: string) => api.delete(`/documents/${docId}?workspace_id=${encodeURIComponent(wsId ?? "")}`),
         onSuccess: (_, docId) => {
             setTaskStateByDocId((prev) => {
                 const { [docId]: _removed, ...rest } = prev;
                 return rest;
             });
 
-            queryClient.invalidateQueries({ queryKey: ["documents"] });
+            queryClient.invalidateQueries({ queryKey: ["documents", wsId] });
             queryClient.invalidateQueries({ queryKey: ["workspaces"] });
             if (selectedDoc?.id === docId) selectDoc(null);
             toast.success("Đã xóa tài liệu");

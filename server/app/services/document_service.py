@@ -17,10 +17,11 @@ from __future__ import annotations
 import logging
 import shutil
 import uuid
+import inspect
 from pathlib import Path
 from typing import Any, Optional
 
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.settings import settings
@@ -99,6 +100,7 @@ async def save_uploaded_file(
     db: AsyncSession,
     filename: str,
     file_content: bytes,
+    workspace_id: str | None = None,
 ) -> tuple[Document, IngestionTask]:
     """
     Lưu file upload vào disk + tạo Document và IngestionTask records.
@@ -132,6 +134,7 @@ async def save_uploaded_file(
 
     # Tạo Document record
     document = Document(
+        workspace_id=(workspace_id or None),
         filename=filename,
         file_path=str(file_path),
         file_size=file_size,
@@ -239,6 +242,13 @@ async def process_ingestion_task(
                 )
                 return
 
+            # ── Step 2.5: Upsert document vào LightRAG graph index ─────────
+            await _store_document_lightrag(
+                chunks=extraction.chunks,
+                document_id=document.id,
+                filename=document.filename,
+            )
+
             # ── Step 3: Update DB records ────────────────────────────────
             document.chunk_count = chunks_stored
             task.status = "completed"
@@ -331,6 +341,62 @@ async def _store_chunks_chromadb(
         return 0
 
 
+async def _store_document_lightrag(
+    chunks: list,
+    document_id: str,
+    filename: str,
+) -> bool:
+    """
+    Upsert nội dung tài liệu vào LightRAG working directory.
+
+    Best-effort: nếu LightRAG không khả dụng thì chỉ warning và không fail ingestion.
+    """
+    try:
+        from lightrag import LightRAG as LightRAGEngine
+
+        rag = LightRAGEngine(working_dir=settings.lightrag_working_dir)
+        body = "\n\n".join(
+            chunk.text.strip()
+            for chunk in chunks
+            if getattr(chunk, "text", "").strip()
+        )
+        if not body:
+            logger.warning("Skip LightRAG ingest because document body is empty: %s", document_id)
+            return False
+
+        payload = (
+            f"Document ID: {document_id}\n"
+            f"Filename: {filename}\n"
+            "---\n"
+            f"{body}"
+        )
+
+        insert_fn = getattr(rag, "insert", None)
+        if callable(insert_fn):
+            result = insert_fn(payload)
+            if inspect.isawaitable(result):
+                await result
+            logger.info("Stored document %s into LightRAG", document_id)
+            return True
+
+        ainsert_fn = getattr(rag, "ainsert", None)
+        if callable(ainsert_fn):
+            result = ainsert_fn(payload)
+            if inspect.isawaitable(result):
+                await result
+            logger.info("Stored document %s into LightRAG (ainsert)", document_id)
+            return True
+
+        logger.warning("LightRAG insert API not found for document %s", document_id)
+        return False
+    except ImportError:
+        logger.warning("lightrag not installed, skipping graph ingest for %s", document_id)
+        return False
+    except Exception as exc:
+        logger.warning("LightRAG ingest failed for document %s: %s", document_id, exc)
+        return False
+
+
 # ═════════════════════════════════════════════════════════════════════════════
 # Query helpers — dùng cho API controllers
 # ═════════════════════════════════════════════════════════════════════════════
@@ -346,13 +412,20 @@ async def get_task_status(
 async def get_document(
     db: AsyncSession,
     document_id: str,
+    workspace_id: str | None = None,
 ) -> Optional[Document]:
     """Lấy thông tin document theo ID."""
-    return await db.get(Document, document_id)
+    document = await db.get(Document, document_id)
+    if not document:
+        return None
+    if workspace_id and document.workspace_id != workspace_id:
+        return None
+    return document
 
 
 async def list_documents(
     db: AsyncSession,
+    workspace_id: str | None = None,
     skip: int = 0,
     limit: int = 50,
 ) -> tuple[list[Document], int]:
@@ -362,18 +435,22 @@ async def list_documents(
     Returns:
         (documents, total_count)
     """
+    filters = []
+    if workspace_id:
+        filters.append(Document.workspace_id == workspace_id)
+
     # Count total
     count_stmt = select(func.count(Document.id))
+    if filters:
+        count_stmt = count_stmt.where(*filters)
     total_result = await db.execute(count_stmt)
     total = total_result.scalar() or 0
 
     # Fetch documents
-    stmt = (
-        select(Document)
-        .order_by(Document.created_at.desc())
-        .offset(skip)
-        .limit(limit)
-    )
+    stmt = select(Document)
+    if filters:
+        stmt = stmt.where(*filters)
+    stmt = stmt.order_by(Document.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(stmt)
     documents = list(result.scalars().all())
 
@@ -383,6 +460,7 @@ async def list_documents(
 async def delete_document(
     db: AsyncSession,
     document_id: str,
+    workspace_id: str | None = None,
 ) -> Optional[Document]:
     """
     Xóa document + file vật lý + chunks trong ChromaDB.
@@ -392,6 +470,8 @@ async def delete_document(
     """
     document = await db.get(Document, document_id)
     if not document:
+        return None
+    if workspace_id and document.workspace_id != workspace_id:
         return None
 
     # Xóa file vật lý

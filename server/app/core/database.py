@@ -59,6 +59,10 @@ _CHAT_SESSION_SQLITE_COLUMNS: dict[str, str] = {
     "system_prompt": "TEXT",
 }
 
+_DOCUMENT_SQLITE_COLUMNS: dict[str, str] = {
+    "workspace_id": "TEXT",
+}
+
 
 async def _get_sqlite_table_columns(conn, table_name: str) -> set[str]:
     result = await conn.execute(text(f"PRAGMA table_info({table_name})"))
@@ -75,6 +79,17 @@ async def _ensure_sqlite_chat_session_columns(conn) -> None:
             text(f"ALTER TABLE chat_sessions ADD COLUMN {column_name} {column_def}")
         )
         logger.info("Added missing SQLite column: chat_sessions.%s", column_name)
+
+
+async def _ensure_sqlite_document_columns(conn) -> None:
+    existing_columns = await _get_sqlite_table_columns(conn, "documents")
+    for column_name, column_def in _DOCUMENT_SQLITE_COLUMNS.items():
+        if column_name in existing_columns:
+            continue
+        await conn.execute(
+            text(f"ALTER TABLE documents ADD COLUMN {column_name} {column_def}")
+        )
+        logger.info("Added missing SQLite column: documents.%s", column_name)
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -99,6 +114,7 @@ async def init_db() -> None:
         await conn.run_sync(Base.metadata.create_all)
         if "sqlite" in db_url:
             await _ensure_sqlite_chat_session_columns(conn)
+            await _ensure_sqlite_document_columns(conn)
     logger.info("Database tables initialized: %s", settings.database_url)
 
 

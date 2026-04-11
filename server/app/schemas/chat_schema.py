@@ -11,7 +11,7 @@ Chat Schemas — Pydantic DTOs cho luồng Chat API.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -65,6 +65,24 @@ class ChatQueryRequest(BaseModel):
     stream: bool = Field(
         default=False,
         description="True để nhận response qua SSE streaming.",
+    )
+    rag_mode: Literal["local_rag", "graphrag_gemini"] = Field(
+        default="local_rag",
+        description=(
+            "Chế độ truy vấn runtime. "
+            "local_rag dùng provider từ .env; graphrag_gemini bắt buộc Gemini API key từ UI."
+        ),
+    )
+    gemini_api_key: Optional[str] = Field(
+        default=None,
+        description=(
+            "API key Gemini runtime cho chế độ graphrag_gemini. "
+            "Nếu để trống, server sẽ fallback GEMINI_API_KEY từ .env."
+        ),
+    )
+    gemini_model: Optional[str] = Field(
+        default=None,
+        description="Model Gemini runtime override (ví dụ: gemini-2.0-flash).",
     )
 
 

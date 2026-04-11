@@ -199,6 +199,14 @@ export interface ChatSourceChunk {
     source_type?: "vector" | "kg";
 }
 
+export type ChatRuntimeMode = "local_rag" | "graphrag_gemini";
+
+export interface ChatRuntimeOptions {
+    ragMode: ChatRuntimeMode;
+    geminiApiKey?: string;
+    geminiModel?: string;
+}
+
 export interface ChatResponseData {
     answer: string;
     sources: ChatSourceChunk[];

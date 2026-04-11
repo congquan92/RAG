@@ -13,7 +13,7 @@ LLM_PROVIDER / EMBEDDING_PROVIDER in .env — zero code changes.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from langchain_core.embeddings import Embeddings
@@ -27,6 +27,64 @@ logger = logging.getLogger(__name__)
 # LLM Factory
 # ═════════════════════════════════════════════════════════════════════════════
 
+def get_llm_with_overrides(
+    settings: Settings,
+    provider_override: Literal["ollama", "gemini"] | None = None,
+    model_override: str | None = None,
+    gemini_api_key_override: str | None = None,
+) -> Any:
+    """
+    Khởi tạo Chat LLM với runtime overrides (không làm thay đổi settings global).
+
+    Dùng cho các trường hợp per-request như GraphRAG Gemini yêu cầu API key
+    từ người dùng trên UI.
+    """
+    provider = provider_override or settings.llm_provider
+
+    if provider == "ollama":
+        from langchain_ollama import ChatOllama
+
+        model_name = (model_override or settings.ollama_model).strip()
+        logger.info(
+            "Initializing Ollama LLM: model=%s, base_url=%s",
+            model_name,
+            settings.ollama_base_url,
+        )
+        return ChatOllama(
+            model=model_name,
+            base_url=settings.ollama_base_url,
+        )
+
+    if provider == "gemini":
+        from langchain_google_genai import ChatGoogleGenerativeAI
+
+        model_name = (model_override or settings.gemini_model).strip()
+        api_key = (gemini_api_key_override or settings.gemini_api_key).strip()
+        if not api_key:
+            raise ValueError(
+                "GEMINI_API_KEY is required when LLM provider is set to 'gemini'. "
+                "Set it in your .env file or pass it from UI."
+            )
+
+        logger.info("Initializing Gemini LLM: model=%s", model_name)
+        # Keep retries low to avoid hammering Gemini during transient overload.
+        try:
+            return ChatGoogleGenerativeAI(
+                model=model_name,
+                google_api_key=api_key,
+                max_retries=1,
+            )
+        except TypeError:
+            return ChatGoogleGenerativeAI(
+                model=model_name,
+                google_api_key=api_key,
+            )
+
+    raise ValueError(
+        f"Unsupported LLM provider='{provider}'. "
+        "Allowed values: 'ollama', 'gemini'."
+    )
+
 def get_llm(settings: Settings) -> Any:
     """
     Khởi tạo Chat LLM dựa trên LLM_PROVIDER trong settings.
@@ -36,40 +94,7 @@ def get_llm(settings: Settings) -> Any:
     Raises:
         ValueError — nếu provider không hợp lệ hoặc thiếu config
     """
-    provider = settings.llm_provider
-
-    if provider == "ollama":
-        from langchain_ollama import ChatOllama
-
-        logger.info(
-            "Initializing Ollama LLM: model=%s, base_url=%s",
-            settings.ollama_model,
-            settings.ollama_base_url,
-        )
-        return ChatOllama(
-            model=settings.ollama_model,
-            base_url=settings.ollama_base_url,
-        )
-
-    if provider == "gemini":
-        from langchain_google_genai import ChatGoogleGenerativeAI
-
-        if not settings.gemini_api_key:
-            raise ValueError(
-                "GEMINI_API_KEY is required when LLM_PROVIDER='gemini'. "
-                "Set it in your .env file."
-            )
-        logger.info("Initializing Gemini LLM: model=%s", settings.gemini_model)
-        return ChatGoogleGenerativeAI(
-            model=settings.gemini_model,
-            google_api_key=settings.gemini_api_key,
-        )
-
-    # Unreachable nếu Settings validator hoạt động, nhưng phòng thủ sâu
-    raise ValueError(
-        f"Unsupported LLM_PROVIDER='{provider}'. "
-        "Allowed values: 'ollama', 'gemini'."
-    )
+    return get_llm_with_overrides(settings)
 
 
 # ═════════════════════════════════════════════════════════════════════════════

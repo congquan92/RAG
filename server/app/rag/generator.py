@@ -15,9 +15,10 @@ Workflow:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
-from typing import Any, AsyncGenerator
+from typing import Any, AsyncGenerator, Awaitable, Callable
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -151,6 +152,7 @@ async def generate_stream(
     query: str,
     chunks: list[RetrievedChunk],
     llm: Any,
+    should_stop: Callable[[], Awaitable[bool]] | None = None,
 ) -> AsyncGenerator[str, None]:
     """
     Generate câu trả lời streaming (Server-Sent Events).
@@ -180,9 +182,14 @@ async def generate_stream(
     )
 
     try:
+        if should_stop is not None and await should_stop():
+            raise asyncio.CancelledError("Client disconnected before generation starts")
+
         # Stream tokens từ LLM
         full_answer = ""
         async for token_chunk in llm.astream([system_msg, human_msg]):
+            if should_stop is not None and await should_stop():
+                raise asyncio.CancelledError("Client disconnected during generation")
             token_text = token_chunk.content
             if token_text:
                 full_answer += token_text
@@ -197,6 +204,10 @@ async def generate_stream(
             "Stream complete: %d chars, %d citations",
             len(full_answer), len(citations),
         )
+
+    except asyncio.CancelledError:
+        logger.info("Streaming generation cancelled due to client disconnect")
+        raise
 
     except Exception as exc:
         logger.error("Streaming generation failed: %s", exc)
