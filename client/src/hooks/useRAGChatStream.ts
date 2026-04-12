@@ -1,329 +1,480 @@
+/**
+ * useRAGChatStream — SSE streaming hook for NexusRAG chat.
+ *
+ * Handles Server-Sent Events from the /chat/{workspace_id}/stream endpoint,
+ * with rAF-buffered token rendering, AgentStep tracking, and AbortController cleanup.
+ */
+
 import { useState, useRef, useCallback, useEffect } from "react";
 import { generateId } from "@/lib/utils";
-import { cacheAgentSteps } from "@/lib/chatAgentStepsCache";
-import type { ChatSourceChunk, ChatImageRef, ChatStreamStatus, ChatMessage, AgentStep, AgentStepType, ChatRuntimeOptions } from "@/types";
+import type {
+  ChatSourceChunk,
+  ChatImageRef,
+  ChatStreamStatus,
+  ChatMessage,
+  AgentStep,
+  AgentStepType,
+} from "@/types";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "/api/v1";
 
-interface ServerCitationItem {
-    document_id: string;
-    filename: string;
-    chunk_text: string;
-    relevance_score: number;
-}
-
-interface ServerStreamEvent {
-    type: "message_ids" | "token" | "citations" | "done" | "error";
-    data?: unknown;
-}
-
 export interface RAGStreamResult {
-    status: ChatStreamStatus;
-    streamingContent: string;
-    thinkingText: string;
-    pendingSources: ChatSourceChunk[];
-    pendingImages: ChatImageRef[];
-    error: string | null;
-    isStreaming: boolean;
-    agentSteps: AgentStep[];
-    sendMessage: (message: string, history: { role: string; content: string }[], enableThinking: boolean, forceSearch: boolean | undefined, runtimeOptions: ChatRuntimeOptions) => Promise<ChatMessage | null>;
-    cancel: () => void;
-    reset: () => void;
+  /** Current stream status */
+  status: ChatStreamStatus;
+  /** Accumulated streaming content (answer text so far) */
+  streamingContent: string;
+  /** Accumulated thinking text */
+  thinkingText: string;
+  /** Sources received from retrieval */
+  pendingSources: ChatSourceChunk[];
+  /** Image refs received from retrieval */
+  pendingImages: ChatImageRef[];
+  /** Error message if any */
+  error: string | null;
+  /** Whether currently streaming */
+  isStreaming: boolean;
+  /** Agent processing steps for ThinkingTimeline */
+  agentSteps: AgentStep[];
+  /** Send a message — returns the finalized ChatMessage on complete */
+  sendMessage: (
+    message: string,
+    history: { role: string; content: string }[],
+    enableThinking: boolean,
+    forceSearch?: boolean,
+  ) => Promise<ChatMessage | null>;
+  /** Cancel ongoing stream */
+  cancel: () => void;
+  /** Reset all state */
+  reset: () => void;
 }
 
-function createStep(step: AgentStepType, detail: string, status: "active" | "completed" | "error" = "active"): AgentStep {
-    return {
-        id: generateId(),
-        step,
-        detail,
-        status,
-        timestamp: Date.now(),
-    };
+// ---------------------------------------------------------------------------
+// AgentStep helpers
+// ---------------------------------------------------------------------------
+
+function createStep(
+  step: AgentStepType,
+  detail: string,
+  status: "active" | "completed" | "error" = "active",
+): AgentStep {
+  return {
+    id: generateId(),
+    step,
+    detail,
+    status,
+    timestamp: Date.now(),
+  };
 }
 
 function completeActiveStep(steps: AgentStep[]): AgentStep[] {
-    const now = Date.now();
-    return steps.map((s) => (s.status === "active" ? { ...s, status: "completed" as const, durationMs: now - s.timestamp } : s));
+  const now = Date.now();
+  return steps.map((s) =>
+    s.status === "active"
+      ? { ...s, status: "completed" as const, durationMs: now - s.timestamp }
+      : s,
+  );
 }
 
 function markActiveError(steps: AgentStep[]): AgentStep[] {
-    return steps.map((s) => (s.status === "active" ? { ...s, status: "error" as const } : s));
+  return steps.map((s) =>
+    s.status === "active" ? { ...s, status: "error" as const } : s,
+  );
 }
 
-function mapCitationsToSources(citations: ServerCitationItem[]): ChatSourceChunk[] {
-    return citations.map((citation, index) => ({
-        index: String(index + 1),
-        chunk_id: `${citation.document_id}-${index + 1}`,
-        content: citation.chunk_text || citation.filename,
-        document_id: citation.document_id,
-        page_no: null,
-        heading_path: [],
-        score: citation.relevance_score ?? 0,
-        source_type: "vector",
-    }));
-}
+// ---------------------------------------------------------------------------
+// Hook
+// ---------------------------------------------------------------------------
 
 export function useRAGChatStream(workspaceId: string): RAGStreamResult {
-    const [status, setStatus] = useState<ChatStreamStatus>("idle");
-    const [streamingContent, setStreamingContent] = useState("");
-    const [thinkingText, setThinkingText] = useState("");
-    const [pendingSources, setPendingSources] = useState<ChatSourceChunk[]>([]);
-    const [pendingImages, setPendingImages] = useState<ChatImageRef[]>([]);
-    const [error, setError] = useState<string | null>(null);
-    const [isStreaming, setIsStreaming] = useState(false);
-    const [agentSteps, setAgentSteps] = useState<AgentStep[]>([]);
+  const [status, setStatus] = useState<ChatStreamStatus>("idle");
+  const [streamingContent, setStreamingContent] = useState("");
+  const [thinkingText, setThinkingText] = useState("");
+  const [pendingSources, setPendingSources] = useState<ChatSourceChunk[]>([]);
+  const [pendingImages, setPendingImages] = useState<ChatImageRef[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [agentSteps, setAgentSteps] = useState<AgentStep[]>([]);
 
-    const abortRef = useRef<AbortController | null>(null);
-    const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
-    const bufferRef = useRef("");
-    const rafRef = useRef<number | undefined>(undefined);
-    const streamStartRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
+  const bufferRef = useRef("");
+  const rafRef = useRef<number | undefined>(undefined);
 
-    useEffect(() => {
-        return () => {
-            void readerRef.current?.cancel().catch(() => undefined);
-            readerRef.current = null;
-            abortRef.current?.abort();
-            if (rafRef.current) cancelAnimationFrame(rafRef.current);
-        };
-    }, []);
+  // Separate thinking text buffer for AgentStep thinkingText updates
+  const thinkingBufferRef = useRef("");
+  const thinkingRafRef = useRef<number | undefined>(undefined);
 
-    const syncSteps = useCallback((next: AgentStep[] | ((prev: AgentStep[]) => AgentStep[])) => {
-        setAgentSteps((prev) => (typeof next === "function" ? next(prev) : next));
-    }, []);
+  // Track start time for total duration
+  const streamStartRef = useRef(0);
 
-    const flushTokenBuffer = useCallback(() => {
-        if (!bufferRef.current) return;
-        const remaining = bufferRef.current;
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      if (thinkingRafRef.current) cancelAnimationFrame(thinkingRafRef.current);
+    };
+  }, []);
+
+  const reset = useCallback(() => {
+    setStatus("idle");
+    setStreamingContent("");
+    setThinkingText("");
+    setPendingSources([]);
+    setPendingImages([]);
+    setError(null);
+    setIsStreaming(false);
+    setAgentSteps([]);
+    bufferRef.current = "";
+    thinkingBufferRef.current = "";
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = undefined;
+    }
+    if (thinkingRafRef.current) {
+      cancelAnimationFrame(thinkingRafRef.current);
+      thinkingRafRef.current = undefined;
+    }
+  }, []);
+
+  const cancel = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setStatus("idle");
+    setIsStreaming(false);
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = undefined;
+    }
+    if (thinkingRafRef.current) {
+      cancelAnimationFrame(thinkingRafRef.current);
+      thinkingRafRef.current = undefined;
+    }
+    // Flush any remaining token buffer
+    if (bufferRef.current) {
+      const remaining = bufferRef.current;
+      bufferRef.current = "";
+      setStreamingContent((prev) => prev + remaining);
+    }
+  }, []);
+
+  const onToken = useCallback((text: string) => {
+    bufferRef.current += text;
+    if (!rafRef.current) {
+      rafRef.current = requestAnimationFrame(() => {
+        const chunk = bufferRef.current;
         bufferRef.current = "";
-        if (rafRef.current) {
-            cancelAnimationFrame(rafRef.current);
-            rafRef.current = undefined;
+        rafRef.current = undefined;
+        setStreamingContent((prev) => prev + chunk);
+      });
+    }
+  }, []);
+
+  // Buffered thinking text update for the analyzing AgentStep
+  const onThinkingToken = useCallback((text: string) => {
+    // Update flat thinkingText state (existing behavior)
+    setThinkingText((prev) => prev + text);
+
+    // Buffer thinking text for AgentStep update
+    thinkingBufferRef.current += text;
+    if (!thinkingRafRef.current) {
+      thinkingRafRef.current = requestAnimationFrame(() => {
+        const chunk = thinkingBufferRef.current;
+        thinkingBufferRef.current = "";
+        thinkingRafRef.current = undefined;
+
+        setAgentSteps((prev) => {
+          // Find the analyzing step regardless of status — thinking can
+          // arrive during both the first iteration (analyzing=active) and
+          // the second iteration after tool call (analyzing=completed).
+          const idx = prev.findIndex((s) => s.step === "analyzing");
+          if (idx === -1) return prev;
+          const updated = [...prev];
+          updated[idx] = {
+            ...updated[idx],
+            thinkingText: (updated[idx].thinkingText || "") + chunk,
+          };
+          return updated;
+        });
+      });
+    }
+  }, []);
+
+  const sendMessage = useCallback(
+    async (
+      message: string,
+      history: { role: string; content: string }[],
+      enableThinking: boolean,
+      forceSearch: boolean = false,
+    ): Promise<ChatMessage | null> => {
+      // Reset state for new message
+      setStreamingContent("");
+      setThinkingText("");
+      setPendingSources([]);
+      setPendingImages([]);
+      setError(null);
+      setStatus("analyzing");
+      setIsStreaming(true);
+      setAgentSteps([]);
+      bufferRef.current = "";
+      thinkingBufferRef.current = "";
+      streamStartRef.current = Date.now();
+
+      // Synchronous local tracker — avoids React 18 batching race condition
+      // where agentStepsRef in ChatPanel may be stale when sendMessage resolves
+      let localSteps: AgentStep[] = [];
+      // Accumulate all thinking text in this scope so it can be flushed into
+      // localSteps at complete time (onThinkingToken only updates setAgentSteps
+      // via RAF, which never syncs back to localSteps)
+      let thinkingAccumulator = "";
+      function syncUpdateSteps(updater: AgentStep[] | ((prev: AgentStep[]) => AgentStep[])): void {
+        const next = typeof updater === "function" ? updater(localSteps) : updater;
+        localSteps = next;
+        setAgentSteps(next);
+      }
+
+      abortRef.current = new AbortController();
+
+      try {
+        const response = await fetch(
+          `${BASE_URL}/rag/chat/${workspaceId}/stream`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              message,
+              history,
+              enable_thinking: enableThinking,
+              force_search: forceSearch,
+            }),
+            signal: abortRef.current.signal,
+          },
+        );
+
+        if (!response.ok) {
+          const err = await response
+            .json()
+            .catch(() => ({ detail: "Stream request failed" }));
+          throw new Error(err.detail || `Error: ${response.status}`);
         }
-        setStreamingContent((prev) => prev + remaining);
-    }, []);
 
-    const onToken = useCallback((text: string) => {
-        bufferRef.current += text;
-        if (!rafRef.current) {
-            rafRef.current = requestAnimationFrame(() => {
-                const chunk = bufferRef.current;
-                bufferRef.current = "";
-                rafRef.current = undefined;
-                setStreamingContent((prev) => prev + chunk);
-            });
-        }
-    }, []);
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error("No response body");
 
-    const reset = useCallback(() => {
-        setStatus("idle");
-        setStreamingContent("");
-        setThinkingText("");
-        setPendingSources([]);
-        setPendingImages([]);
-        setError(null);
-        setIsStreaming(false);
-        setAgentSteps([]);
-        bufferRef.current = "";
-        if (rafRef.current) {
-            cancelAnimationFrame(rafRef.current);
-            rafRef.current = undefined;
-        }
-    }, []);
+        const decoder = new TextDecoder();
+        let sseBuffer = "";
+        let currentEventType = "unknown";
+        let finalMessage: ChatMessage | null = null;
 
-    const cancel = useCallback(() => {
-        void readerRef.current?.cancel().catch(() => undefined);
-        readerRef.current = null;
-        abortRef.current?.abort();
-        abortRef.current = null;
-        flushTokenBuffer();
-        setStatus("idle");
-        setIsStreaming(false);
-    }, [flushTokenBuffer]);
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-    const sendMessage = useCallback(
-        async (message: string, _history: { role: string; content: string }[], _enableThinking: boolean, _forceSearch: boolean = false, runtimeOptions: ChatRuntimeOptions): Promise<ChatMessage | null> => {
-            setStreamingContent("");
-            setThinkingText("");
-            setPendingSources([]);
-            setPendingImages([]);
-            setError(null);
-            setStatus("analyzing");
-            setIsStreaming(true);
-            setAgentSteps([]);
-            bufferRef.current = "";
-            streamStartRef.current = Date.now();
+          sseBuffer += decoder.decode(value, { stream: true });
+          const lines = sseBuffer.split("\n");
+          sseBuffer = lines.pop() || "";
 
-            let localSteps: AgentStep[] = [createStep("analyzing", "Đang chuẩn bị truy xuất và tạo câu trả lời...")];
-            syncSteps(localSteps);
+          for (const line of lines) {
+            // Skip heartbeat comments
+            if (line.startsWith(":")) continue;
 
-            let finalSources: ChatSourceChunk[] = [];
-            let fullAnswer = "";
-            let hasGenerationStep = false;
-            let assistantMessageId: string | null = null;
+            if (line.startsWith("event: ")) {
+              currentEventType = line.slice(7).trim();
+              continue;
+            }
 
-            abortRef.current = new AbortController();
+            if (line.startsWith("data: ")) {
+              const jsonStr = line.slice(6).trim();
+              if (!jsonStr) continue;
 
-            try {
-                const response = await fetch(`${BASE_URL}/chat/stream`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        session_id: workspaceId,
-                        query: message,
-                        stream: true,
-                        rag_mode: runtimeOptions.ragMode,
-                        gemini_api_key: runtimeOptions.geminiApiKey,
-                        gemini_model: runtimeOptions.geminiModel,
-                    }),
-                    signal: abortRef.current.signal,
-                });
+              try {
+                const data = JSON.parse(jsonStr);
 
-                if (!response.ok) {
-                    const err = await response.json().catch(() => ({ detail: "Yêu cầu stream thất bại" }));
-                    throw new Error(err.detail || `Error: ${response.status}`);
-                }
+                switch (currentEventType) {
+                  case "status": {
+                    const step = data.step as string;
+                    const detail = (data.detail as string) || "";
 
-                const reader = response.body?.getReader();
-                if (!reader) throw new Error("Không có dữ liệu phản hồi");
-                readerRef.current = reader;
+                    if (step === "analyzing") {
+                      setStatus("analyzing");
+                      syncUpdateSteps((prev) => [
+                        ...prev,
+                        createStep("analyzing", detail || "Analyzing your question..."),
+                      ]);
+                    } else if (step === "retrieving") {
+                      setStatus("retrieving");
+                      syncUpdateSteps((prev) => [
+                        ...completeActiveStep(prev),
+                        createStep("understood", "Understood query", "completed"),
+                        createStep("retrieving", detail || "Searching documents..."),
+                      ]);
+                    } else if (step === "generating") {
+                      setStatus("generating");
+                      syncUpdateSteps((prev) => [
+                        ...completeActiveStep(prev),
+                        createStep("generating", detail || "Generating answer..."),
+                      ]);
+                    }
+                    break;
+                  }
 
-                const decoder = new TextDecoder();
-                let sseBuffer = "";
-                let doneEventReceived = false;
+                  case "thinking":
+                    onThinkingToken(data.text || "");
+                    thinkingAccumulator += data.text || "";
+                    break;
 
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
+                  case "sources": {
+                    const sources = (data.sources || []) as ChatSourceChunk[];
+                    setPendingSources((prev) => [...prev, ...sources]);
 
-                    sseBuffer += decoder.decode(value, { stream: true });
-                    const lines = sseBuffer.split("\n");
-                    sseBuffer = lines.pop() || "";
+                    // Add sources_found step with badges
+                    const badges = sources.map((s) => String(s.index));
+                    syncUpdateSteps((prev) => [
+                      ...completeActiveStep(prev),
+                      createStep("sources_found", `Found ${sources.length} source${sources.length > 1 ? "s" : ""}`, "completed"),
+                    ].map((s) =>
+                      s.step === "sources_found" && s.status === "completed" && !s.sourceBadges
+                        ? { ...s, sourceBadges: badges, sourceCount: sources.length }
+                        : s,
+                    ));
+                    break;
+                  }
 
-                    for (const line of lines) {
-                        if (!line.startsWith("data: ")) continue;
+                  case "images": {
+                    const imgs = (data.image_refs || []) as ChatImageRef[];
+                    setPendingImages((prev) => [...prev, ...imgs]);
 
-                        const jsonStr = line.slice(6).trim();
-                        if (!jsonStr) continue;
-
-                        let event: ServerStreamEvent;
-                        try {
-                            event = JSON.parse(jsonStr) as ServerStreamEvent;
-                        } catch {
-                            continue;
+                    // Update sources_found step with image count
+                    if (imgs.length > 0) {
+                      syncUpdateSteps((prev) => {
+                        let lastSourcesIdx = -1;
+                        for (let i = prev.length - 1; i >= 0; i--) {
+                          if (prev[i].step === "sources_found") {
+                            lastSourcesIdx = i;
+                            break;
+                          }
                         }
+                        if (lastSourcesIdx === -1) return prev;
+                        const updated = [...prev];
+                        const existing = updated[lastSourcesIdx];
+                        updated[lastSourcesIdx] = {
+                          ...existing,
+                          imageCount: (existing.imageCount || 0) + imgs.length,
+                          detail: `Found ${existing.sourceCount || 0} source${(existing.sourceCount || 0) > 1 ? "s" : ""} + ${(existing.imageCount || 0) + imgs.length} image${(existing.imageCount || 0) + imgs.length > 1 ? "s" : ""}`,
+                        };
+                        return updated;
+                      });
+                    }
+                    break;
+                  }
 
-                        if (event.type === "message_ids") {
-                            const ids = event.data as { assistant_message_id?: unknown } | undefined;
-                            if (ids && typeof ids.assistant_message_id === "string" && ids.assistant_message_id) {
-                                assistantMessageId = ids.assistant_message_id;
-                            }
+                  case "token":
+                    onToken(data.text || "");
+                    break;
 
-                            if (!hasGenerationStep) {
-                                localSteps = [...completeActiveStep(localSteps), createStep("retrieving", "Đang truy xuất ngữ cảnh hỗ trợ...")];
-                                syncSteps(localSteps);
-                            }
-                            continue;
-                        }
+                  case "token_rollback":
+                    // Clear speculative tokens
+                    bufferRef.current = "";
+                    if (rafRef.current) {
+                      cancelAnimationFrame(rafRef.current);
+                      rafRef.current = undefined;
+                    }
+                    setStreamingContent("");
+                    break;
 
-                        if (event.type === "token") {
-                            const token = String(event.data ?? "");
-                            if (!hasGenerationStep) {
-                                setStatus("generating");
-                                hasGenerationStep = true;
-                                localSteps = [...completeActiveStep(localSteps), createStep("generating", "Đang tạo câu trả lời...")];
-                                syncSteps(localSteps);
-                            }
-                            fullAnswer += token;
-                            onToken(token);
-                            continue;
-                        }
-
-                        if (event.type === "citations") {
-                            const citations = Array.isArray(event.data) ? (event.data as ServerCitationItem[]) : [];
-                            finalSources = mapCitationsToSources(citations);
-                            setPendingSources(finalSources);
-
-                            localSteps = [
-                                ...completeActiveStep(localSteps),
-                                {
-                                    ...createStep("sources_found", `Tìm thấy ${finalSources.length} nguồn`, "completed"),
-                                    sourceBadges: finalSources.map((s) => String(s.index)),
-                                    sourceCount: finalSources.length,
-                                },
-                                createStep("generating", "Đang hoàn thiện câu trả lời..."),
-                            ];
-                            syncSteps(localSteps);
-                            continue;
-                        }
-
-                        if (event.type === "error") {
-                            throw new Error(String(event.data ?? "Lỗi stream không xác định"));
-                        }
-
-                        if (event.type === "done") {
-                            doneEventReceived = true;
-                        }
+                  case "complete": {
+                    // Flush remaining buffer
+                    if (bufferRef.current) {
+                      bufferRef.current = "";
+                      if (rafRef.current) {
+                        cancelAnimationFrame(rafRef.current);
+                        rafRef.current = undefined;
+                      }
+                    }
+                    // Flush accumulated thinking into localSteps so finalMessage.agentSteps has thinkingText
+                    if (thinkingAccumulator) {
+                      syncUpdateSteps((prev) =>
+                        prev.map((s) =>
+                          s.step === "analyzing"
+                            ? { ...s, thinkingText: (s.thinkingText || "") + thinkingAccumulator }
+                            : s,
+                        ),
+                      );
+                      thinkingAccumulator = "";
+                    }
+                    // Flush thinking buffer (cancel pending RAF)
+                    if (thinkingBufferRef.current) {
+                      thinkingBufferRef.current = "";
+                      if (thinkingRafRef.current) {
+                        cancelAnimationFrame(thinkingRafRef.current);
+                        thinkingRafRef.current = undefined;
+                      }
                     }
 
-                    if (doneEventReceived) break;
+                    // Complete active step + add done step (sync localSteps too)
+                    const totalMs = Date.now() - streamStartRef.current;
+                    syncUpdateSteps((prev) => [
+                      ...completeActiveStep(prev),
+                      createStep("done", `Done in ${totalMs >= 1000 ? `${(totalMs / 1000).toFixed(1)}s` : `${totalMs}ms`}`, "completed"),
+                    ]);
+
+                    finalMessage = {
+                      id: generateId(),
+                      role: "assistant",
+                      content: data.answer || "",
+                      sources: data.sources || [],
+                      relatedEntities: data.related_entities || [],
+                      imageRefs: data.image_refs || [],
+                      thinking: data.thinking || null,
+                      agentSteps: localSteps, // include synced steps directly in finalMessage
+                      timestamp: new Date().toISOString(),
+                    };
+                    break;
+                  }
+
+                  case "error":
+                    setError(data.message || "Unknown error");
+                    setStatus("error");
+                    syncUpdateSteps((prev) => markActiveError(prev));
+                    break;
                 }
-
-                flushTokenBuffer();
-
-                const totalMs = Date.now() - streamStartRef.current;
-                localSteps = [...completeActiveStep(localSteps), createStep("done", `Hoàn tất trong ${totalMs >= 1000 ? `${(totalMs / 1000).toFixed(1)}s` : `${totalMs}ms`}`, "completed")];
-                syncSteps(localSteps);
-
-                if (assistantMessageId) {
-                    cacheAgentSteps(workspaceId, assistantMessageId, localSteps);
-                }
-
-                setStatus("idle");
-                setIsStreaming(false);
-
-                return {
-                    id: assistantMessageId ?? generateId(),
-                    role: "assistant",
-                    content: fullAnswer,
-                    sources: finalSources,
-                    relatedEntities: [],
-                    imageRefs: [],
-                    thinking: null,
-                    agentSteps: localSteps,
-                    timestamp: new Date().toISOString(),
-                };
-            } catch (err) {
-                if ((err as Error).name === "AbortError") {
-                    return null;
-                }
-
-                const msg = (err as Error).message || "Stream failed";
-                setError(msg);
-                setStatus("error");
-                setIsStreaming(false);
-                syncSteps((prev) => markActiveError(prev));
-                return null;
-            } finally {
-                void readerRef.current?.cancel().catch(() => undefined);
-                readerRef.current = null;
-                abortRef.current = null;
+              } catch {
+                // Ignore malformed JSON
+              }
             }
-        },
-        [workspaceId, flushTokenBuffer, onToken, syncSteps],
-    );
+          }
+        }
 
-    return {
-        status,
-        streamingContent,
-        thinkingText,
-        pendingSources,
-        pendingImages,
-        error,
-        isStreaming,
-        agentSteps,
-        sendMessage,
-        cancel,
-        reset,
-    };
+        setStatus("idle");
+        setIsStreaming(false);
+
+        return finalMessage;
+      } catch (err) {
+        if ((err as Error).name === "AbortError") {
+          // User cancelled — don't set error
+          return null;
+        }
+        const msg = (err as Error).message || "Stream failed";
+        setError(msg);
+        setStatus("error");
+        setIsStreaming(false);
+        syncUpdateSteps((prev) => markActiveError(prev));
+        return null;
+      }
+    },
+    [workspaceId, onToken, onThinkingToken],
+  );
+
+  return {
+    status,
+    streamingContent,
+    thinkingText,
+    pendingSources,
+    pendingImages,
+    error,
+    isStreaming,
+    agentSteps,
+    sendMessage,
+    cancel,
+    reset,
+  };
 }

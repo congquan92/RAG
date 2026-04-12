@@ -1,39 +1,44 @@
+# DeepRAG — Knowledge Base + RAG Backend
+# ============================================
 
-# 1. Core API Backend
+# Web framework
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
 python-multipart>=0.0.6
-httpx>=0.25.0
-aiofiles>=23.2.1
 
-# 2. Frontend UI
-streamlit>=1.32.0
-
-# 3. Database & Storage (100% Local, không cần Server)
+# Database
 sqlalchemy[asyncio]>=2.0.23
-aiosqlite>=0.19.0     # SQL nhẹ nhàng lưu lịch sử chat
-chromadb>=0.4.22      # Vector DB (Chế độ lưu file local)
-lightrag-hku>=1.0.0   # Knowledge Graph
+asyncpg>=0.29.0
+alembic>=1.12.0
 
-# 4. Document Parsing 
-pymupdf>=1.23.0       # Đọc PDF tốc độ bàn thờ bằng CPU (Core chính)
-docling>=2.0.0        # Xử lý bảng biểu khó (Chỉ định chạy CPU)
-python-magic>=0.4.27  # Nhận diện định dạng file 
+# Vector store
+chromadb>=0.4.22
 
-# 5. Core AI & RAG Pipeline 
-sentence-transformers>=2.2.2  # Nhúng Vector chạy mượt trên local
-flashrank>=0.2.0              # Chấm điểm Reranking cho chuẩn xác
+# Embeddings & reranking
+sentence-transformers>=2.2.2
+
+# Document parsing (Docling — default)
+docling>=2.0.0
+
+# Document parsing (Marker — alternative, better math/formula, lighter GPU)
+# Install with: pip install marker-pdf[full]
+# Activate with: NEXUSRAG_DOCUMENT_PARSER=marker
+marker-pdf[full]>=1.10.0
+
+# Text processing
 langchain-text-splitters>=0.0.1
-langchain-ollama      # LangChain wrapper: Ollama LLM & Embeddings
-langchain-google-genai>=2.1.0 # LangChain wrapper: Google Gemini LLM & Embeddings
-tiktoken>=0.5.0
-google-genai>=1.0.0           # API Gemini 
-ollama>=0.4.0                 # Local LLM (Dành trọn 6GB VRAM cho thằng này)
 
-# 6. Observability (Giám sát, check lỗi)
-ragas>=0.1.0         # Đo lường AI trả lời ngu hay khôn
+# LLM providers
+google-genai>=1.0.0
+ollama>=0.4.0
 
-# 7. Utilities 
+# Knowledge Graph (LightRAG)
+lightrag-hku>=1.0.0
+
+# Utilities
 python-dotenv>=1.0.0
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
+httpx>=0.25.0
+aiofiles>=23.2.1
+Pillow>=10.0.0

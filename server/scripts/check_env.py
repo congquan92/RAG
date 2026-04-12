@@ -1,10 +1,3 @@
-"""Validate required .env keys before starting the server.
-
-Usage:
-    python scripts/check_env.py
-    python scripts/check_env.py --quiet
-"""
-
 from __future__ import annotations
 
 import argparse
