@@ -230,11 +230,8 @@ NEXUSRAG_DEDUP_ENABLED=true
 NEXUSRAG_DEDUP_MIN_CHUNK_LENGTH=50# các đoạn văn ngắn dưới 50 chữ (thường là rác)
 NEXUSRAG_DEDUP_NEAR_THRESHOLD=0.85# (0.85 = giống trên 85% thì coi là trùng)
 
-
-
 # CORS
 CORS_ORIGINS=["http://localhost:5174","http://localhost:3000"]
-# uvicorn app.main:app --reload --port 8080
 
 ```
 
@@ -270,8 +267,8 @@ ReDoc:
 # Tải trước model local (nếu cần)
 python scripts/download_models.py
 
-# Dọn cache
-python scripts/clean_cache.py
+# Dọn sạch cache vector + KG (thường dùng sau khi xoá document hoặc workspace để tránh dữ liệu cũ)
+python scripts/clean.py
 
 # Đánh giá RAG
 python scripts/eval_rag.py
