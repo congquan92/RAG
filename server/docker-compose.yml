@@ -12,5 +12,15 @@ services:
         volumes:
             - postgres_data:/var/lib/postgresql
 
+    chroma:
+        image: chromadb/chroma:latest
+        container_name: chroma_db
+        restart: always
+        command: ["run", "--host", "0.0.0.0", "--port", "8000", "--path", "/data"]
+        ports:
+            - "8002:8000"
+        volumes:
+            - ./data/chroma:/data
+
 volumes:
     postgres_data:
