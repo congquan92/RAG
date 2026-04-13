@@ -1,14 +1,11 @@
-"""
-Environment variables (optional):
-    NEXUSRAG_EMBEDDING_MODEL  — default: BAAI/bge-m3
-    NEXUSRAG_RERANKER_MODEL   — default: BAAI/bge-reranker-v2-m3
-"""
 import os
 import sys
+from dotenv import load_dotenv
+load_dotenv()
 
 def download_models():
-    embedding_model = os.environ.get("NEXUSRAG_EMBEDDING_MODEL", "BAAI/bge-m3")
-    reranker_model = os.environ.get("NEXUSRAG_RERANKER_MODEL", "BAAI/bge-reranker-v2-m3")
+    embedding_model = os.environ.get("NEXUSRAG_EMBEDDING_MODEL")
+    reranker_model = os.environ.get("NEXUSRAG_RERANKER_MODEL")
 
     from sentence_transformers import SentenceTransformer, CrossEncoder
 
@@ -21,7 +18,6 @@ def download_models():
     print(f"      Done.")
 
     print("\nAll models downloaded successfully.")
-
 
 if __name__ == "__main__":
     download_models()
