@@ -23,179 +23,165 @@ let _scrollTimer: ReturnType<typeof setTimeout> | null = null;
 const SCROLL_DEFER_MS = 350;
 
 interface WorkspaceState {
-  // Document selection
-  selectedDoc: Document | null;
+    // Document selection
+    selectedDoc: Document | null;
 
-  // Visual panel tabs
-  activeTab: VisualTab;
-  kgSubTab: KGSubTab;
+    // Visual panel tabs
+    activeTab: VisualTab;
+    kgSubTab: KGSubTab;
 
-  // Scroll targets (for citation → content navigation)
-  scrollToPage: number | null;
-  scrollToHeading: string | null;
-  scrollToImageSrc: string | null;
+    // Scroll targets (for citation → content navigation)
+    scrollToPage: number | null;
+    scrollToHeading: string | null;
+    scrollToImageSrc: string | null;
 
-  // Citation highlights
-  highlightChunks: ChatSourceChunk[];
-  highlightEntities: string[];
-  activeCitationIndex: number | string | null;
+    // Citation highlights
+    highlightChunks: ChatSourceChunk[];
+    highlightEntities: string[];
+    activeCitationIndex: number | string | null;
 
-  // Actions
-  selectDoc: (doc: Document | null) => void;
-  setActiveTab: (tab: VisualTab) => void;
-  setKgSubTab: (tab: KGSubTab) => void;
-  activateCitation: (source: ChatSourceChunk, allEntities: string[], doc?: Document) => void;
-  activateCitationKG: (source: ChatSourceChunk, allEntities: string[], doc?: Document) => void;
-  activateImageCitation: (imageRef: ChatImageRef, doc?: Document) => void;
-  clearHighlights: () => void;
-  clearScrollTarget: () => void;
-  /** Reset all state — call when workspaceId changes */
-  reset: () => void;
+    // Actions
+    selectDoc: (doc: Document | null) => void;
+    setActiveTab: (tab: VisualTab) => void;
+    setKgSubTab: (tab: KGSubTab) => void;
+    activateCitation: (source: ChatSourceChunk, allEntities: string[], doc?: Document) => void;
+    activateCitationKG: (source: ChatSourceChunk, allEntities: string[], doc?: Document) => void;
+    activateImageCitation: (imageRef: ChatImageRef, doc?: Document) => void;
+    clearHighlights: () => void;
+    clearScrollTarget: () => void;
+    /** Reset all state — call when workspaceId changes */
+    reset: () => void;
 }
 
 function cancelPendingScroll() {
-  if (_scrollTimer) {
-    clearTimeout(_scrollTimer);
-    _scrollTimer = null;
-  }
+    if (_scrollTimer) {
+        clearTimeout(_scrollTimer);
+        _scrollTimer = null;
+    }
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
-  selectedDoc: null,
-  activeTab: "content",
-  kgSubTab: "graph",
-  scrollToPage: null,
-  scrollToHeading: null,
-  scrollToImageSrc: null,
-  highlightChunks: [],
-  highlightEntities: [],
-  activeCitationIndex: null,
+    selectedDoc: null,
+    activeTab: "content",
+    kgSubTab: "graph",
+    scrollToPage: null,
+    scrollToHeading: null,
+    scrollToImageSrc: null,
+    highlightChunks: [],
+    highlightEntities: [],
+    activeCitationIndex: null,
 
-  selectDoc: (doc) => {
-    cancelPendingScroll();
-    set({
-      selectedDoc: doc,
-      activeTab: "content",
-      highlightChunks: [],
-      highlightEntities: [],
-      activeCitationIndex: null,
-      scrollToPage: null,
-      scrollToHeading: null,
-      scrollToImageSrc: null,
-    });
-  },
+    selectDoc: (doc) => {
+        cancelPendingScroll();
+        set({
+            selectedDoc: doc,
+            activeTab: "content",
+            highlightChunks: [],
+            highlightEntities: [],
+            activeCitationIndex: null,
+            scrollToPage: null,
+            scrollToHeading: null,
+            scrollToImageSrc: null,
+        });
+    },
 
-  setActiveTab: (tab) => set({ activeTab: tab }),
-  setKgSubTab: (tab) => set({ kgSubTab: tab }),
+    setActiveTab: (tab) => set({ activeTab: tab }),
+    setKgSubTab: (tab) => set({ kgSubTab: tab }),
 
-  activateCitation: (source, allEntities, doc) => {
-    cancelPendingScroll();
+    activateCitation: (source, allEntities, doc) => {
+        cancelPendingScroll();
 
-    const state = get();
-    const contentAlreadyOpen =
-      state.activeTab === "content" &&
-      state.selectedDoc != null &&
-      (!doc || state.selectedDoc.id === doc.id);
+        const state = get();
+        const contentAlreadyOpen = state.activeTab === "content" && state.selectedDoc != null && (!doc || state.selectedDoc.id === doc.id);
 
-    const scrollTargets = {
-      scrollToPage: source.page_no || null,
-      scrollToHeading:
-        source.heading_path.length > 0
-          ? source.heading_path[source.heading_path.length - 1]
-          : null,
-      scrollToImageSrc: null as string | null,
-    };
+        const scrollTargets = {
+            scrollToPage: source.page_no || null,
+            scrollToHeading: source.heading_path.length > 0 ? source.heading_path[source.heading_path.length - 1] : null,
+            scrollToImageSrc: null as string | null,
+        };
 
-    // Phase 1: open content + set highlights (always)
-    set({
-      ...(doc ? { selectedDoc: doc } : {}),
-      highlightChunks: [source],
-      highlightEntities: allEntities,
-      activeCitationIndex: source.index,
-      activeTab: "content",
-      // If content already open → scroll immediately; otherwise clear and defer
-      ...(contentAlreadyOpen
-        ? scrollTargets
-        : { scrollToPage: null, scrollToHeading: null, scrollToImageSrc: null }),
-    });
+        // Phase 1: open content + set highlights (always)
+        set({
+            ...(doc ? { selectedDoc: doc } : {}),
+            highlightChunks: [source],
+            highlightEntities: allEntities,
+            activeCitationIndex: source.index,
+            activeTab: "content",
+            // If content already open → scroll immediately; otherwise clear and defer
+            ...(contentAlreadyOpen ? scrollTargets : { scrollToPage: null, scrollToHeading: null, scrollToImageSrc: null }),
+        });
 
-    // Phase 2: deferred scroll after content renders
-    if (!contentAlreadyOpen) {
-      _scrollTimer = setTimeout(() => {
-        _scrollTimer = null;
-        set(scrollTargets);
-      }, SCROLL_DEFER_MS);
-    }
-  },
+        // Phase 2: deferred scroll after content renders
+        if (!contentAlreadyOpen) {
+            _scrollTimer = setTimeout(() => {
+                _scrollTimer = null;
+                set(scrollTargets);
+            }, SCROLL_DEFER_MS);
+        }
+    },
 
-  activateCitationKG: (source, allEntities, doc) => {
-    cancelPendingScroll();
-    set({
-      ...(doc ? { selectedDoc: doc } : {}),
-      highlightChunks: [source],
-      highlightEntities: allEntities,
-      activeCitationIndex: source.index,
-      activeTab: "kg",
-      kgSubTab: "graph",
-    });
-  },
+    activateCitationKG: (source, allEntities, doc) => {
+        cancelPendingScroll();
+        set({
+            ...(doc ? { selectedDoc: doc } : {}),
+            highlightChunks: [source],
+            highlightEntities: allEntities,
+            activeCitationIndex: source.index,
+            activeTab: "kg",
+            kgSubTab: "graph",
+        });
+    },
 
-  activateImageCitation: (imageRef, doc) => {
-    cancelPendingScroll();
+    activateImageCitation: (imageRef, doc) => {
+        cancelPendingScroll();
 
-    const state = get();
-    const contentAlreadyOpen =
-      state.activeTab === "content" &&
-      state.selectedDoc != null &&
-      (!doc || state.selectedDoc.id === doc.id);
+        const state = get();
+        const contentAlreadyOpen = state.activeTab === "content" && state.selectedDoc != null && (!doc || state.selectedDoc.id === doc.id);
 
-    const scrollTargets = {
-      scrollToPage: imageRef.page_no || null,
-      scrollToImageSrc: imageRef.url,
-      scrollToHeading: null as string | null,
-    };
+        const scrollTargets = {
+            scrollToPage: imageRef.page_no || null,
+            scrollToImageSrc: imageRef.url,
+            scrollToHeading: null as string | null,
+        };
 
-    set({
-      ...(doc ? { selectedDoc: doc } : {}),
-      activeTab: "content",
-      highlightChunks: [],
-      highlightEntities: [],
-      activeCitationIndex: null,
-      ...(contentAlreadyOpen
-        ? scrollTargets
-        : { scrollToPage: null, scrollToHeading: null, scrollToImageSrc: null }),
-    });
+        set({
+            ...(doc ? { selectedDoc: doc } : {}),
+            activeTab: "content",
+            highlightChunks: [],
+            highlightEntities: [],
+            activeCitationIndex: null,
+            ...(contentAlreadyOpen ? scrollTargets : { scrollToPage: null, scrollToHeading: null, scrollToImageSrc: null }),
+        });
 
-    if (!contentAlreadyOpen) {
-      _scrollTimer = setTimeout(() => {
-        _scrollTimer = null;
-        set(scrollTargets);
-      }, SCROLL_DEFER_MS);
-    }
-  },
+        if (!contentAlreadyOpen) {
+            _scrollTimer = setTimeout(() => {
+                _scrollTimer = null;
+                set(scrollTargets);
+            }, SCROLL_DEFER_MS);
+        }
+    },
 
-  clearHighlights: () =>
-    set({
-      highlightChunks: [],
-      highlightEntities: [],
-      activeCitationIndex: null,
-    }),
+    clearHighlights: () =>
+        set({
+            highlightChunks: [],
+            highlightEntities: [],
+            activeCitationIndex: null,
+        }),
 
-  clearScrollTarget: () =>
-    set({ scrollToPage: null, scrollToHeading: null, scrollToImageSrc: null }),
+    clearScrollTarget: () => set({ scrollToPage: null, scrollToHeading: null, scrollToImageSrc: null }),
 
-  reset: () => {
-    cancelPendingScroll();
-    set({
-      selectedDoc: null,
-      activeTab: "content",
-      kgSubTab: "graph",
-      scrollToPage: null,
-      scrollToHeading: null,
-      scrollToImageSrc: null,
-      highlightChunks: [],
-      highlightEntities: [],
-      activeCitationIndex: null,
-    });
-  },
+    reset: () => {
+        cancelPendingScroll();
+        set({
+            selectedDoc: null,
+            activeTab: "content",
+            kgSubTab: "graph",
+            scrollToPage: null,
+            scrollToHeading: null,
+            scrollToImageSrc: null,
+            highlightChunks: [],
+            highlightEntities: [],
+            activeCitationIndex: null,
+        });
+    },
 }));
