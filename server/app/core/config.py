@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     # Gemini 3.1 Flash-Lite supports up to 65536
     LLM_MAX_OUTPUT_TOKENS: int = Field(default=8192)
 
+    # LightRAG LLM timeout (seconds) used for KG extraction/query worker timeouts
+    LLM_TIMEOUT: int = Field(default=180, ge=1)
+
     # KG Embedding provider (can differ from LLM provider)
     KG_EMBEDDING_PROVIDER: str = Field(default="gemini")
     KG_EMBEDDING_MODEL: str = Field(default="gemini-embedding-001")
@@ -87,7 +90,7 @@ class Settings(BaseSettings):
     NEXUSRAG_EMBEDDING_MODEL: str = "BAAI/bge-m3"
     NEXUSRAG_RERANKER_MODEL: str = "BAAI/bge-reranker-v2-m3"
     NEXUSRAG_VECTOR_PREFETCH: int = 20
-    NEXUSRAG_RERANKER_TOP_K: int = 8
+    NEXUSRAG_RERANKER_TOP_K: int = Field(default=8, ge=1)
     NEXUSRAG_MIN_RELEVANCE_SCORE: float = 0.15
 
     # CORS

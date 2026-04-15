@@ -86,6 +86,16 @@ class DeepRetriever:
         Returns:
             DeepRetrievalResult with chunks, citations, context, and optional images
         """
+        # Apply global rerank cap from settings so env NEXUSRAG_RERANKER_TOP_K
+        # always affects runtime, while still allowing callers to request fewer.
+        effective_top_k = min(top_k, settings.NEXUSRAG_RERANKER_TOP_K)
+        if effective_top_k < top_k:
+            logger.info(
+                "Requested top_k=%s capped by NEXUSRAG_RERANKER_TOP_K=%s",
+                top_k,
+                settings.NEXUSRAG_RERANKER_TOP_K,
+            )
+
         # Run KG and vector search in parallel
         kg_task = None
         if self.kg_service and mode != "vector_only":
@@ -94,7 +104,7 @@ class DeepRetriever:
             )
 
         # Over-fetch from vector DB for reranking
-        prefetch_k = max(settings.NEXUSRAG_VECTOR_PREFETCH, top_k * 3)
+        prefetch_k = max(settings.NEXUSRAG_VECTOR_PREFETCH, effective_top_k * 3)
         vector_task = asyncio.create_task(
             asyncio.to_thread(
                 self._vector_query, question, prefetch_k, document_ids, metadata_filter
@@ -113,7 +123,7 @@ class DeepRetriever:
 
         # Rerank: cross-encoder scoring for precision
         chunks, citations = await asyncio.to_thread(
-            self._rerank_chunks, question, raw_chunks, raw_citations, top_k
+            self._rerank_chunks, question, raw_chunks, raw_citations, effective_top_k
         )
 
         # Find related images and tables
@@ -255,11 +265,12 @@ class DeepRetriever:
 
         if not reranked:
             # Fallback: if reranker filtered everything, keep top 3 by original order
+            fallback_k = min(top_k, 3)
             logger.warning(
                 f"Reranker filtered all {len(chunks)} chunks below threshold "
-                f"{settings.NEXUSRAG_MIN_RELEVANCE_SCORE}, falling back to top 3"
+                f"{settings.NEXUSRAG_MIN_RELEVANCE_SCORE}, falling back to top {fallback_k}"
             )
-            return chunks[:min(3, len(chunks))], citations[:min(3, len(citations))]
+            return chunks[:min(fallback_k, len(chunks))], citations[:min(fallback_k, len(citations))]
 
         # Map reranked results back to original chunks/citations
         reranked_chunks = [chunks[r.index] for r in reranked]

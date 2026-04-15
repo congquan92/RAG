@@ -130,6 +130,7 @@ class KnowledgeGraphService:
         self._rag = LightRAG(
             working_dir=self.working_dir,
             llm_model_func=_kg_llm_complete,
+            default_llm_timeout=settings.LLM_TIMEOUT,
             embedding_func=embedding_func,
             chunk_token_size=settings.NEXUSRAG_KG_CHUNK_TOKEN_SIZE,
             enable_llm_cache=True,
