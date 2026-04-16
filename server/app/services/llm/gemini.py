@@ -257,31 +257,160 @@ class GeminiEmbeddingProvider(EmbeddingProvider):
     """Google Gemini text embedding (``gemini-embedding-001``, 3072-dim)."""
 
     _BATCH_SIZE = 100  # Gemini API limit
+    _MAX_BATCH_RETRIES = 1
 
     def __init__(self, api_key: str, model: str = "gemini-embedding-001"):
         self._client = genai.Client(api_key=api_key)
         self._model = model
-        # gemini-embedding-001 → 3072, text-embedding-004 → 768
-        self._dimension = 3072 if "embedding-001" in model else 768
+        self._dimension: int | None = None
+
+    @staticmethod
+    def _to_embed_contents(texts: list[str]) -> list[types.Content]:
+        """Build one Gemini Content per input text (1:1 text→vector contract)."""
+        contents: list[types.Content] = []
+        for text in texts:
+            normalized = text.strip() or "[empty]"
+            contents.append(types.Content(
+                role="user",
+                parts=[types.Part.from_text(text=normalized)],
+            ))
+        return contents
+
+    def _embed_one(self, text: str) -> list[float]:
+        """Embed a single text and return one vector."""
+        result = self._client.models.embed_content(
+            model=self._model,
+            contents=self._to_embed_contents([text]),
+        )
+        if not result.embeddings:
+            raise ValueError("Gemini embedding returned no vectors for single input")
+        values = result.embeddings[0].values
+        if self._dimension is None:
+            self._dimension = len(values)
+        return values
+
+    def _embed_batch_once(self, texts: list[str]) -> list[list[float]]:
+        """Embed a batch once and enforce 1:1 input/output count."""
+        result = self._client.models.embed_content(
+            model=self._model,
+            contents=self._to_embed_contents(texts),
+        )
+        batch_embeddings = [emb.values for emb in result.embeddings]
+
+        if len(batch_embeddings) != len(texts):
+            raise ValueError(
+                "Embedding count mismatch for batch "
+                f"(expected={len(texts)} got={len(batch_embeddings)})"
+            )
+
+        if batch_embeddings and self._dimension is None:
+            self._dimension = len(batch_embeddings[0])
+
+        return batch_embeddings
+
+    def _embed_batch_resilient(
+        self,
+        texts: list[str],
+        *,
+        batch_start: int,
+        depth: int = 0,
+    ) -> list[list[float]]:
+        """Retry full batch, then split recursively to isolate bad items."""
+        last_error: Exception | None = None
+
+        for attempt in range(self._MAX_BATCH_RETRIES + 1):
+            try:
+                return self._embed_batch_once(texts)
+            except Exception as e:
+                last_error = e
+                logger.warning(
+                    "Gemini batch embed retry %d/%d failed at batch_start=%d size=%d depth=%d: %s",
+                    attempt + 1,
+                    self._MAX_BATCH_RETRIES + 1,
+                    batch_start,
+                    len(texts),
+                    depth,
+                    e,
+                )
+
+        if self._is_non_retriable_error(last_error):
+            logger.error(
+                "Gemini non-retriable embed error at batch_start=%d size=%d: %s",
+                batch_start,
+                len(texts),
+                last_error,
+            )
+            return [[0.0] * self.get_dimension() for _ in texts]
+
+        if len(texts) == 1:
+            # Leaf fallback: keep 1:1 contract even for stubborn failures.
+            try:
+                return [self._embed_one(texts[0])]
+            except Exception as leaf_error:
+                logger.error(
+                    "Gemini embedding failed at leaf batch_start=%d: %s (last batch error: %s)",
+                    batch_start,
+                    leaf_error,
+                    last_error,
+                )
+                return [[0.0] * self.get_dimension()]
+
+        mid = len(texts) // 2
+        left = self._embed_batch_resilient(
+            texts[:mid], batch_start=batch_start, depth=depth + 1,
+        )
+        right = self._embed_batch_resilient(
+            texts[mid:], batch_start=batch_start + mid, depth=depth + 1,
+        )
+        return left + right
+
+    @staticmethod
+    def _is_non_retriable_error(error: Exception | None) -> bool:
+        if error is None:
+            return False
+        msg = str(error).lower()
+        fatal_markers = [
+            "api key",
+            "permission",
+            "unauthorized",
+            "forbidden",
+            "invalid argument",
+            "not found",
+            "quota",
+        ]
+        return any(marker in msg for marker in fatal_markers)
+
+    def _detect_dimension(self) -> int:
+        """Probe actual embedding dimension from the active model."""
+        from app.core.config import settings
+
+        try:
+            dim = len(self._embed_one("dimension probe"))
+            logger.info("Detected Gemini embedding dimension: %d for model %s", dim, self._model)
+            return dim
+        except Exception as e:
+            logger.warning(
+                "Failed to detect Gemini embedding dimension for model %s: %s. "
+                "Falling back to KG_EMBEDDING_DIMENSION=%d",
+                self._model,
+                e,
+                settings.KG_EMBEDDING_DIMENSION,
+            )
+            return settings.KG_EMBEDDING_DIMENSION
 
     def embed_sync(self, texts: list[str]) -> np.ndarray:
+        if not texts:
+            return np.zeros((0, self.get_dimension()), dtype=np.float32)
+
         all_embeddings: list[list[float]] = []
 
         for i in range(0, len(texts), self._BATCH_SIZE):
             batch = texts[i : i + self._BATCH_SIZE]
-            try:
-                result = self._client.models.embed_content(
-                    model=self._model,
-                    contents=batch,
-                )
-                for emb in result.embeddings:
-                    all_embeddings.append(emb.values)
-            except Exception as e:
-                logger.error(f"Gemini embedding failed for batch {i}: {e}")
-                for _ in batch:
-                    all_embeddings.append([0.0] * self._dimension)
+            all_embeddings.extend(self._embed_batch_resilient(batch, batch_start=i))
 
         return np.array(all_embeddings, dtype=np.float32)
 
     def get_dimension(self) -> int:
+        if self._dimension is None:
+            self._dimension = self._detect_dimension()
         return self._dimension

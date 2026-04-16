@@ -429,6 +429,9 @@ class OllamaLLMProvider(LLMProvider):
 class OllamaEmbeddingProvider(EmbeddingProvider):
     """Local Ollama text embedding."""
 
+    _BATCH_SIZE = 64
+    _MAX_BATCH_RETRIES = 1
+
     def __init__(
         self,
         host: str = "http://localhost:11434",
@@ -452,6 +455,169 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
             from app.core.config import settings
             return settings.KG_EMBEDDING_DIMENSION
 
+    def _embed_batch_once_sync(self, texts: list[str]) -> np.ndarray:
+        """Embed one batch and enforce 1:1 input/output count."""
+        import ollama
+
+        result = ollama.embed(model=self._model, input=texts)
+        arr = np.array(result.embeddings, dtype=np.float32)
+
+        if arr.ndim != 2 or arr.shape[0] != len(texts):
+            raise ValueError(
+                "Ollama embedding count mismatch "
+                f"(expected={len(texts)} got={arr.shape[0] if arr.ndim >= 1 else 0})"
+            )
+
+        if np.any(np.isnan(arr)):
+            logger.warning("Ollama embed_sync produced NaN values — replacing with zeros")
+            arr = np.nan_to_num(arr, nan=0.0)
+
+        if self._dimension is None and arr.shape[0] > 0:
+            self._dimension = int(arr.shape[1])
+
+        return arr
+
+    async def _embed_batch_once_async(self, client, texts: list[str]) -> np.ndarray:
+        """Async batch embedding with strict output validation."""
+        result = await client.embed(model=self._model, input=texts)
+        arr = np.array(result.embeddings, dtype=np.float32)
+
+        if arr.ndim != 2 or arr.shape[0] != len(texts):
+            raise ValueError(
+                "Ollama async embedding count mismatch "
+                f"(expected={len(texts)} got={arr.shape[0] if arr.ndim >= 1 else 0})"
+            )
+
+        if np.any(np.isnan(arr)):
+            logger.warning("Ollama async embed produced NaN values — replacing with zeros")
+            arr = np.nan_to_num(arr, nan=0.0)
+
+        if self._dimension is None and arr.shape[0] > 0:
+            self._dimension = int(arr.shape[1])
+
+        return arr
+
+    def _embed_batch_resilient_sync(
+        self,
+        texts: list[str],
+        *,
+        batch_start: int,
+        depth: int = 0,
+    ) -> np.ndarray:
+        """Retry full batch, then split recursively to isolate unstable items."""
+        last_error: Exception | None = None
+        for attempt in range(self._MAX_BATCH_RETRIES + 1):
+            try:
+                return self._embed_batch_once_sync(texts)
+            except Exception as e:
+                last_error = e
+                logger.warning(
+                    "Ollama batch embed retry %d/%d failed at batch_start=%d size=%d depth=%d: %s",
+                    attempt + 1,
+                    self._MAX_BATCH_RETRIES + 1,
+                    batch_start,
+                    len(texts),
+                    depth,
+                    e,
+                )
+
+        if self._is_non_retriable_error(last_error):
+            logger.error(
+                "Ollama non-retriable embed error at batch_start=%d size=%d: %s",
+                batch_start,
+                len(texts),
+                last_error,
+            )
+            return np.zeros((len(texts), self.get_dimension()), dtype=np.float32)
+
+        if len(texts) == 1:
+            logger.error(
+                "Ollama embedding failed at leaf batch_start=%d (last batch error: %s)",
+                batch_start,
+                last_error,
+            )
+            return np.zeros((1, self.get_dimension()), dtype=np.float32)
+
+        mid = len(texts) // 2
+        left = self._embed_batch_resilient_sync(
+            texts[:mid], batch_start=batch_start, depth=depth + 1,
+        )
+        right = self._embed_batch_resilient_sync(
+            texts[mid:], batch_start=batch_start + mid, depth=depth + 1,
+        )
+        return np.vstack([left, right])
+
+    async def _embed_batch_resilient_async(
+        self,
+        client,
+        texts: list[str],
+        *,
+        batch_start: int,
+        depth: int = 0,
+    ) -> np.ndarray:
+        """Async variant of retry + split-batch fallback."""
+        last_error: Exception | None = None
+        for attempt in range(self._MAX_BATCH_RETRIES + 1):
+            try:
+                return await self._embed_batch_once_async(client, texts)
+            except Exception as e:
+                last_error = e
+                logger.warning(
+                    "Ollama async batch retry %d/%d failed at batch_start=%d size=%d depth=%d: %s",
+                    attempt + 1,
+                    self._MAX_BATCH_RETRIES + 1,
+                    batch_start,
+                    len(texts),
+                    depth,
+                    e,
+                )
+
+        if self._is_non_retriable_error(last_error):
+            logger.error(
+                "Ollama async non-retriable embed error at batch_start=%d size=%d: %s",
+                batch_start,
+                len(texts),
+                last_error,
+            )
+            return np.zeros((len(texts), self.get_dimension()), dtype=np.float32)
+
+        if len(texts) == 1:
+            logger.error(
+                "Ollama async embedding failed at leaf batch_start=%d (last batch error: %s)",
+                batch_start,
+                last_error,
+            )
+            return np.zeros((1, self.get_dimension()), dtype=np.float32)
+
+        mid = len(texts) // 2
+        left = await self._embed_batch_resilient_async(
+            client,
+            texts[:mid],
+            batch_start=batch_start,
+            depth=depth + 1,
+        )
+        right = await self._embed_batch_resilient_async(
+            client,
+            texts[mid:],
+            batch_start=batch_start + mid,
+            depth=depth + 1,
+        )
+        return np.vstack([left, right])
+
+    @staticmethod
+    def _is_non_retriable_error(error: Exception | None) -> bool:
+        if error is None:
+            return False
+        msg = str(error).lower()
+        fatal_markers = [
+            "not found",
+            "invalid",
+            "unauthorized",
+            "forbidden",
+            "permission",
+        ]
+        return any(marker in msg for marker in fatal_markers)
+
     @staticmethod
     def _sanitize_texts(texts: list[str]) -> list[str]:
         """Clean texts to prevent Ollama embedding NaN errors.
@@ -471,40 +637,36 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
         return sanitized
 
     def embed_sync(self, texts: list[str]) -> np.ndarray:
-        import ollama
+        if not texts:
+            return np.zeros((0, self.get_dimension()), dtype=np.float32)
 
         clean = self._sanitize_texts(texts)
-        try:
-            result = ollama.embed(model=self._model, input=clean)
-            arr = np.array(result.embeddings, dtype=np.float32)
-            # Guard NaN — replace with zeros
-            if np.any(np.isnan(arr)):
-                logger.warning("Ollama embed_sync produced NaN values — replacing with zeros")
-                arr = np.nan_to_num(arr, nan=0.0)
-            return arr
-        except Exception as e:
-            logger.error(f"Ollama embedding failed: {e}")
-            dim = self.get_dimension()
-            return np.zeros((len(texts), dim), dtype=np.float32)
+        parts: list[np.ndarray] = []
+        for i in range(0, len(clean), self._BATCH_SIZE):
+            batch = clean[i : i + self._BATCH_SIZE]
+            parts.append(self._embed_batch_resilient_sync(batch, batch_start=i))
+        return np.vstack(parts)
 
     async def embed(self, texts: list[str]) -> np.ndarray:
         """Native async embedding via ollama.AsyncClient."""
         import ollama
 
+        if not texts:
+            return np.zeros((0, self.get_dimension()), dtype=np.float32)
+
         clean = self._sanitize_texts(texts)
-        try:
-            client = ollama.AsyncClient(host=self._host)
-            result = await client.embed(model=self._model, input=clean)
-            arr = np.array(result.embeddings, dtype=np.float32)
-            # Guard NaN — replace with zeros
-            if np.any(np.isnan(arr)):
-                logger.warning("Ollama async embed produced NaN values — replacing with zeros")
-                arr = np.nan_to_num(arr, nan=0.0)
-            return arr
-        except Exception as e:
-            logger.error(f"Ollama async embedding failed: {e}")
-            dim = self.get_dimension()
-            return np.zeros((len(texts), dim), dtype=np.float32)
+        client = ollama.AsyncClient(host=self._host)
+        parts: list[np.ndarray] = []
+        for i in range(0, len(clean), self._BATCH_SIZE):
+            batch = clean[i : i + self._BATCH_SIZE]
+            parts.append(
+                await self._embed_batch_resilient_async(
+                    client,
+                    batch,
+                    batch_start=i,
+                )
+            )
+        return np.vstack(parts)
 
     def get_dimension(self) -> int:
         if self._dimension is None:
