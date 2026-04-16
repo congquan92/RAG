@@ -1317,7 +1317,7 @@ async def debug_chat(
         "and none contains the answer.\n"
         "- If no source is relevant at all, say: "
         "\"Tài liệu không chứa thông tin này.\" without any citations.\n"
-        "- Answer in the same language as my question.\n"
+        "- Answer in Vietnamese first. Default to Vietnamese-only output.\n"
     )
 
     # Conversation context recap (if history exists)
