@@ -1435,6 +1435,7 @@ export const ChatPanel = memo(function ChatPanel({
 
   // Keep spacer height = container height so user message can always scroll to top
   const hasMessages = messages.length > 0;
+  const hasActiveStreamingMessage = messages.some((m) => m.isStreaming);
   useEffect(() => {
     if (!hasMessages) return;
     const container = scrollContainerRef.current;
@@ -1442,14 +1443,17 @@ export const ChatPanel = memo(function ChatPanel({
 
     const updateSpacer = () => {
       if (spacerRef.current) {
-        spacerRef.current.style.height = `${container.clientHeight}px`;
+        spacerRef.current.style.height =
+          hasActiveStreamingMessage || stream.isStreaming
+            ? `${container.clientHeight}px`
+            : "0px";
       }
     };
     updateSpacer();
     const observer = new ResizeObserver(updateSpacer);
     observer.observe(container);
     return () => observer.disconnect();
-  }, [hasMessages]);
+  }, [hasMessages, hasActiveStreamingMessage, stream.isStreaming]);
 
   // Reset spacer when streaming ends; track transition to avoid spurious scrollToBottom
   const prevIsStreamingRef = useRef(false);
