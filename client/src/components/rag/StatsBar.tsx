@@ -36,7 +36,7 @@ export const StatsBar = memo(function StatsBar({ stats, processingCount = 0 }: S
   return (
     <div className="flex items-center gap-4 flex-wrap">
       <StatItem icon={FileText} label="Tài liệu" value={stats.total_documents} />
-      <StatItem icon={Database} label="Đã lập chỉ mục" value={stats.indexed_documents} accent />
+      <StatItem icon={Database} label="Đã chỉ mục" value={stats.indexed_documents} accent />
       <StatItem icon={Database} label="Chunk" value={stats.total_chunks} />
       {(stats.image_count ?? 0) > 0 && (
         <StatItem icon={Image} label="Hình ảnh" value={stats.image_count!} />

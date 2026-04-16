@@ -39,12 +39,12 @@ function getFileConfig(fileType: string) {
 // Status badge
 // ---------------------------------------------------------------------------
 const STATUS_CONFIG: Record<DocumentStatus, { label: string; className: string; icon: typeof CheckCircle2 }> = {
-  pending:    { label: "Đang chờ",   className: "bg-muted text-muted-foreground",           icon: Clock },
-  parsing:    { label: "Đang parsing", className: "bg-blue-400/15 text-blue-400",            icon: Loader2 },
-  indexing:   { label: "Đang lập chỉ mục", className: "bg-amber-400/15 text-amber-400",      icon: Loader2 },
-  processing: { label: "Đang xử lý", className: "bg-amber-400/15 text-amber-400",           icon: Loader2 },
-  indexed:    { label: "Đã lập chỉ mục", className: "bg-primary/15 text-primary",            icon: CheckCircle2 },
-  failed:     { label: "Thất bại",   className: "bg-destructive/15 text-destructive",       icon: XCircle },
+  pending:    { label: "Chờ",           className: "bg-muted text-muted-foreground",      icon: Clock },
+  parsing:    { label: "Đang parse",    className: "bg-blue-400/15 text-blue-400",        icon: Loader2 },
+  indexing:   { label: "Đang chỉ mục",  className: "bg-amber-400/15 text-amber-400",      icon: Loader2 },
+  processing: { label: "Đang xử lý",    className: "bg-amber-400/15 text-amber-400",      icon: Loader2 },
+  indexed:    { label: "Đã chỉ mục",    className: "bg-primary/15 text-primary",          icon: CheckCircle2 },
+  failed:     { label: "Lỗi",           className: "bg-destructive/15 text-destructive",  icon: XCircle },
 };
 
 function StatusBadge({ status }: { status: DocumentStatus }) {
@@ -53,7 +53,7 @@ function StatusBadge({ status }: { status: DocumentStatus }) {
   const isAnimated = status === "parsing" || status === "indexing" || status === "processing";
 
   return (
-    <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full", config.className)}>
+    <span className={cn("inline-flex flex-shrink-0 items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap", config.className)}>
       <Icon className={cn("w-3 h-3", isAnimated && "animate-spin")} />
       {config.label}
     </span>
@@ -188,8 +188,8 @@ export const DocumentCard = memo(function DocumentCard({
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <p className="font-medium text-sm truncate">{doc.original_filename}</p>
+          <div className="flex items-center gap-2 min-w-0">
+            <p className="font-medium text-sm truncate flex-1 min-w-0">{doc.original_filename}</p>
             <StatusBadge status={doc.status} />
           </div>
           <div className="flex items-center gap-2 mt-0.5">

@@ -8,9 +8,9 @@ type FilterStatus = "all" | DocumentStatus;
 
 const TABS: { value: FilterStatus; label: string }[] = [
   { value: "all", label: "Tất cả" },
-  { value: "indexed", label: "Đã lập chỉ mục" },
+  { value: "indexed", label: "Đã chỉ mục" },
   { value: "parsing", label: "Đang xử lý" },
-  { value: "failed", label: "Thất bại" },
+  { value: "failed", label: "Lỗi" },
 ];
 
 interface DocumentFiltersProps {
@@ -31,9 +31,9 @@ export const DocumentFilters = memo(function DocumentFilters({
   counts,
 }: DocumentFiltersProps) {
   return (
-    <div className="flex items-center gap-3 flex-wrap">
+    <div className="space-y-2">
       {/* Search */}
-      <div className="relative flex-1 min-w-[180px] max-w-xs">
+      <div className="relative">
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
         <Input
           placeholder="Lọc theo tên..."
@@ -44,7 +44,7 @@ export const DocumentFilters = memo(function DocumentFilters({
       </div>
 
       {/* Status tabs */}
-      <div className="flex items-center gap-1 bg-muted/40 rounded-lg p-0.5">
+      <div className="grid grid-cols-2 gap-1 bg-muted/40 rounded-lg p-1">
         {TABS.map((tab) => {
           const isActive = statusFilter === tab.value;
           // Merge processing-like statuses into the "Processing" tab
@@ -57,21 +57,23 @@ export const DocumentFilters = memo(function DocumentFilters({
               key={tab.value}
               onClick={() => onStatusChange(tab.value)}
               className={cn(
-                "px-2.5 py-1 text-xs font-medium rounded-md transition-colors",
+                "flex items-center justify-between gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-md transition-colors",
                 isActive
                   ? "bg-card text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              {tab.label}
-              {count > 0 && (
+              <span className="truncate">{tab.label}</span>
+              {
                 <span className={cn(
-                  "ml-1 text-[10px]",
-                  isActive ? "text-primary" : "text-muted-foreground/60"
+                  "inline-flex min-w-4 h-4 items-center justify-center rounded-full px-1 text-[10px] leading-none",
+                  isActive
+                    ? "bg-primary/15 text-primary"
+                    : "bg-muted text-muted-foreground"
                 )}>
                   {count}
                 </span>
-              )}
+              }
             </button>
           );
         })}

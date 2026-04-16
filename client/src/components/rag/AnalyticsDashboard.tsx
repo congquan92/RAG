@@ -189,7 +189,7 @@ export const AnalyticsDashboard = memo(function AnalyticsDashboard({ projectId, 
       {/* Stats grid */}
       <div className={cn("grid gap-2", compact ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-6")}>
         <StatCard icon={FileText} label="Tài liệu" value={stats.total_documents} />
-        <StatCard icon={Database} label="Đã lập chỉ mục" value={stats.indexed_documents} accent />
+        <StatCard icon={Database} label="Đã chỉ mục" value={stats.indexed_documents} accent />
         <StatCard icon={Database} label="Chunk" value={stats.total_chunks} />
         <StatCard icon={Image} label="Hình ảnh" value={stats.image_count ?? 0} />
         {kg_analytics && (

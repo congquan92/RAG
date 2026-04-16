@@ -169,103 +169,107 @@ export function WorkspaceSettings({
   if (!open) return null;
 
   return (
-    <div className="absolute inset-0 z-50 bg-background/95 backdrop-blur-sm flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <Settings2 className="w-4 h-4 text-muted-foreground" />
-          <h2 className="text-sm font-semibold">Cài đặt không gian làm việc</h2>
-        </div>
-        <Button variant="ghost" size="icon" onClick={onClose} className="h-7 w-7">
-          <X className="w-4 h-4" />
-        </Button>
-      </div>
+    <div className="fixed inset-0 z-50">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px]" onClick={onClose} />
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-4">
-        {/* KG Language */}
-        <div className="space-y-1.5">
-          <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            <Globe className="w-3.5 h-3.5" />
-            Ngôn ngữ KG
-          </label>
-          <Select
-            value={language}
-            onChange={(e) => setLanguage(e.target.value)}
-            className="h-8 text-xs"
-          >
-            {LANGUAGE_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </Select>
-          <p className="text-[10px] text-muted-foreground">
-            Ngôn ngữ dùng để trích xuất entity cho KG. Để trống = dùng mặc định từ server.
-          </p>
-        </div>
-
-        {/* KG Entity Types */}
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-              <Tags className="w-3.5 h-3.5" />
-              Loại entity KG
-            </label>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleLoadDefaults}
-              className="h-6 text-[10px] px-2 text-muted-foreground"
-            >
-              <Plus className="w-3 h-3 mr-0.5" />
-              Tải mặc định
-            </Button>
+      <div className="relative z-10 mx-auto my-6 flex h-[calc(100vh-3rem)] w-full max-w-3xl flex-col rounded-xl border bg-background shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <Settings2 className="w-4 h-4 text-muted-foreground" />
+            <h2 className="text-sm font-semibold">Cài đặt không gian làm việc</h2>
           </div>
-          <TagInput
-            tags={entityTypes}
-            onChange={setEntityTypes}
-            placeholder="Organization, Person, Product..."
-          />
-          <p className="text-[10px] text-muted-foreground">
-            Danh sách loại entity dùng cho trích xuất Knowledge Graph. Nhấn Enter hoặc dấu phẩy để thêm. Để trống = mặc định từ server.
-          </p>
-        </div>
-
-        {/* Info box */}
-        <div className="rounded-md border border-blue-400/20 bg-blue-400/5 p-2.5">
-          <p className="text-[10px] text-muted-foreground leading-relaxed">
-            Các cài đặt này ảnh hưởng cách tài liệu được xử lý trong không gian làm việc này.
-            Thay đổi sẽ áp dụng cho tài liệu phân tích mới, còn tài liệu hiện có vẫn giữ dữ liệu KG hiện tại.
-            Hãy phân tích lại tài liệu để áp dụng cài đặt mới.
-          </p>
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div className="flex items-center justify-between px-3 py-2 border-t flex-shrink-0">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleReset}
-          className="h-7 text-xs gap-1"
-        >
-          <RotateCcw className="w-3 h-3" />
-          Đặt lại mặc định
-        </Button>
-        <div className="flex items-center gap-1.5">
-          <Button variant="ghost" size="sm" onClick={onClose} className="h-7 text-xs">
-            Hủy
+          <Button variant="ghost" size="icon" onClick={onClose} className="h-7 w-7">
+            <X className="w-4 h-4" />
           </Button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+          {/* KG Language */}
+          <div className="space-y-1.5">
+            <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+              <Globe className="w-3.5 h-3.5" />
+              Ngôn ngữ KG
+            </label>
+            <Select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              className="h-8 text-xs"
+            >
+              {LANGUAGE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </Select>
+            <p className="text-[10px] text-muted-foreground">
+              Ngôn ngữ dùng để trích xuất entity cho KG. Để trống = dùng mặc định từ server.
+            </p>
+          </div>
+
+          {/* KG Entity Types */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <Tags className="w-3.5 h-3.5" />
+                Loại entity KG
+              </label>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleLoadDefaults}
+                className="h-6 text-[10px] px-2 text-muted-foreground"
+              >
+                <Plus className="w-3 h-3 mr-0.5" />
+                Tải mặc định
+              </Button>
+            </div>
+            <TagInput
+              tags={entityTypes}
+              onChange={setEntityTypes}
+              placeholder="Organization, Person, Product..."
+            />
+            <p className="text-[10px] text-muted-foreground">
+              Danh sách loại entity dùng cho trích xuất Knowledge Graph. Nhấn Enter hoặc dấu phẩy để thêm. Để trống = mặc định từ server.
+            </p>
+          </div>
+
+          {/* Info box */}
+          <div className="rounded-md border border-blue-400/20 bg-blue-400/5 p-2.5">
+            <p className="text-[10px] text-muted-foreground leading-relaxed">
+              Các cài đặt này ảnh hưởng cách tài liệu được xử lý trong không gian làm việc này.
+              Thay đổi sẽ áp dụng cho tài liệu phân tích mới, còn tài liệu hiện có vẫn giữ dữ liệu KG hiện tại.
+              Hãy phân tích lại tài liệu để áp dụng cài đặt mới.
+            </p>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-4 py-3 border-t flex-shrink-0">
           <Button
+            variant="ghost"
             size="sm"
-            onClick={handleSave}
-            disabled={!hasChanges || saving}
+            onClick={handleReset}
             className="h-7 text-xs gap-1"
           >
-            <Save className="w-3 h-3" />
-            {saving ? "Đang lưu..." : "Lưu"}
+            <RotateCcw className="w-3 h-3" />
+            Đặt lại mặc định
           </Button>
+          <div className="flex items-center gap-1.5">
+            <Button variant="ghost" size="sm" onClick={onClose} className="h-7 text-xs">
+              Hủy
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleSave}
+              disabled={!hasChanges || saving}
+              className="h-7 text-xs gap-1"
+            >
+              <Save className="w-3 h-3" />
+              {saving ? "Đang lưu..." : "Lưu"}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
