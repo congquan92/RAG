@@ -84,9 +84,9 @@ export function WorkspacePage() {
             queryClient.invalidateQueries({ queryKey: ["documents", workspaceId] });
             queryClient.invalidateQueries({ queryKey: ["rag-stats", workspaceId] });
             queryClient.invalidateQueries({ queryKey: ["workspaces"] });
-            toast.success("Document uploaded successfully");
+            toast.success("Tải tài liệu lên thành công");
         },
-        onError: () => toast.error("Failed to upload document"),
+        onError: () => toast.error("Không thể tải tài liệu lên"),
     });
 
     const deleteDoc = useMutation({
@@ -96,9 +96,9 @@ export function WorkspacePage() {
             queryClient.invalidateQueries({ queryKey: ["rag-stats", workspaceId] });
             queryClient.invalidateQueries({ queryKey: ["workspaces"] });
             if (selectedDoc?.id === docId) selectDoc(null);
-            toast.success("Document deleted");
+            toast.success("Đã xóa tài liệu");
         },
-        onError: () => toast.error("Failed to delete document"),
+        onError: () => toast.error("Không thể xóa tài liệu"),
     });
 
     const processDoc = useMutation({
@@ -106,19 +106,19 @@ export function WorkspacePage() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["documents", workspaceId] });
             queryClient.invalidateQueries({ queryKey: ["rag-stats", workspaceId] });
-            toast.info("Analyzing document...", {
-                description: "Parsing content and building search index.",
+            toast.info("Đang phân tích tài liệu...", {
+                description: "Đang parse nội dung và xây dựng search index.",
             });
         },
         onError: (error: Error) => {
             if (error.message?.includes("already being analyzed")) {
-                toast.info("Document is already being analyzed", {
-                    description: "Please wait for the current analysis to complete.",
+                toast.info("Tài liệu đang được phân tích", {
+                    description: "Vui lòng chờ quá trình phân tích hiện tại hoàn tất.",
                 });
                 // Refresh to get latest status
                 queryClient.invalidateQueries({ queryKey: ["documents", workspaceId] });
             } else {
-                toast.error("Failed to start analysis");
+                toast.error("Không thể bắt đầu phân tích");
             }
         },
     });
@@ -128,9 +128,9 @@ export function WorkspacePage() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["documents", workspaceId] });
             queryClient.invalidateQueries({ queryKey: ["rag-stats", workspaceId] });
-            toast.success("Document re-processing started");
+            toast.success("Đã bắt đầu phân tích lại tài liệu");
         },
-        onError: () => toast.error("Failed to re-process document"),
+        onError: () => toast.error("Không thể phân tích lại tài liệu"),
     });
 
     // -----------------------------------------------------------------------

@@ -31,21 +31,21 @@ export function KnowledgeBasesPage() {
         if (!newWorkspaceName.trim()) return;
         try {
             const ws = await createWorkspace.mutateAsync({ name: newWorkspaceName });
-            toast.success("Knowledge base created");
+            toast.success("Đã tạo cơ sở kiến thức");
             setNewWorkspaceName("");
             setShowNewWorkspace(false);
             navigate(`/knowledge-bases/${ws.id}`);
         } catch {
-            toast.error("Failed to create knowledge base");
+            toast.error("Không thể tạo cơ sở kiến thức");
         }
     };
 
     const handleDeleteWorkspace = async (id: number) => {
         try {
             await deleteWorkspace.mutateAsync(id);
-            toast.success("Knowledge base deleted");
+            toast.success("Đã xóa cơ sở kiến thức");
         } catch {
-            toast.error("Failed to delete knowledge base");
+            toast.error("Không thể xóa cơ sở kiến thức");
         }
         setDeleteConfirm(null);
     };
@@ -55,10 +55,10 @@ export function KnowledgeBasesPage() {
         const now = new Date();
         const diff = now.getTime() - date.getTime();
         const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-        if (days === 0) return "Today";
-        if (days === 1) return "Yesterday";
-        if (days < 7) return `${days} days ago`;
-        return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        if (days === 0) return "Hôm nay";
+        if (days === 1) return "Hôm qua";
+        if (days < 7) return `${days} ngày trước`;
+        return date.toLocaleDateString("vi-VN", { month: "short", day: "numeric" });
     };
 
     return (
@@ -67,16 +67,16 @@ export function KnowledgeBasesPage() {
                 {/* Section header + action */}
                 <div className="flex items-center justify-between mb-6">
                     <div>
-                        <h2 className="text-lg font-semibold">Knowledge Bases</h2>
+                        <h2 className="text-lg font-semibold">Cơ sở kiến thức</h2>
                         {workspaces && workspaces.length > 0 && (
                             <p className="text-sm text-muted-foreground mt-0.5">
-                                {workspaces.length} knowledge base{workspaces.length !== 1 ? "s" : ""}
+                                {workspaces.length} cơ sở kiến thức
                             </p>
                         )}
                     </div>
                     <Button onClick={() => setShowNewWorkspace(true)} size="sm">
                         <Plus className="w-4 h-4 mr-1.5" />
-                        New Knowledge Base
+                        Tạo cơ sở kiến thức
                     </Button>
                 </div>
 
@@ -86,18 +86,18 @@ export function KnowledgeBasesPage() {
                         <Card className="w-full max-w-md mx-4 shadow-2xl">
                             <CardContent className="pt-6">
                                 <div className="flex items-center justify-between mb-4">
-                                    <h3 className="text-lg font-semibold">New Knowledge Base</h3>
+                                    <h3 className="text-lg font-semibold">Cơ sở kiến thức mới</h3>
                                     <button onClick={() => setShowNewWorkspace(false)} className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors">
                                         <X className="w-4 h-4" />
                                     </button>
                                 </div>
-                                <Input placeholder="Knowledge base name" value={newWorkspaceName} onChange={(e) => setNewWorkspaceName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleCreateWorkspace()} autoFocus />
+                                <Input placeholder="Tên cơ sở kiến thức" value={newWorkspaceName} onChange={(e) => setNewWorkspaceName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleCreateWorkspace()} autoFocus />
                                 <div className="flex justify-end gap-2 mt-4">
                                     <Button variant="ghost" onClick={() => setShowNewWorkspace(false)}>
-                                        Cancel
+                                        Hủy
                                     </Button>
                                     <Button onClick={handleCreateWorkspace} disabled={createWorkspace.isPending || !newWorkspaceName.trim()}>
-                                        {createWorkspace.isPending ? "Creating..." : "Create"}
+                                        {createWorkspace.isPending ? "Đang tạo..." : "Tạo"}
                                     </Button>
                                 </div>
                             </CardContent>
@@ -122,11 +122,11 @@ export function KnowledgeBasesPage() {
                         <div className="w-20 h-20 rounded-2xl bg-blue-500/10 flex items-center justify-center mb-6">
                             <Database className="w-10 h-10 text-blue-500" />
                         </div>
-                        <h3 className="text-xl font-semibold mb-2">Create your first knowledge base</h3>
-                        <p className="text-muted-foreground text-center max-w-sm mb-6">Knowledge bases store your documents and enable AI-powered search across them. Link them to any project as a data source.</p>
+                        <h3 className="text-xl font-semibold mb-2">Tạo cơ sở kiến thức đầu tiên</h3>
+                        <p className="text-muted-foreground text-center max-w-sm mb-6">Cơ sở kiến thức giúp lưu trữ tài liệu và tìm kiếm bằng AI trên toàn bộ dữ liệu. Bạn có thể liên kết chúng với bất kỳ dự án nào làm nguồn dữ liệu.</p>
                         <Button onClick={() => setShowNewWorkspace(true)} size="lg">
                             <Plus className="w-4 h-4 mr-2" />
-                            New Knowledge Base
+                            Tạo cơ sở kiến thức
                         </Button>
                     </div>
                 ) : (
@@ -165,7 +165,7 @@ export function KnowledgeBasesPage() {
                                                         className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-destructive hover:bg-muted transition-colors"
                                                     >
                                                         <Trash2 className="w-3.5 h-3.5" />
-                                                        Delete
+                                                        Xóa
                                                     </button>
                                                 </div>
                                             )}
@@ -174,9 +174,9 @@ export function KnowledgeBasesPage() {
                                     <div className="flex items-center gap-3 mt-3 text-xs text-muted-foreground">
                                         <span className="flex items-center gap-1">
                                             <FileText className="w-3 h-3" />
-                                            {ws.document_count} docs
+                                            {ws.document_count} tài liệu
                                         </span>
-                                        <span className="flex items-center gap-1 text-green-500">{ws.indexed_count} indexed</span>
+                                        <span className="flex items-center gap-1 text-green-500">{ws.indexed_count} đã lập chỉ mục</span>
                                         {ws.updated_at && (
                                             <>
                                                 <span className="text-border">|</span>
@@ -196,9 +196,9 @@ export function KnowledgeBasesPage() {
                 open={deleteConfirm !== null}
                 onConfirm={() => deleteConfirm !== null && handleDeleteWorkspace(deleteConfirm)}
                 onCancel={() => setDeleteConfirm(null)}
-                title="Delete Knowledge Base"
-                message="Are you sure? All documents, indexed data, and knowledge graph data will be permanently removed."
-                confirmLabel="Delete"
+                title="Xóa cơ sở kiến thức"
+                message="Bạn có chắc không? Toàn bộ tài liệu, dữ liệu đã lập chỉ mục và dữ liệu Knowledge Graph sẽ bị xóa vĩnh viễn."
+                confirmLabel="Xóa"
                 variant="danger"
             />
         </div>

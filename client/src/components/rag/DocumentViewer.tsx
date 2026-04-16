@@ -46,7 +46,7 @@ function ViewerError({ message }: { message: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
       <FileText className="w-10 h-10 text-muted-foreground/40 mb-3" />
-      <p className="text-sm font-medium">Unable to load document</p>
+      <p className="text-sm font-medium">Không thể tải tài liệu</p>
       <p className="text-xs text-muted-foreground mt-1 max-w-xs">{message}</p>
     </div>
   );
@@ -60,10 +60,10 @@ function ViewerEmpty() {
     <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
       <FileText className="w-10 h-10 text-muted-foreground/30 mb-3" />
       <p className="text-sm text-muted-foreground">
-        No parsed content available for this document
+        Không có nội dung đã parse cho tài liệu này
       </p>
       <p className="text-xs text-muted-foreground/60 mt-1">
-        The document may not have been processed with NexusRAG yet
+        Tài liệu có thể chưa được xử lý bằng NexusRAG
       </p>
     </div>
   );
@@ -87,7 +87,7 @@ const TOCSidebar = memo(function TOCSidebar({
     <nav className="w-52 flex-shrink-0 border-r overflow-y-auto py-3 px-2 hidden xl:block">
       <div className="flex items-center gap-1.5 px-2 mb-2">
         <List className="w-3.5 h-3.5 text-muted-foreground" />
-        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Contents</span>
+        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Mục lục</span>
       </div>
       <ul className="space-y-0.5">
         {headings.map((h) => (
@@ -121,7 +121,7 @@ function PageDivider({ pageNo }: { pageNo: number }) {
     <div className="flex items-center gap-3 py-4 select-none" data-page={pageNo}>
       <div className="flex-1 border-t border-dashed border-muted-foreground/20" />
       <span className="text-[10px] font-medium text-muted-foreground/50 uppercase tracking-wider">
-        Page {pageNo}
+        Trang {pageNo}
       </span>
       <div className="flex-1 border-t border-dashed border-muted-foreground/20" />
     </div>
@@ -537,9 +537,9 @@ export const DocumentViewer = memo(function DocumentViewer({
           <div className="mb-4 pb-3 border-b">
             <h2 className="text-lg font-semibold">{doc.original_filename}</h2>
             <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-              {doc.page_count && doc.page_count > 0 && <span>{doc.page_count} pages</span>}
-              {doc.chunk_count > 0 && <span>{doc.chunk_count} chunks</span>}
-              {doc.parser_version && <span>Parsed by {doc.parser_version}</span>}
+              {doc.page_count && doc.page_count > 0 && <span>{doc.page_count} trang</span>}
+              {doc.chunk_count > 0 && <span>{doc.chunk_count} chunk</span>}
+              {doc.parser_version && <span>Parser: {doc.parser_version}</span>}
             </div>
           </div>
 

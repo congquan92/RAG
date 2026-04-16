@@ -44,34 +44,34 @@ export const CustomMetadataInput = memo(function CustomMetadataInput({
           )}
         >
           <Settings2 className="w-3.5 h-3.5" />
-          {validCount > 0 ? `Custom Metadata (${validCount})` : "Add Custom Metadata"}
+          {validCount > 0 ? `Metadata tùy chỉnh (${validCount})` : "Thêm metadata tùy chỉnh"}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-64 p-3" align="start">
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h4 className="font-medium text-xs">Upload Metadata</h4>
+            <h4 className="font-medium text-xs">Metadata khi tải lên</h4>
             <Button variant="ghost" size="sm" onClick={handleAdd} className="h-6 text-[10px] px-2 h-6">
-              <Plus className="w-3 h-3 mr-1" /> Add
+              <Plus className="w-3 h-3 mr-1" /> Thêm
             </Button>
           </div>
           
           <div className="space-y-2 max-h-48 overflow-y-auto">
             {metadata.length === 0 ? (
               <p className="text-[10px] text-muted-foreground text-center py-2">
-                No custom metadata. These will be added to newly uploaded files.
+                Chưa có metadata tùy chỉnh. Metadata này sẽ được gắn vào các tệp tải lên mới.
               </p>
             ) : (
               metadata.map((item, i) => (
                 <div key={i} className="flex items-center gap-1.5">
                   <Input
-                    placeholder="Key"
+                    placeholder="Khóa"
                     value={item.key}
                     onChange={(e) => handleChange(i, "key", e.target.value)}
                     className="h-7 text-xs flex-1"
                   />
                   <Input
-                    placeholder="Value"
+                    placeholder="Giá trị"
                     value={item.value}
                     onChange={(e) => handleChange(i, "value", e.target.value)}
                     className="h-7 text-xs flex-1"

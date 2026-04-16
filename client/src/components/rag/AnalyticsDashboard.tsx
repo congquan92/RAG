@@ -63,7 +63,7 @@ function TypeDistribution({ types }: { types: Record<string, number> }) {
 
   return (
     <div className="space-y-2">
-      <span className="text-xs font-medium text-muted-foreground">Entity Types</span>
+      <span className="text-xs font-medium text-muted-foreground">Loại Entity</span>
 
       {/* Stacked bar */}
       <div className="h-2 w-full rounded-full overflow-hidden flex bg-muted">
@@ -108,7 +108,7 @@ function DocumentBreakdownChart({ docs }: { docs: DocumentBreakdown[] }) {
     <div className="space-y-2">
       <div className="flex items-center gap-2">
         <BarChart3 className="w-3.5 h-3.5 text-muted-foreground" />
-        <span className="text-xs font-medium text-muted-foreground">Document Breakdown</span>
+        <span className="text-xs font-medium text-muted-foreground">Phân rã tài liệu</span>
       </div>
 
       <div className="space-y-1.5 max-h-[240px] overflow-y-auto">
@@ -175,7 +175,7 @@ export const AnalyticsDashboard = memo(function AnalyticsDashboard({ projectId, 
     return (
       <div className="flex items-center justify-center py-8">
         <Loader2 className="w-5 h-5 animate-spin text-muted-foreground mr-2" />
-        <span className="text-sm text-muted-foreground">Loading analytics...</span>
+        <span className="text-sm text-muted-foreground">Đang tải số liệu phân tích...</span>
       </div>
     );
   }
@@ -188,14 +188,14 @@ export const AnalyticsDashboard = memo(function AnalyticsDashboard({ projectId, 
     <div className="space-y-5">
       {/* Stats grid */}
       <div className={cn("grid gap-2", compact ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-6")}>
-        <StatCard icon={FileText} label="Documents" value={stats.total_documents} />
-        <StatCard icon={Database} label="Indexed" value={stats.indexed_documents} accent />
-        <StatCard icon={Database} label="Chunks" value={stats.total_chunks} />
-        <StatCard icon={Image} label="Images" value={stats.image_count ?? 0} />
+        <StatCard icon={FileText} label="Tài liệu" value={stats.total_documents} />
+        <StatCard icon={Database} label="Đã lập chỉ mục" value={stats.indexed_documents} accent />
+        <StatCard icon={Database} label="Chunk" value={stats.total_chunks} />
+        <StatCard icon={Image} label="Hình ảnh" value={stats.image_count ?? 0} />
         {kg_analytics && (
           <>
-            <StatCard icon={Network} label="Entities" value={kg_analytics.entity_count} />
-            <StatCard icon={Link2} label="Relationships" value={kg_analytics.relationship_count} />
+            <StatCard icon={Network} label="Entity" value={kg_analytics.entity_count} />
+            <StatCard icon={Link2} label="Quan hệ" value={kg_analytics.relationship_count} />
           </>
         )}
       </div>
@@ -210,7 +210,7 @@ export const AnalyticsDashboard = memo(function AnalyticsDashboard({ projectId, 
 
           {/* Top entities */}
           <div className="rounded-lg border bg-card/60 p-4 space-y-2">
-            <span className="text-xs font-medium text-muted-foreground">Top Entities</span>
+            <span className="text-xs font-medium text-muted-foreground">Top Entity</span>
             <div className="space-y-1">
               {kg_analytics.top_entities.slice(0, 8).map((entity, i) => (
                 <div key={entity.name} className="flex items-center gap-2">

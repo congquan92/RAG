@@ -70,13 +70,13 @@ function ImageLightbox({
       <div className="flex gap-6 max-w-[90vw] max-h-[85vh]" onClick={(e) => e.stopPropagation()}>
         <img
           src={img.url}
-          alt={img.caption || `Image from page ${img.page_no}`}
+          alt={img.caption || `Hình ảnh từ trang ${img.page_no}`}
           className="max-w-full max-h-[80vh] rounded-lg object-contain"
         />
         <div className="w-64 flex-shrink-0 text-white/90 space-y-3 self-end hidden lg:block">
           {img.caption && <p className="text-sm leading-relaxed">{img.caption}</p>}
           <div className="space-y-1 text-xs text-white/60">
-            <p>Page {img.page_no}</p>
+            <p>Trang {img.page_no}</p>
             {img.width > 0 && <p>{img.width} x {img.height}px</p>}
           </div>
           <p className="text-xs text-white/40">{currentIndex + 1} / {images.length}</p>
@@ -102,7 +102,7 @@ export const ImageResultGrid = memo(function ImageResultGrid({ images }: ImageRe
     <div className="space-y-2">
       <div className="flex items-center gap-2">
         <Image className="w-4 h-4 text-muted-foreground" />
-        <span className="text-sm font-medium">Related Images ({images.length})</span>
+        <span className="text-sm font-medium">Hình ảnh liên quan ({images.length})</span>
       </div>
 
       <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
@@ -120,14 +120,14 @@ export const ImageResultGrid = memo(function ImageResultGrid({ images }: ImageRe
           >
             <img
               src={img.url}
-              alt={img.caption || `Page ${img.page_no}`}
+              alt={img.caption || `Trang ${img.page_no}`}
               className="w-full h-full object-cover"
               loading="lazy"
             />
             {/* Hover overlay */}
             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-end">
               <div className="p-1.5 w-full translate-y-full group-hover:translate-y-0 transition-transform">
-                <p className="text-[10px] text-white/90 truncate">{img.caption || `Page ${img.page_no}`}</p>
+                <p className="text-[10px] text-white/90 truncate">{img.caption || `Trang ${img.page_no}`}</p>
               </div>
             </div>
           </motion.div>

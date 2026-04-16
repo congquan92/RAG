@@ -125,8 +125,8 @@ export const DataPanel = memo(function DataPanel({
 
     setBatchProcessing(true);
     const count = processable.length;
-    toast.info(`Analyzing ${count} document${count > 1 ? "s" : ""}...`, {
-      description: "Documents will be processed sequentially.",
+    toast.info(`Đang phân tích ${count} tài liệu...`, {
+      description: "Tài liệu sẽ được xử lý tuần tự.",
     });
 
     try {
@@ -134,7 +134,7 @@ export const DataPanel = memo(function DataPanel({
         document_ids: processable.map((d) => d.id),
       });
     } catch {
-      toast.error("Failed to start batch analysis");
+      toast.error("Không thể bắt đầu phân tích hàng loạt");
     } finally {
       setBatchProcessing(false);
     }
@@ -166,7 +166,7 @@ export const DataPanel = memo(function DataPanel({
           className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeft className="w-3 h-3" />
-          Dashboard
+          Trang chính
         </button>
 
         {isEditingName ? (
@@ -175,22 +175,22 @@ export const DataPanel = memo(function DataPanel({
               value={editName}
               onChange={(e) => setEditName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSaveEdit()}
-              placeholder="Name"
+              placeholder="Tên"
               autoFocus
               className="text-sm font-semibold h-8"
             />
             <Input
               value={editDesc}
               onChange={(e) => setEditDesc(e.target.value)}
-              placeholder="Description"
+              placeholder="Mô tả"
               className="text-xs h-7"
             />
             <div className="flex items-center gap-1">
               <Button size="sm" onClick={handleSaveEdit} disabled={!editName.trim()} className="h-6 text-[10px] px-2">
-                <Check className="w-3 h-3 mr-0.5" /> Save
+                <Check className="w-3 h-3 mr-0.5" /> Lưu
               </Button>
               <Button size="sm" variant="ghost" onClick={() => setIsEditingName(false)} className="h-6 text-[10px] px-2">
-                <X className="w-3 h-3 mr-0.5" /> Cancel
+                <X className="w-3 h-3 mr-0.5" /> Hủy
               </Button>
             </div>
           </div>
@@ -198,7 +198,7 @@ export const DataPanel = memo(function DataPanel({
           <div className="flex items-center gap-1.5">
             <div className="flex-1 min-w-0">
               <h1 className="text-sm font-bold truncate">
-                {workspace?.name || "Knowledge Base"}
+                {workspace?.name || "Cơ sở kiến thức"}
               </h1>
               {workspace?.description && (
                 <p className="text-[10px] text-muted-foreground truncate">
@@ -211,7 +211,7 @@ export const DataPanel = memo(function DataPanel({
               variant="ghost"
               onClick={() => setSettingsOpen(true)}
               className="h-6 w-6 flex-shrink-0"
-              title="Workspace settings"
+              title="Cài đặt không gian làm việc"
             >
               <Settings2 className="w-3 h-3" />
             </Button>
@@ -230,7 +230,7 @@ export const DataPanel = memo(function DataPanel({
       {/* Upload zone header & settings */}
       <div className="flex-shrink-0 px-3 py-1.5 flex items-center justify-between border-t border-b">
         <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-          Add Documents
+          Thêm tài liệu
         </h3>
         <CustomMetadataInput metadata={customMetadata} onChange={setCustomMetadata} />
       </div>
@@ -245,10 +245,10 @@ export const DataPanel = memo(function DataPanel({
         <div className="flex items-center justify-between">
           <h2 className="text-xs font-semibold flex items-center gap-1.5">
             <FileText className="w-3.5 h-3.5" />
-            Documents
+            Tài liệu
           </h2>
           <span className="text-[10px] text-muted-foreground">
-            {documents?.length ?? 0} file{(documents?.length ?? 0) !== 1 ? "s" : ""}
+            {documents?.length ?? 0} tệp
           </span>
         </div>
         <StatsBar stats={ragStats} processingCount={processingCount} />
@@ -268,11 +268,11 @@ export const DataPanel = memo(function DataPanel({
             <div className="flex items-center gap-2 min-w-0">
               <Sparkles className={cn("w-3.5 h-3.5 text-blue-400 flex-shrink-0", batchProcessing && "animate-spin")} />
               <span className="text-[11px] font-medium text-blue-400 truncate">
-                {batchProcessing ? "Starting..." : `Analyze All (${pendingCount})`}
+                {batchProcessing ? "Đang bắt đầu..." : `Phân tích tất cả (${pendingCount})`}
               </span>
             </div>
             <span className="text-[10px] text-muted-foreground flex-shrink-0">
-              {pendingCount} pending
+              {pendingCount} đang chờ
             </span>
           </button>
         )}
@@ -283,12 +283,12 @@ export const DataPanel = memo(function DataPanel({
         {docsLoading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="w-4 h-4 animate-spin text-muted-foreground mr-2" />
-            <span className="text-xs text-muted-foreground">Loading...</span>
+            <span className="text-xs text-muted-foreground">Đang tải...</span>
           </div>
         ) : !documents || documents.length === 0 ? (
           <div className="flex-1 flex items-center justify-center px-3">
             <p className="text-xs text-muted-foreground text-center">
-              No documents yet. Drop files above to get started.
+              Chưa có tài liệu. Hãy thả tệp ở phía trên để bắt đầu.
             </p>
           </div>
         ) : (
@@ -320,7 +320,7 @@ export const DataPanel = memo(function DataPanel({
               </AnimatePresence>
               {filteredDocs.length === 0 && documents.length > 0 && (
                 <div className="text-center py-4 text-[11px] text-muted-foreground">
-                  No documents match your filter
+                  Không có tài liệu nào khớp bộ lọc
                 </div>
               )}
             </div>
@@ -348,9 +348,9 @@ export const DataPanel = memo(function DataPanel({
           }
         }}
         onCancel={() => setDeleteDocConfirm(null)}
-        title="Delete Document"
-        message="Are you sure? This removes the document and its indexed data."
-        confirmLabel="Delete"
+        title="Xóa tài liệu"
+        message="Bạn có chắc không? Thao tác này sẽ xóa tài liệu và dữ liệu đã lập chỉ mục của nó."
+        confirmLabel="Xóa"
         variant="danger"
       />
     </div>

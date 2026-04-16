@@ -18,15 +18,15 @@ import type { KnowledgeBase, UpdateWorkspace } from "@/types";
 // ---------------------------------------------------------------------------
 
 const LANGUAGE_OPTIONS = [
-  { value: "", label: "Default (from server)" },
-  { value: "English", label: "English" },
-  { value: "Vietnamese", label: "Vietnamese" },
-  { value: "Chinese", label: "Chinese" },
-  { value: "Japanese", label: "Japanese" },
-  { value: "Korean", label: "Korean" },
-  { value: "French", label: "French" },
-  { value: "German", label: "German" },
-  { value: "Spanish", label: "Spanish" },
+  { value: "", label: "Mặc định (theo server)" },
+  { value: "English", label: "Tiếng Anh" },
+  { value: "Vietnamese", label: "Tiếng Việt" },
+  { value: "Chinese", label: "Tiếng Trung" },
+  { value: "Japanese", label: "Tiếng Nhật" },
+  { value: "Korean", label: "Tiếng Hàn" },
+  { value: "French", label: "Tiếng Pháp" },
+  { value: "German", label: "Tiếng Đức" },
+  { value: "Spanish", label: "Tiếng Tây Ban Nha" },
 ];
 
 const DEFAULT_ENTITY_TYPES = [
@@ -108,7 +108,7 @@ function TagInput({
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={handleKeyDown}
         onBlur={() => { if (input.trim()) addTag(input); }}
-        placeholder={tags.length === 0 ? placeholder : "Add type..."}
+        placeholder={tags.length === 0 ? placeholder : "Thêm loại..."}
         className="flex-1 min-w-[80px] bg-transparent text-xs outline-none placeholder:text-muted-foreground"
       />
     </div>
@@ -148,10 +148,10 @@ export function WorkspaceSettings({
         kg_language: language || null,
         kg_entity_types: entityTypes.length > 0 ? entityTypes : null,
       });
-      toast.success("Workspace settings saved");
+      toast.success("Đã lưu cài đặt không gian làm việc");
       onClose();
     } catch {
-      toast.error("Failed to save settings");
+      toast.error("Không thể lưu cài đặt");
     } finally {
       setSaving(false);
     }
@@ -174,7 +174,7 @@ export function WorkspaceSettings({
       <div className="flex items-center justify-between px-3 py-2 border-b flex-shrink-0">
         <div className="flex items-center gap-2">
           <Settings2 className="w-4 h-4 text-muted-foreground" />
-          <h2 className="text-sm font-semibold">Workspace Settings</h2>
+          <h2 className="text-sm font-semibold">Cài đặt không gian làm việc</h2>
         </div>
         <Button variant="ghost" size="icon" onClick={onClose} className="h-7 w-7">
           <X className="w-4 h-4" />
@@ -187,7 +187,7 @@ export function WorkspaceSettings({
         <div className="space-y-1.5">
           <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
             <Globe className="w-3.5 h-3.5" />
-            KG Language
+            Ngôn ngữ KG
           </label>
           <Select
             value={language}
@@ -201,7 +201,7 @@ export function WorkspaceSettings({
             ))}
           </Select>
           <p className="text-[10px] text-muted-foreground">
-            Language used for KG entity extraction. Empty = server default.
+            Ngôn ngữ dùng để trích xuất entity cho KG. Để trống = dùng mặc định từ server.
           </p>
         </div>
 
@@ -210,7 +210,7 @@ export function WorkspaceSettings({
           <div className="flex items-center justify-between">
             <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
               <Tags className="w-3.5 h-3.5" />
-              KG Entity Types
+              Loại entity KG
             </label>
             <Button
               variant="ghost"
@@ -219,7 +219,7 @@ export function WorkspaceSettings({
               className="h-6 text-[10px] px-2 text-muted-foreground"
             >
               <Plus className="w-3 h-3 mr-0.5" />
-              Load defaults
+              Tải mặc định
             </Button>
           </div>
           <TagInput
@@ -228,16 +228,16 @@ export function WorkspaceSettings({
             placeholder="Organization, Person, Product..."
           />
           <p className="text-[10px] text-muted-foreground">
-            Entity types for Knowledge Graph extraction. Press Enter or comma to add. Empty = server default.
+            Danh sách loại entity dùng cho trích xuất Knowledge Graph. Nhấn Enter hoặc dấu phẩy để thêm. Để trống = mặc định từ server.
           </p>
         </div>
 
         {/* Info box */}
         <div className="rounded-md border border-blue-400/20 bg-blue-400/5 p-2.5">
           <p className="text-[10px] text-muted-foreground leading-relaxed">
-            These settings affect how documents are processed in this workspace.
-            Changes apply to newly analyzed documents — existing documents keep
-            their current KG data. Re-analyze documents to apply new settings.
+            Các cài đặt này ảnh hưởng cách tài liệu được xử lý trong không gian làm việc này.
+            Thay đổi sẽ áp dụng cho tài liệu phân tích mới, còn tài liệu hiện có vẫn giữ dữ liệu KG hiện tại.
+            Hãy phân tích lại tài liệu để áp dụng cài đặt mới.
           </p>
         </div>
       </div>
@@ -251,11 +251,11 @@ export function WorkspaceSettings({
           className="h-7 text-xs gap-1"
         >
           <RotateCcw className="w-3 h-3" />
-          Reset to defaults
+          Đặt lại mặc định
         </Button>
         <div className="flex items-center gap-1.5">
           <Button variant="ghost" size="sm" onClick={onClose} className="h-7 text-xs">
-            Cancel
+            Hủy
           </Button>
           <Button
             size="sm"
@@ -264,7 +264,7 @@ export function WorkspaceSettings({
             className="h-7 text-xs gap-1"
           >
             <Save className="w-3 h-3" />
-            {saving ? "Saving..." : "Save"}
+            {saving ? "Đang lưu..." : "Lưu"}
           </Button>
         </div>
       </div>

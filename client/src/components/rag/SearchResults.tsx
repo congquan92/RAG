@@ -42,9 +42,9 @@ function NoResults({ query }: { query: string }) {
       className="flex flex-col items-center py-10 text-center"
     >
       <SearchX className="w-10 h-10 text-muted-foreground/40 mb-3" />
-      <p className="text-sm font-medium">No relevant content found</p>
+      <p className="text-sm font-medium">Không tìm thấy nội dung phù hợp</p>
       <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-        Try rephrasing your query or check that your documents are indexed. Query: &quot;{query}&quot;
+        Hãy thử diễn đạt lại câu hỏi hoặc kiểm tra tài liệu đã được lập chỉ mục. Câu hỏi: &quot;{query}&quot;
       </p>
     </motion.div>
   );
@@ -55,7 +55,7 @@ function SearchPrompt() {
     <div className="flex flex-col items-center py-10 text-center">
       <Inbox className="w-10 h-10 text-muted-foreground/30 mb-3" />
       <p className="text-sm text-muted-foreground">
-        Ask a question to search across your indexed documents
+        Hãy đặt câu hỏi để tìm kiếm trên các tài liệu đã lập chỉ mục
       </p>
     </div>
   );
@@ -89,7 +89,7 @@ export const SearchResults = memo(function SearchResults({
     <div className="space-y-4">
       {/* Summary header */}
       <p className="text-xs text-muted-foreground">
-        Found {results.total_chunks} relevant chunk{results.total_chunks !== 1 ? "s" : ""} for &quot;{results.query}&quot;
+        Tìm thấy {results.total_chunks} chunk liên quan cho &quot;{results.query}&quot;
       </p>
 
       {/* Knowledge Graph summary */}

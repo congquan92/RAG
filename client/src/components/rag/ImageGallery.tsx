@@ -45,9 +45,9 @@ function GalleryEmpty() {
   return (
     <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
       <ImageOff className="w-10 h-10 text-muted-foreground/30 mb-3" />
-      <p className="text-sm text-muted-foreground">No images extracted</p>
+      <p className="text-sm text-muted-foreground">Chưa trích xuất được hình ảnh</p>
       <p className="text-xs text-muted-foreground/60 mt-1">
-        This document does not contain any extractable images
+        Tài liệu này không chứa hình ảnh có thể trích xuất
       </p>
     </div>
   );
@@ -122,13 +122,13 @@ function GalleryLightbox({
       <div className="flex gap-6 max-w-[90vw] max-h-[85vh]" onClick={(e) => e.stopPropagation()}>
         <img
           src={img.url}
-          alt={img.caption || `Image from page ${img.page_no}`}
+          alt={img.caption || `Hình ảnh từ trang ${img.page_no}`}
           className="max-w-full max-h-[80vh] rounded-lg object-contain"
         />
         <div className="w-64 flex-shrink-0 text-white/90 space-y-3 self-end hidden lg:block">
           {img.caption && <p className="text-sm leading-relaxed">{img.caption}</p>}
           <div className="space-y-1 text-xs text-white/60">
-            <p>Page {img.page_no}</p>
+            <p>Trang {img.page_no}</p>
             {img.width > 0 && <p>{img.width} x {img.height}px</p>}
           </div>
           <p className="text-xs text-white/40">
@@ -220,8 +220,8 @@ const PageSection = memo(function PageSection({
         className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full"
       >
         {collapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
-        <span>Page {group.pageNo}</span>
-        <span className="text-muted-foreground/50">({group.images.length} image{group.images.length !== 1 ? "s" : ""})</span>
+        <span>Trang {group.pageNo}</span>
+        <span className="text-muted-foreground/50">({group.images.length} hình ảnh)</span>
       </button>
 
       {/* Image grid */}
@@ -247,14 +247,14 @@ const PageSection = memo(function PageSection({
                   >
                     <LazyImage
                       src={img.url}
-                      alt={img.caption || `Page ${img.page_no}`}
+                      alt={img.caption || `Trang ${img.page_no}`}
                       className="w-full h-full relative"
                     />
                     {/* Hover overlay */}
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-end">
                       <div className="p-1.5 w-full translate-y-full group-hover:translate-y-0 transition-transform">
                         <p className="text-[10px] text-white/90 truncate">
-                          {img.caption || `Image ${img.image_id.slice(0, 8)}`}
+                          {img.caption || `Ảnh ${img.image_id.slice(0, 8)}`}
                         </p>
                       </div>
                     </div>
@@ -324,10 +324,10 @@ export const ImageGallery = memo(function ImageGallery({ doc }: ImageGalleryProp
       <div className="flex items-center gap-2">
         <Image className="w-4 h-4 text-muted-foreground" />
         <span className="text-sm font-medium">
-          {images.length} Image{images.length !== 1 ? "s" : ""}
+          {images.length} hình ảnh
         </span>
         <span className="text-xs text-muted-foreground">
-          across {pageGroups.length} page{pageGroups.length !== 1 ? "s" : ""}
+          trên {pageGroups.length} trang
         </span>
       </div>
 
@@ -346,13 +346,13 @@ export const ImageGallery = memo(function ImageGallery({ doc }: ImageGalleryProp
             >
               <LazyImage
                 src={img.url}
-                alt={img.caption || `Page ${img.page_no}`}
+                alt={img.caption || `Trang ${img.page_no}`}
                 className="w-full h-full relative"
               />
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-end">
                 <div className="p-1.5 w-full translate-y-full group-hover:translate-y-0 transition-transform">
                   <p className="text-[10px] text-white/90 truncate">
-                    {img.caption || `Image ${img.image_id.slice(0, 8)}`}
+                    {img.caption || `Ảnh ${img.image_id.slice(0, 8)}`}
                   </p>
                 </div>
               </div>

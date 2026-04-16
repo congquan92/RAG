@@ -26,10 +26,10 @@ export const ConfirmDialog = memo(function ConfirmDialog({
   open,
   onConfirm,
   onCancel,
-  title = "Confirm",
+  title = "Xác nhận",
   message,
-  confirmLabel = "Confirm",
-  cancelLabel = "Cancel",
+  confirmLabel = "Xác nhận",
+  cancelLabel = "Hủy",
   variant = "default",
 }: ConfirmDialogProps) {
   const cancelRef = useRef<HTMLButtonElement>(null);

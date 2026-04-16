@@ -398,14 +398,14 @@ const GraphCanvas = memo(function GraphCanvas({ data, width, height, highlightEn
           <div className="absolute top-2 left-2 z-10 bg-background/95 backdrop-blur-sm border rounded-lg p-3 shadow-lg max-w-[220px]">
             <p className="text-sm font-semibold truncate">{node.label}</p>
             <p className="text-[10px] text-muted-foreground capitalize mt-0.5">{node.entity_type}</p>
-            <p className="text-xs text-muted-foreground/70 mt-1">{node.degree} connection{node.degree !== 1 ? "s" : ""}</p>
+            <p className="text-xs text-muted-foreground/70 mt-1">{node.degree} liên kết</p>
           </div>
         );
       })()}
 
       {data.is_truncated && (
         <div className="absolute bottom-2 right-2 z-10 text-[10px] text-amber-400 bg-background/80 backdrop-blur-sm border border-amber-400/30 rounded px-2 py-1">
-          Graph truncated (too many nodes)
+          Đồ thị đã rút gọn (quá nhiều node)
         </div>
       )}
     </div>
@@ -450,7 +450,7 @@ export const KnowledgeGraphView = memo(function KnowledgeGraphView({ projectId, 
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="w-5 h-5 animate-spin text-muted-foreground mr-2" />
-        <span className="text-sm text-muted-foreground">Loading knowledge graph...</span>
+        <span className="text-sm text-muted-foreground">Đang tải Knowledge Graph...</span>
       </div>
     );
   }
@@ -459,9 +459,9 @@ export const KnowledgeGraphView = memo(function KnowledgeGraphView({ projectId, 
     return (
       <div className="flex flex-col items-center py-10 text-center">
         <Network className="w-10 h-10 text-muted-foreground/30 mb-3" />
-        <p className="text-sm text-muted-foreground">No graph data available</p>
+        <p className="text-sm text-muted-foreground">Không có dữ liệu đồ thị</p>
         <p className="text-xs text-muted-foreground/60 mt-1">
-          Process documents with NexusRAG to build the knowledge graph
+          Hãy xử lý tài liệu bằng NexusRAG để xây dựng Knowledge Graph
         </p>
       </div>
     );

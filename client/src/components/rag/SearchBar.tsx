@@ -8,10 +8,10 @@ import type { RAGQueryMode, Document } from "@/types";
 // Mode selector
 // ---------------------------------------------------------------------------
 const MODES: { value: RAGQueryMode; label: string; description: string }[] = [
-  { value: "hybrid", label: "Hybrid", description: "Knowledge Graph + Vector search combined" },
-  { value: "vector_only", label: "Vector", description: "Semantic similarity search only" },
-  { value: "local", label: "Local KG", description: "Entity-focused graph traversal" },
-  { value: "global", label: "Global KG", description: "High-level theme extraction" },
+  { value: "hybrid", label: "Hybrid", description: "Kết hợp tìm kiếm Knowledge Graph + Vector" },
+  { value: "vector_only", label: "Vector", description: "Chỉ tìm kiếm theo độ tương đồng ngữ nghĩa" },
+  { value: "local", label: "Local KG", description: "Duyệt đồ thị tập trung theo entity" },
+  { value: "global", label: "Global KG", description: "Trích xuất chủ đề ở mức tổng quan" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -63,7 +63,7 @@ export const SearchBar = memo(function SearchBar({ onSearch, isSearching, docume
           <input
             ref={inputRef}
             type="text"
-            placeholder="Ask a question about your documents..."
+            placeholder="Đặt câu hỏi về tài liệu của bạn..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
@@ -105,7 +105,7 @@ export const SearchBar = memo(function SearchBar({ onSearch, isSearching, docume
           size="icon"
           onClick={() => setShowFilters(!showFilters)}
           className={cn("h-10 w-10", showFilters && "bg-primary/10 border-primary/30")}
-          title="Search options"
+          title="Tùy chọn tìm kiếm"
         >
           <Sparkles className="w-4 h-4" />
         </Button>
@@ -116,7 +116,7 @@ export const SearchBar = memo(function SearchBar({ onSearch, isSearching, docume
         <div className="rounded-lg border bg-card/50 p-3 space-y-3">
           {/* Mode selector */}
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Search Mode</label>
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Chế độ tìm kiếm</label>
             <div className="flex gap-1.5 flex-wrap">
               {MODES.map((m) => (
                 <button
@@ -138,7 +138,7 @@ export const SearchBar = memo(function SearchBar({ onSearch, isSearching, docume
 
           {/* Top-K */}
           <div className="flex items-center gap-3">
-            <label className="text-xs font-medium text-muted-foreground whitespace-nowrap">Results</label>
+            <label className="text-xs font-medium text-muted-foreground whitespace-nowrap">Số kết quả</label>
             <input
               type="range"
               min={1}
@@ -161,7 +161,7 @@ export const SearchBar = memo(function SearchBar({ onSearch, isSearching, docume
           {indexedDocs.length > 1 && (
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-                Search within {selectedDocs.length > 0 ? `(${selectedDocs.length} selected)` : "(all documents)"}
+                Phạm vi tìm kiếm {selectedDocs.length > 0 ? `(${selectedDocs.length} đã chọn)` : "(tất cả tài liệu)"}
               </label>
               <div className="flex gap-1.5 flex-wrap max-h-20 overflow-y-auto">
                 {indexedDocs.map((d) => (

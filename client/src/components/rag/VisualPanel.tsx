@@ -82,10 +82,10 @@ function EmptyVisual() {
         <FileSearch className="w-7 h-7 text-muted-foreground/40" />
       </div>
       <p className="text-sm font-medium text-muted-foreground">
-        Select a document to view
+        Chọn một tài liệu để xem
       </p>
       <p className="text-xs text-muted-foreground/60 mt-1 text-center max-w-[200px]">
-        Click on an indexed document in the data panel to view its content
+        Nhấp vào tài liệu đã lập chỉ mục trong bảng dữ liệu để xem nội dung
       </p>
     </div>
   );
@@ -110,13 +110,13 @@ const KGContent = memo(function KGContent({
         <SubTabButton
           active={kgSubTab === "graph"}
           icon={<Network className="w-3 h-3" />}
-          label="Graph"
+          label="Đồ thị"
           onClick={() => setKgSubTab("graph")}
         />
         <SubTabButton
           active={kgSubTab === "entities"}
           icon={<List className="w-3 h-3" />}
-          label="Entities"
+          label="Entity"
           onClick={() => setKgSubTab("entities")}
         />
       </div>
@@ -181,7 +181,7 @@ export const VisualPanel = memo(function VisualPanel({
         <TabButton
           active={activeTab === "content"}
           icon={<BookOpen className="w-3.5 h-3.5" />}
-          label="Content"
+          label="Nội dung"
           onClick={() => setActiveTab("content")}
         />
         {hasDeepragDocs && (
@@ -195,7 +195,7 @@ export const VisualPanel = memo(function VisualPanel({
         {/* Active highlights indicator */}
         {highlightChunks.length > 0 && (
           <span className="ml-auto text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full">
-            {highlightChunks.length} highlighted
+            {highlightChunks.length} đoạn được tô sáng
           </span>
         )}
       </div>

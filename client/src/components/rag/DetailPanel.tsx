@@ -109,7 +109,7 @@ export function DetailPanel({ open, onClose, header, children, className }: Deta
               <button
                 onClick={onClose}
                 className="ml-2 p-1.5 rounded-md hover:bg-muted transition-colors flex-shrink-0"
-                title="Close panel (Esc)"
+                title="Đóng panel (Esc)"
               >
                 <X className="w-4 h-4" />
               </button>

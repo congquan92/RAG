@@ -39,12 +39,12 @@ function getFileConfig(fileType: string) {
 // Status badge
 // ---------------------------------------------------------------------------
 const STATUS_CONFIG: Record<DocumentStatus, { label: string; className: string; icon: typeof CheckCircle2 }> = {
-  pending:    { label: "Pending",    className: "bg-muted text-muted-foreground",           icon: Clock },
-  parsing:    { label: "Parsing",    className: "bg-blue-400/15 text-blue-400",             icon: Loader2 },
-  indexing:   { label: "Indexing",   className: "bg-amber-400/15 text-amber-400",           icon: Loader2 },
-  processing: { label: "Processing", className: "bg-amber-400/15 text-amber-400",           icon: Loader2 },
-  indexed:    { label: "Indexed",    className: "bg-primary/15 text-primary",               icon: CheckCircle2 },
-  failed:     { label: "Failed",     className: "bg-destructive/15 text-destructive",       icon: XCircle },
+  pending:    { label: "Đang chờ",   className: "bg-muted text-muted-foreground",           icon: Clock },
+  parsing:    { label: "Đang parsing", className: "bg-blue-400/15 text-blue-400",            icon: Loader2 },
+  indexing:   { label: "Đang lập chỉ mục", className: "bg-amber-400/15 text-amber-400",      icon: Loader2 },
+  processing: { label: "Đang xử lý", className: "bg-amber-400/15 text-amber-400",           icon: Loader2 },
+  indexed:    { label: "Đã lập chỉ mục", className: "bg-primary/15 text-primary",            icon: CheckCircle2 },
+  failed:     { label: "Thất bại",   className: "bg-destructive/15 text-destructive",       icon: XCircle },
 };
 
 function StatusBadge({ status }: { status: DocumentStatus }) {
@@ -65,10 +65,10 @@ function StatusBadge({ status }: { status: DocumentStatus }) {
 // ---------------------------------------------------------------------------
 function MetadataChips({ doc }: { doc: Document }) {
   const chips: { label: string; value: number }[] = [];
-  if (doc.page_count && doc.page_count > 0) chips.push({ label: "pages", value: doc.page_count });
-  if (doc.chunk_count > 0) chips.push({ label: "chunks", value: doc.chunk_count });
-  if (doc.image_count && doc.image_count > 0) chips.push({ label: "images", value: doc.image_count });
-  if (doc.table_count && doc.table_count > 0) chips.push({ label: "tables", value: doc.table_count });
+  if (doc.page_count && doc.page_count > 0) chips.push({ label: "trang", value: doc.page_count });
+  if (doc.chunk_count > 0) chips.push({ label: "chunk", value: doc.chunk_count });
+  if (doc.image_count && doc.image_count > 0) chips.push({ label: "hình ảnh", value: doc.image_count });
+  if (doc.table_count && doc.table_count > 0) chips.push({ label: "bảng", value: doc.table_count });
 
   if (chips.length === 0) return null;
 
@@ -199,7 +199,7 @@ export const DocumentCard = memo(function DocumentCard({
             )}
             {isActive && (
               <span className="text-xs text-blue-400/80 font-medium animate-pulse">
-                Analyzing{elapsed ? ` (${elapsed})` : "..."}
+                Đang phân tích{elapsed ? ` (${elapsed})` : "..."}
               </span>
             )}
           </div>
@@ -225,7 +225,7 @@ export const DocumentCard = memo(function DocumentCard({
               ) : (
                 <Sparkles className="w-3 h-3" />
               )}
-              Analyze
+              Phân tích
             </Button>
           )}
           {/* Re-process for indexed docs — hover only */}
@@ -235,7 +235,7 @@ export const DocumentCard = memo(function DocumentCard({
               size="icon"
               onClick={(e) => { e.stopPropagation(); onReindex(doc.id); }}
               className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-              title="Re-analyze"
+              title="Phân tích lại"
             >
               <RefreshCw className="w-3.5 h-3.5" />
             </Button>

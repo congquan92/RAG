@@ -150,7 +150,7 @@ function CitationLink({
       <button
         onClick={handleContentClick}
         className="inline-flex items-center gap-0.5 h-[18px] px-1.5 mx-0.5 text-[10px] font-medium rounded-full bg-purple-400/15 text-purple-500 dark:text-purple-400 hover:bg-purple-400/25 transition-colors align-middle whitespace-nowrap"
-        title="View in Knowledge Graph"
+        title="Xem trong Knowledge Graph"
       >
         <Brain className="w-2.5 h-2.5 flex-shrink-0" />
         <span>KG-{index}</span>
@@ -161,7 +161,7 @@ function CitationLink({
   // Vector source — blue chip with FileText icon + docname-P.N
   const docName = doc?.original_filename
     ? shortenDocName(doc.original_filename)
-    : `Source ${index}`;
+    : `Nguồn ${index}`;
   const label = `${docName}-P.${source.page_no || "?"}`;
 
   return (
@@ -169,7 +169,7 @@ function CitationLink({
       <button
         onClick={handleContentClick}
         className="inline-flex items-center gap-0.5 h-[18px] px-1.5 text-[10px] font-medium rounded-full bg-primary/12 text-primary hover:bg-primary/20 transition-colors whitespace-nowrap"
-        title={`View source: ${doc?.original_filename || "unknown"} (p.${source.page_no})`}
+        title={`Xem nguồn: ${doc?.original_filename || "không rõ"} (trang ${source.page_no})`}
       >
         <FileText className="w-2.5 h-2.5 flex-shrink-0" />
         <span>{label}</span>
@@ -177,7 +177,7 @@ function CitationLink({
       <button
         onClick={handleKGClick}
         className="inline-flex items-center justify-center w-[18px] h-[18px] text-[10px] font-bold rounded-full bg-purple-400/15 text-purple-500 dark:text-purple-400 hover:bg-purple-400/25 transition-colors"
-        title="Highlight in Knowledge Graph"
+        title="Tô sáng trong Knowledge Graph"
       >
         <Brain className="w-2.5 h-2.5" />
       </button>
@@ -206,7 +206,7 @@ function InlineImageRef({
 
   const docName = doc?.original_filename
     ? shortenDocName(doc.original_filename)
-    : `Image ${imgRefId}`;
+    : `Ảnh ${imgRefId}`;
   const label = `${docName}-P.${imageRef.page_no || "?"}`;
 
   return (
@@ -214,7 +214,7 @@ function InlineImageRef({
       <button
         onClick={handleClick}
         className="inline-flex items-center gap-0.5 h-[18px] px-1.5 text-[10px] font-medium rounded-full bg-emerald-400/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-400/25 transition-colors align-middle whitespace-nowrap"
-        title={imageRef.caption || `Image from page ${imageRef.page_no}`}
+        title={imageRef.caption || `Hình ảnh từ trang ${imageRef.page_no}`}
       >
         <ImageIcon className="w-2.5 h-2.5 flex-shrink-0" />
         <span>{label}</span>
@@ -228,7 +228,7 @@ function InlineImageRef({
         >
           <img
             src={imageRef.url}
-            alt={imageRef.caption || `Image from page ${imageRef.page_no}`}
+            alt={imageRef.caption || `Hình ảnh từ trang ${imageRef.page_no}`}
             className="w-full h-auto max-h-[180px] object-contain"
           />
           {imageRef.caption && (
@@ -413,7 +413,7 @@ function CodeBlock({
           "absolute top-2 left-2 p-1 rounded-md text-muted-foreground/50 hover:text-muted-foreground transition-all opacity-0 group-hover:opacity-100 z-10",
           isDark ? "bg-white/5 hover:bg-white/10" : "bg-black/5 hover:bg-black/10"
         )}
-        title="Copy code"
+        title="Sao chép code"
       >
         {copied ? (
           <ClipboardCheck className="w-3 h-3 text-emerald-500" />
@@ -548,7 +548,7 @@ function SourceRatingButtons({
             ? "text-emerald-500"
             : "text-muted-foreground/20 hover:text-emerald-500/60",
         )}
-        title="Relevant"
+        title="Liên quan"
       >
         <ThumbsUp className="w-2.5 h-2.5" />
       </button>
@@ -563,7 +563,7 @@ function SourceRatingButtons({
             ? "text-destructive"
             : "text-muted-foreground/20 hover:text-destructive/60",
         )}
-        title="Not relevant"
+        title="Không liên quan"
       >
         <ThumbsDown className="w-2.5 h-2.5" />
       </button>
@@ -617,7 +617,7 @@ function SourcesPanel({
         className="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-medium text-muted-foreground hover:text-foreground transition-colors"
       >
         <FileText className="w-3 h-3" />
-        {vectorSources.length} source{vectorSources.length > 1 ? "s" : ""}
+        {vectorSources.length} nguồn
         {kgSources.length > 0 && " + KG"}
         <span className="ml-auto text-[10px]">{expanded ? "▲" : "▼"}</span>
       </button>
@@ -730,7 +730,7 @@ function ImageRefCard({ img }: { img: ChatImageRef }) {
     >
       <img
         src={img.url}
-        alt={img.caption || `Image from page ${img.page_no}`}
+        alt={img.caption || `Hình ảnh từ trang ${img.page_no}`}
         className="w-full h-auto max-h-[200px] object-contain bg-white"
         loading="lazy"
       />
@@ -755,7 +755,7 @@ function ImageRefsPanel({ images }: { images: ChatImageRef[] }) {
         className="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-medium text-muted-foreground hover:text-foreground transition-colors"
       >
         <ImageIcon className="w-3 h-3" />
-        {images.length} image{images.length > 1 ? "s" : ""} from documents
+        {images.length} hình ảnh từ tài liệu
         <span className="ml-auto text-[10px]">{expanded ? "▲" : "▼"}</span>
       </button>
       <AnimatePresence>
@@ -793,7 +793,7 @@ function ThinkingPanel({ thinking }: { thinking: string }) {
         className="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-medium text-violet-400 hover:text-violet-300 [[data-theme='light']_&]:text-violet-600 [[data-theme='light']_&]:hover:text-violet-700 transition-colors"
       >
         <Brain className="w-3 h-3" />
-        Thinking process
+        Quá trình suy nghĩ
         <ChevronDown
           className={cn(
             "w-3 h-3 ml-auto transition-transform",
@@ -871,26 +871,26 @@ function CopyMessageActions({ content }: { content: string }) {
       <button
         onClick={() => handleCopy("text")}
         className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/60 transition-all text-[10px]"
-        title="Copy as plain text"
+        title="Sao chép dạng văn bản"
       >
         {copiedMode === "text" ? (
           <ClipboardCheck className="w-3 h-3 text-emerald-500" />
         ) : (
           <Copy className="w-3 h-3" />
         )}
-        <span>{copiedMode === "text" ? "Copied!" : "Copy text"}</span>
+        <span>{copiedMode === "text" ? "Đã sao chép!" : "Sao chép văn bản"}</span>
       </button>
       <button
         onClick={() => handleCopy("markdown")}
         className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/60 transition-all text-[10px]"
-        title="Copy as markdown"
+        title="Sao chép dạng Markdown"
       >
         {copiedMode === "markdown" ? (
           <ClipboardCheck className="w-3 h-3 text-emerald-500" />
         ) : (
           <FileCode className="w-3 h-3" />
         )}
-        <span>{copiedMode === "markdown" ? "Copied!" : "Copy markdown"}</span>
+        <span>{copiedMode === "markdown" ? "Đã sao chép!" : "Sao chép Markdown"}</span>
       </button>
     </div>
   );
@@ -1069,7 +1069,7 @@ function InlineThinkingPreview({ text }: { text: string }) {
     <div className="mt-1">
       <div className="flex items-center gap-1.5 mb-1.5">
         <Brain className="w-3.5 h-3.5 text-violet-400 animate-pulse" />
-        <span className="text-xs font-medium text-violet-400">Thinking...</span>
+        <span className="text-xs font-medium text-violet-400">Đang suy nghĩ...</span>
       </div>
       <div
         ref={containerRef}
@@ -1092,13 +1092,13 @@ function InlineThinkingPreview({ text }: { text: string }) {
 // Typing indicator
 // ---------------------------------------------------------------------------
 const STATUS_LABELS: Record<string, string> = {
-  analyzing: "Analyzing your question...",
-  retrieving: "Searching documents...",
-  generating: "Generating answer...",
+  analyzing: "Đang phân tích câu hỏi của bạn...",
+  retrieving: "Đang tìm kiếm tài liệu...",
+  generating: "Đang tạo câu trả lời...",
 };
 
 function TypingIndicator({ status }: { status?: ChatStreamStatus }) {
-  const label = (status && STATUS_LABELS[status]) || "Analyzing documents...";
+  const label = (status && STATUS_LABELS[status]) || "Đang phân tích tài liệu...";
   return (
     <div className="flex gap-2 items-start">
       <div className="relative w-6 h-6 flex-shrink-0">
@@ -1126,10 +1126,10 @@ function SuggestionChips({
   onSelect: (q: string) => void;
 }) {
   const suggestions = [
-    "Summarize the key findings",
-    "What are the main topics?",
-    "List important entities mentioned",
-    "Explain the methodology used",
+    "Tóm tắt các điểm chính",
+    "Các chủ đề chính là gì?",
+    "Liệt kê các entity quan trọng",
+    "Giải thích phương pháp được sử dụng",
   ];
 
   return (
@@ -1137,9 +1137,9 @@ function SuggestionChips({
       <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
         <Sparkles className="w-6 h-6 text-primary" />
       </div>
-      <h3 className="text-sm font-semibold mb-1">AI Document Assistant</h3>
+      <h3 className="text-sm font-semibold mb-1">Trợ lý tài liệu AI</h3>
       <p className="text-xs text-muted-foreground text-center mb-4 max-w-[240px]">
-        Ask questions about your documents. I'll find relevant information and cite my sources.
+        Đặt câu hỏi về tài liệu của bạn. Mình sẽ tìm thông tin liên quan và trích dẫn nguồn.
       </p>
       <div className="flex flex-wrap gap-1.5 justify-center max-w-[300px]">
         {suggestions.map((s) => (
@@ -1159,64 +1159,49 @@ function SuggestionChips({
 // ---------------------------------------------------------------------------
 // ChatPanel — main export
 // ---------------------------------------------------------------------------
-const DEFAULT_SYSTEM_PROMPT =
-  "You are a document Q&A assistant. Your goal is to write an accurate, " +
-  "detailed, and comprehensive answer to the user's question, drawing from " +
-  "the provided document sources. You will be given retrieved document sources " +
-  "from a knowledge base to help you answer. Your answer should be informed by " +
-  "these provided sources. Your answer must be self-contained and respond fully " +
-  "to the question. Your answer must be correct, high-quality, well-formatted, " +
-  "and written by an expert using an unbiased and journalistic tone.\n\n" +
-  "## Core Behavior\n" +
-  "- Answer questions ONLY using the provided document sources. " +
-  "Do NOT add any information from your own knowledge.\n" +
-  "- Extract ALL relevant information from sources: numbers, percentages, " +
-  "dates, names, statistics, data from tables, and specific details.\n" +
-  "- You may synthesize, compare, and draw logical conclusions from " +
-  "multiple sources when the question requires it.\n" +
-  "- If sources contain partial information, use what is available and " +
-  "clearly note what is missing.\n" +
-  "- When asked about specific data, always provide exact numbers rather " +
-  "than vague descriptions.\n\n" +
-  "## Question Type Handling\n\n" +
-  "**Factual / Data:** Direct answers with exact figures, percentages, " +
-  "time periods. Present multi-row data in tables.\n\n" +
-  "**Comparison / Analysis:** Use Markdown tables for side-by-side comparisons. " +
-  "Draw logical conclusions from data.\n\n" +
-  "**Technical / Academic:** Long detailed answers with sections and headings. " +
-  "Include formulas (LaTeX), code blocks.\n\n" +
-  "**Summary:** Organize by themes, not by source document. " +
-  "Highlight key findings.\n\n" +
-  "**Coding:** Use ```language code blocks. Code first, explain after.\n\n" +
-  "**Science / Math:** Include formulas in LaTeX. For simple calculations, " +
-  "answer with final result.\n\n" +
-  "## Reasoning\n" +
-  "- Determine question type and apply appropriate handling.\n" +
-  "- Break complex questions into sub-questions.\n" +
-  "- A partial correct answer is better than a complete wrong one.\n" +
-  "- Make sure your answer addresses ALL parts of the question.\n\n" +
-  "## Response Quality\n" +
-  "- Prioritize accuracy over completeness.\n" +
-  "- When sources conflict, acknowledge and present both perspectives.\n" +
-  "- NEVER say 'information not found' when data IS present in any source.\n" +
-  "- If the premise is incorrect based on sources, explain why.";
+const DEFAULT_SYSTEM_PROMPT = `
+Bạn là trợ lý hỏi đáp tài liệu. Mục tiêu là tạo câu trả lời chính xác, chi tiết,
+đầy đủ dựa trên các nguồn tài liệu đã truy xuất.
+
+## Hành vi cốt lõi
+- Chỉ trả lời dựa trên nguồn tài liệu được cung cấp.
+- Không tự thêm kiến thức ngoài nguồn.
+- Trích xuất đầy đủ số liệu, ngày tháng, tên riêng, dữ liệu bảng và chi tiết quan trọng.
+- Khi dữ liệu thiếu, nêu rõ phần còn thiếu.
+- Với câu hỏi số liệu, ưu tiên số cụ thể thay vì mô tả chung chung.
+
+## Xử lý theo loại câu hỏi
+- Factual/Data: Trả lời trực tiếp, số liệu chính xác, dùng bảng khi cần.
+- Comparison/Analysis: So sánh bằng bảng Markdown, nêu kết luận logic từ dữ liệu.
+- Technical/Academic: Trình bày có cấu trúc, thêm công thức LaTeX và code block khi phù hợp.
+- Summary: Tóm tắt theo chủ đề, nêu các phát hiện quan trọng.
+- Coding: Dùng code block có ngôn ngữ (ví dụ: \`\`\`python).
+- Science/Math: Dùng công thức LaTeX; phép tính đơn giản chỉ cần kết quả cuối cùng.
+
+## Lập luận và chất lượng
+- Xác định đúng loại câu hỏi và áp dụng cách trả lời tương ứng.
+- Chia nhỏ câu hỏi phức tạp thành các ý để xử lý.
+- Ưu tiên độ đúng hơn độ dài.
+- Khi nguồn mâu thuẫn, nêu rõ các góc nhìn khác nhau.
+- Không nói thiếu thông tin nếu dữ liệu thực tế đã có trong nguồn.
+`;
 
 // Hard rules always appended — shown in tooltip, not editable
 const HARD_RULES_SUMMARY = [
   // Language (MANDATORY)
-  "MUST answer in the SAME language as user's question.",
+  "MUST trả lời bằng tiếng Việt trước.",
   // Citation
-  "Cite EVERY claim: [a3x9][b2m7]. No space before citation.",
-  "Images: [IMG-p4f2][IMG-q7r3]. Never group or mix brackets.",
-  "Max 3 citations per sentence. No References section at end.",
+  "Cite mọi claim: [a3x9][b2m7]. Không để khoảng trắng trước citation.",
+  "Ảnh: [IMG-p4f2][IMG-q7r3]. Không gộp hay trộn trong cùng ngoặc.",
+  "Tối đa 3 citation mỗi câu. Không thêm mục References ở cuối.",
   // Formatting
-  "Start with summary, NEVER with heading or \"Based on...\".",
-  "## for sections. Tables for comparisons. Flat lists only.",
-  "LaTeX: $inline$ and $$block$$. Never Unicode for math.",
-  "```language for code. > for quotes. **bold** for key terms.",
+  "Mở đầu bằng tóm tắt, KHÔNG bắt đầu bằng heading hay \"Based on...\".",
+  "Dùng ## cho section. So sánh bằng bảng. Chỉ dùng danh sách phẳng.",
+  "LaTeX: $inline$ và $$block$$. Không dùng Unicode cho công thức.",
+  "Dùng ```language cho code. Dùng > cho trích dẫn. **bold** cho ý chính.",
   // Restrictions
-  "No hedging (\"It is important...\"). State answers directly.",
-  "No emojis. Never end with a question.",
+  "Không văn phong vòng vo (\"It is important...\"). Trả lời trực tiếp.",
+  "Không emoji. Không kết thúc bằng câu hỏi.",
 ];
 
 interface ChatPanelProps {
@@ -1258,7 +1243,7 @@ export const ChatPanel = memo(function ChatPanel({
         setDebugMode((prev) => {
           const next = !prev;
           localStorage.setItem("nexusrag-debug-mode", String(next));
-          toast.success(next ? "Debug mode ON" : "Debug mode OFF");
+          toast.success(next ? "Đã bật chế độ debug" : "Đã tắt chế độ debug");
           return next;
         });
       }
@@ -1286,7 +1271,7 @@ export const ChatPanel = memo(function ChatPanel({
     const toSave = promptDraft.trim() === DEFAULT_SYSTEM_PROMPT ? "" : promptDraft;
     updateWorkspaceMutation.mutate(
       { id: workspace.id, data: { system_prompt: toSave } },
-      { onSuccess: () => toast.success("System prompt saved") }
+      { onSuccess: () => toast.success("Đã lưu system prompt") }
     );
   }, [workspace, promptDraft, updateWorkspaceMutation]);
 
@@ -1295,7 +1280,7 @@ export const ChatPanel = memo(function ChatPanel({
     setPromptDraft(DEFAULT_SYSTEM_PROMPT);
     updateWorkspaceMutation.mutate(
       { id: workspace.id, data: { system_prompt: "" } },
-      { onSuccess: () => toast.success("System prompt reset to default") }
+      { onSuccess: () => toast.success("Đã đặt lại system prompt mặc định") }
     );
   }, [workspace, updateWorkspaceMutation]);
 
@@ -1592,13 +1577,13 @@ export const ChatPanel = memo(function ChatPanel({
           ),
         );
       } else if (stream.error) {
-        toast.error("Chat failed: " + stream.error);
+        toast.error("Chat thất bại: " + stream.error);
         setMessages((prev) =>
           prev.map((m) =>
             m.id === assistantId
               ? {
                   ...m,
-                  content: m.content || "Sorry, I encountered an error. Please try again.",
+                  content: m.content || "Xin lỗi, đã xảy ra lỗi. Vui lòng thử lại.",
                   isStreaming: false,
                 }
               : m,
@@ -1664,10 +1649,10 @@ export const ChatPanel = memo(function ChatPanel({
       <div className="h-full flex flex-col items-center justify-center px-4 border-r">
         <Bot className="w-10 h-10 text-muted-foreground/30 mb-3" />
         <p className="text-sm text-muted-foreground text-center">
-          Index some documents to start chatting
+          Hãy lập chỉ mục một vài tài liệu để bắt đầu chat
         </p>
         <p className="text-[11px] text-muted-foreground/60 mt-1">
-          Upload and process documents in the data panel
+          Tải lên và xử lý tài liệu ở bảng dữ liệu
         </p>
       </div>
     );
@@ -1682,7 +1667,7 @@ export const ChatPanel = memo(function ChatPanel({
       <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-b">
         <div className="flex items-center gap-2">
           <Bot className="w-4 h-4 text-primary" />
-          <span className="text-sm font-semibold">AI Assistant</span>
+          <span className="text-sm font-semibold">Trợ lý AI</span>
         </div>
         <div className="flex items-center gap-1.5">
           {/* Thinking toggle — only visible when model supports thinking */}
@@ -1695,10 +1680,10 @@ export const ChatPanel = memo(function ChatPanel({
                   ? "text-violet-400 bg-violet-400/10 hover:bg-violet-400/15"
                   : "text-muted-foreground hover:bg-muted"
               )}
-              title={enableThinking ? "Thinking mode ON" : "Thinking mode OFF"}
+              title={enableThinking ? "Đã bật chế độ thinking" : "Đã tắt chế độ thinking"}
             >
               <Brain className="w-3 h-3" />
-              <span>{enableThinking ? "Think" : "Think"}</span>
+              <span>{enableThinking ? "Suy luận" : "Suy luận"}</span>
             </button>
           )}
           {/* Force search toggle */}
@@ -1710,10 +1695,10 @@ export const ChatPanel = memo(function ChatPanel({
                 ? "text-amber-500 bg-amber-500/10 hover:bg-amber-500/15"
                 : "text-muted-foreground hover:bg-muted"
             )}
-            title={forceSearch ? "Force Search ON — pre-searches before every answer" : "Force Search OFF — AI decides when to search"}
+            title={forceSearch ? "Đã bật Force Search — luôn tìm trước khi trả lời" : "Đã tắt Force Search — AI tự quyết định khi nào cần tìm"}
           >
             <DatabaseZap className="w-3 h-3" />
-            <span>Search</span>
+            <span>Tìm kiếm</span>
           </button>
           {/* System prompt settings */}
           <button
@@ -1724,7 +1709,7 @@ export const ChatPanel = memo(function ChatPanel({
                 ? "text-blue-500 bg-blue-500/10 hover:bg-blue-500/15"
                 : "text-muted-foreground hover:bg-muted"
             )}
-            title="System prompt settings"
+            title="Cài đặt system prompt"
           >
             <Settings className="w-3 h-3" />
           </button>
@@ -1732,7 +1717,7 @@ export const ChatPanel = memo(function ChatPanel({
             <button
               onClick={handleClear}
               className="p-1 rounded hover:bg-muted transition-colors"
-              title="Clear chat"
+              title="Xóa lịch sử chat"
             >
               <Trash2 className="w-3.5 h-3.5 text-muted-foreground" />
             </button>
@@ -1765,13 +1750,13 @@ export const ChatPanel = memo(function ChatPanel({
                     ? "bg-blue-500/15 text-blue-600 dark:text-blue-400"
                     : "bg-muted text-muted-foreground/50"
                 )}>
-                  {isCustom ? "Custom" : "Default"}
+                  {isCustom ? "Tùy chỉnh" : "Mặc định"}
                 </span>
               </div>
               <textarea
                 value={promptDraft}
                 onChange={(e) => setPromptDraft(e.target.value)}
-                placeholder="Enter your custom system prompt..."
+                placeholder="Nhập system prompt tùy chỉnh..."
                 rows={8}
                 className={cn(
                   "w-full resize-none rounded-md border border-input bg-background px-2.5 py-2 text-xs",
@@ -1785,14 +1770,14 @@ export const ChatPanel = memo(function ChatPanel({
                   <div className="flex items-center gap-1 cursor-help">
                     <Info className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                     <span className="text-[10px] text-blue-600 dark:text-blue-400 font-medium">
-                      Hard rules auto-appended
+                      Hard rules luôn được tự động thêm
                     </span>
                   </div>
                   {/* Tooltip on hover — below icon */}
                   <div className="absolute left-0 top-full mt-1.5 z-50 w-[340px] rounded-lg border border-border bg-background shadow-xl opacity-0 pointer-events-none group-hover/cite:opacity-100 group-hover/cite:pointer-events-auto transition-opacity duration-150">
                     <div className="px-3 py-2.5">
                       <p className="text-[10px] font-semibold text-blue-700 dark:text-blue-300 mb-1.5">
-                        Citation + Formatting + Restrictions (always enforced)
+                        Citation + Formatting + Restrictions (luôn áp dụng)
                       </p>
                       <ul className="space-y-1">
                         {HARD_RULES_SUMMARY.map((rule, i) => (
@@ -1816,10 +1801,10 @@ export const ChatPanel = memo(function ChatPanel({
                       ? "text-muted-foreground hover:bg-muted hover:text-foreground"
                       : "text-muted-foreground/30 cursor-not-allowed"
                   )}
-                  title="Reset to default prompt"
+                  title="Đặt lại prompt mặc định"
                 >
                   <RotateCcw className="w-3 h-3" />
-                  Reset
+                  Đặt lại
                 </button>
                 <button
                   onClick={handleSavePrompt}
@@ -1836,7 +1821,7 @@ export const ChatPanel = memo(function ChatPanel({
                   ) : (
                     <Save className="w-3 h-3" />
                   )}
-                  Save
+                  Lưu
                 </button>
               </div>
             </div>
@@ -1870,7 +1855,7 @@ export const ChatPanel = memo(function ChatPanel({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask about your documents..."
+            placeholder="Hỏi về tài liệu của bạn..."
             rows={1}
             className={cn(
               "flex-1 resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm",
@@ -1891,7 +1876,7 @@ export const ChatPanel = memo(function ChatPanel({
             <button
               onClick={stream.cancel}
               className="flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center transition-colors bg-destructive/15 text-destructive hover:bg-destructive/25"
-              title="Stop generating"
+              title="Dừng tạo câu trả lời"
             >
               <Square className="w-3.5 h-3.5 fill-current" />
             </button>
@@ -1911,7 +1896,7 @@ export const ChatPanel = memo(function ChatPanel({
           )}
         </div>
         <p className="text-[9px] text-muted-foreground/50 mt-1 text-center">
-          Press Enter to send, Shift+Enter for new line
+          Nhấn Enter để gửi, Shift+Enter để xuống dòng
         </p>
       </div>
     </div>

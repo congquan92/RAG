@@ -33,13 +33,13 @@ interface StepConfig {
 }
 
 const STEP_CONFIG: Record<AgentStepType, StepConfig> = {
-  analyzing: { icon: Brain, label: "Analyzing" },
-  understood: { icon: Lightbulb, label: "Understood" },
-  retrieving: { icon: Search, label: "Searching" },
-  sources_found: { icon: Database, label: "Sources found" },
-  generating: { icon: PenLine, label: "Generating" },
-  done: { icon: CheckCircle2, label: "Done" },
-  error: { icon: AlertCircle, label: "Error" },
+  analyzing: { icon: Brain, label: "Đang phân tích" },
+  understood: { icon: Lightbulb, label: "Đã hiểu" },
+  retrieving: { icon: Search, label: "Đang tìm kiếm" },
+  sources_found: { icon: Database, label: "Đã tìm thấy nguồn" },
+  generating: { icon: PenLine, label: "Đang tạo câu trả lời" },
+  done: { icon: CheckCircle2, label: "Hoàn tất" },
+  error: { icon: AlertCircle, label: "Lỗi" },
 };
 
 function formatMs(ms: number): string {
@@ -81,7 +81,7 @@ function ThinkingLogSection({ text }: { text: string }) {
         className="flex items-center gap-1 text-[11px] text-muted-foreground/70 hover:text-muted-foreground transition-colors"
       >
         <Brain className="w-2.5 h-2.5" />
-        <span>{expanded ? "Hide" : "Show"} thinking log</span>
+        <span>{expanded ? "Ẩn" : "Hiện"} nhật ký suy nghĩ</span>
         <ChevronDown
           className={cn(
             "w-2.5 h-2.5 transition-transform",
@@ -231,9 +231,9 @@ function buildSummary(steps: AgentStep[]): string {
   const parts: string[] = [];
 
   if (sourcesStep) {
-    let sourceText = `${sourcesStep.sourceCount || 0} source${(sourcesStep.sourceCount || 0) > 1 ? "s" : ""}`;
+    let sourceText = `${sourcesStep.sourceCount || 0} nguồn`;
     if (sourcesStep.imageCount) {
-      sourceText += ` + ${sourcesStep.imageCount} image${sourcesStep.imageCount > 1 ? "s" : ""}`;
+      sourceText += ` + ${sourcesStep.imageCount} hình ảnh`;
     }
     parts.push(sourceText);
   }
@@ -252,15 +252,15 @@ function buildSummary(steps: AgentStep[]): string {
     // Still in progress, show active step label
     if (activeStep) {
       const cfg = STEP_CONFIG[activeStep.step];
-      return cfg ? `${cfg.label}...` : "Processing...";
+      return cfg ? `${cfg.label}...` : "Đang xử lý...";
     }
-    return "Processed";
+    return "Đã xử lý";
   }
   if (sourcesStep) {
-    const suffix = parts[1] ? ` in ${parts[1]}` : activeStep ? " — generating..." : "";
-    return `Found ${parts[0]}${suffix}`;
+    const suffix = parts[1] ? ` trong ${parts[1]}` : activeStep ? " - đang tạo câu trả lời..." : "";
+    return `Đã tìm thấy ${parts[0]}${suffix}`;
   }
-  return `Completed in ${parts[0]}`;
+  return `Hoàn tất trong ${parts[0]}`;
 }
 
 // ---------------------------------------------------------------------------

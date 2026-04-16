@@ -210,12 +210,12 @@ export function useRAGChatStream(workspaceId: string): RAGStreamResult {
                 });
 
                 if (!response.ok) {
-                    const err = await response.json().catch(() => ({ detail: "Stream request failed" }));
+                    const err = await response.json().catch(() => ({ detail: "Yêu cầu stream thất bại" }));
                     throw new Error(err.detail || `Error: ${response.status}`);
                 }
 
                 const reader = response.body?.getReader();
-                if (!reader) throw new Error("No response body");
+                if (!reader) throw new Error("Không có dữ liệu phản hồi");
 
                 const decoder = new TextDecoder();
                 let sseBuffer = "";
@@ -253,13 +253,13 @@ export function useRAGChatStream(workspaceId: string): RAGStreamResult {
 
                                         if (step === "analyzing") {
                                             setStatus("analyzing");
-                                            syncUpdateSteps((prev) => [...prev, createStep("analyzing", detail || "Analyzing your question...")]);
+                                            syncUpdateSteps((prev) => [...prev, createStep("analyzing", detail || "Đang phân tích câu hỏi của bạn...")]);
                                         } else if (step === "retrieving") {
                                             setStatus("retrieving");
-                                            syncUpdateSteps((prev) => [...completeActiveStep(prev), createStep("understood", "Understood query", "completed"), createStep("retrieving", detail || "Searching documents...")]);
+                                            syncUpdateSteps((prev) => [...completeActiveStep(prev), createStep("understood", "Đã hiểu truy vấn", "completed"), createStep("retrieving", detail || "Đang tìm kiếm tài liệu...")]);
                                         } else if (step === "generating") {
                                             setStatus("generating");
-                                            syncUpdateSteps((prev) => [...completeActiveStep(prev), createStep("generating", detail || "Generating answer...")]);
+                                            syncUpdateSteps((prev) => [...completeActiveStep(prev), createStep("generating", detail || "Đang tạo câu trả lời...")]);
                                         }
                                         break;
                                     }
@@ -276,7 +276,7 @@ export function useRAGChatStream(workspaceId: string): RAGStreamResult {
                                         // Add sources_found step with badges
                                         const badges = sources.map((s) => String(s.index));
                                         syncUpdateSteps((prev) =>
-                                            [...completeActiveStep(prev), createStep("sources_found", `Found ${sources.length} source${sources.length > 1 ? "s" : ""}`, "completed")].map((s) =>
+                                            [...completeActiveStep(prev), createStep("sources_found", `Đã tìm thấy ${sources.length} nguồn`, "completed")].map((s) =>
                                                 s.step === "sources_found" && s.status === "completed" && !s.sourceBadges ? { ...s, sourceBadges: badges, sourceCount: sources.length } : s,
                                             ),
                                         );
@@ -303,7 +303,7 @@ export function useRAGChatStream(workspaceId: string): RAGStreamResult {
                                                 updated[lastSourcesIdx] = {
                                                     ...existing,
                                                     imageCount: (existing.imageCount || 0) + imgs.length,
-                                                    detail: `Found ${existing.sourceCount || 0} source${(existing.sourceCount || 0) > 1 ? "s" : ""} + ${(existing.imageCount || 0) + imgs.length} image${(existing.imageCount || 0) + imgs.length > 1 ? "s" : ""}`,
+                                                    detail: `Đã tìm thấy ${existing.sourceCount || 0} nguồn + ${(existing.imageCount || 0) + imgs.length} hình ảnh`,
                                                 };
                                                 return updated;
                                             });
@@ -350,7 +350,7 @@ export function useRAGChatStream(workspaceId: string): RAGStreamResult {
 
                                         // Complete active step + add done step (sync localSteps too)
                                         const totalMs = Date.now() - streamStartRef.current;
-                                        syncUpdateSteps((prev) => [...completeActiveStep(prev), createStep("done", `Done in ${totalMs >= 1000 ? `${(totalMs / 1000).toFixed(1)}s` : `${totalMs}ms`}`, "completed")]);
+                                        syncUpdateSteps((prev) => [...completeActiveStep(prev), createStep("done", `Hoàn tất trong ${totalMs >= 1000 ? `${(totalMs / 1000).toFixed(1)}s` : `${totalMs}ms`}`, "completed")]);
 
                                         finalMessage = {
                                             id: generateId(),
@@ -367,7 +367,7 @@ export function useRAGChatStream(workspaceId: string): RAGStreamResult {
                                     }
 
                                     case "error":
-                                        setError(data.message || "Unknown error");
+                                        setError(data.message || "Lỗi không xác định");
                                         setStatus("error");
                                         syncUpdateSteps((prev) => markActiveError(prev));
                                         break;
@@ -388,7 +388,7 @@ export function useRAGChatStream(workspaceId: string): RAGStreamResult {
                     // User cancelled — don't set error
                     return null;
                 }
-                const msg = (err as Error).message || "Stream failed";
+                const msg = (err as Error).message || "Stream thất bại";
                 setError(msg);
                 setStatus("error");
                 setIsStreaming(false);

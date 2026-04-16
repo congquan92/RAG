@@ -30,7 +30,7 @@ export function ThemeToggle() {
       variant="ghost"
       size="icon"
       onClick={toggleTheme}
-      title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+      title={theme === "dark" ? "Chuyển sang giao diện sáng" : "Chuyển sang giao diện tối"}
       className="w-8 h-8"
     >
       {theme === "dark" ? (

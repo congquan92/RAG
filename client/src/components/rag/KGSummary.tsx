@@ -21,7 +21,7 @@ export const KGSummary = memo(function KGSummary({ summary }: KGSummaryProps) {
       >
         <div className="flex items-center gap-2">
           <Brain className="w-4 h-4 text-primary" />
-          <span className="text-sm font-medium text-primary">Knowledge Graph Insights</span>
+          <span className="text-sm font-medium text-primary">Tổng hợp insight từ Knowledge Graph</span>
         </div>
         {expanded ? (
           <ChevronUp className="w-4 h-4 text-primary/60" />

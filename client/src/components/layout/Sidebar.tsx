@@ -47,10 +47,10 @@ export const Sidebar = memo(function Sidebar({ collapsed, onToggle }: SidebarPro
               ? "bg-primary/10 text-primary font-medium"
               : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
           )}
-          title={collapsed ? "Knowledge Bases" : undefined}
+          title={collapsed ? "Cơ sở kiến thức" : undefined}
         >
           <Database className="w-4 h-4 flex-shrink-0" />
-          {!collapsed && <span className="truncate">Knowledge Bases</span>}
+          {!collapsed && <span className="truncate">Cơ sở kiến thức</span>}
         </button>
       </nav>
 
@@ -59,7 +59,7 @@ export const Sidebar = memo(function Sidebar({ collapsed, onToggle }: SidebarPro
         {!collapsed && workspaces && workspaces.length > 0 && (
           <div className="mt-4 px-2">
             <p className="px-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
-              Workspaces
+              Không gian làm việc
             </p>
             <div className="space-y-0.5">
               {workspaces.slice(0, 20).map((ws) => {
@@ -118,7 +118,7 @@ export const Sidebar = memo(function Sidebar({ collapsed, onToggle }: SidebarPro
         <button
           onClick={onToggle}
           className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          title={collapsed ? "Mở rộng thanh bên" : "Thu gọn thanh bên"}
         >
           {collapsed ? (
             <ChevronRight className="w-4 h-4" />

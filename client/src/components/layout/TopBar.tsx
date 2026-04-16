@@ -32,9 +32,9 @@ export const TopBar = memo(function TopBar({ actions, className }: TopBarProps) 
   ];
 
   if (location.pathname === "/") {
-    segments.push({ label: "Knowledge Bases", active: true });
+    segments.push({ label: "Cơ sở kiến thức", active: true });
   } else if (location.pathname.startsWith("/knowledge-bases/")) {
-    segments.push({ label: "Workspace", active: true });
+    segments.push({ label: "Không gian làm việc", active: true });
   }
 
   return (

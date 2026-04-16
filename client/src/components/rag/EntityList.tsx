@@ -63,7 +63,7 @@ function RelationshipRow({ rel, entityName }: { rel: KGRelationship; entityName:
       </span>
       <ArrowRight className="w-3 h-3 text-muted-foreground/50 flex-shrink-0" />
       <span className="text-muted-foreground/70 truncate max-w-[160px] italic">
-        {rel.description || rel.keywords || "related"}
+        {rel.description || rel.keywords || "liên quan"}
       </span>
       <ArrowRight className="w-3 h-3 text-muted-foreground/50 flex-shrink-0" />
       <span className={cn("font-medium truncate max-w-[140px]", isSource ? "text-muted-foreground" : "text-foreground")}>
@@ -141,7 +141,7 @@ const EntityRow = memo(function EntityRow({
               {relsLoading && (
                 <div className="flex items-center gap-2 py-2 px-1">
                   <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">Loading relationships...</span>
+                  <span className="text-xs text-muted-foreground">Đang tải mối quan hệ...</span>
                 </div>
               )}
               {relationships && relationships.length > 0 && (
@@ -152,7 +152,7 @@ const EntityRow = memo(function EntityRow({
                 </div>
               )}
               {relationships && relationships.length === 0 && (
-                <p className="text-xs text-muted-foreground/50 pl-1">No relationships found</p>
+                <p className="text-xs text-muted-foreground/50 pl-1">Không tìm thấy mối quan hệ</p>
               )}
             </div>
           </motion.div>
@@ -231,9 +231,9 @@ export const EntityList = memo(function EntityList({ projectId, highlightEntitie
     return (
       <div className="flex flex-col items-center py-10 text-center">
         <Network className="w-10 h-10 text-muted-foreground/30 mb-3" />
-        <p className="text-sm text-muted-foreground">No entities extracted yet</p>
+        <p className="text-sm text-muted-foreground">Chưa trích xuất được entity nào</p>
         <p className="text-xs text-muted-foreground/60 mt-1">
-          Entities are automatically extracted when documents are processed with NexusRAG
+          Entity sẽ được tự động trích xuất khi tài liệu được xử lý bằng NexusRAG
         </p>
       </div>
     );
@@ -248,7 +248,7 @@ export const EntityList = memo(function EntityList({ projectId, highlightEntitie
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
           <input
             type="text"
-            placeholder="Search entities..."
+            placeholder="Tìm entity..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full h-8 pl-8 pr-3 rounded-md border border-input bg-background text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -261,7 +261,7 @@ export const EntityList = memo(function EntityList({ projectId, highlightEntitie
           onChange={(e) => setTypeFilter(e.target.value || null)}
           className="h-8 px-2 rounded-md border border-input bg-background text-xs"
         >
-          <option value="">All types</option>
+          <option value="">Tất cả loại</option>
           {entityTypes.map((t) => (
             <option key={t} value={t}>{t}</option>
           ))}
@@ -273,16 +273,16 @@ export const EntityList = memo(function EntityList({ projectId, highlightEntitie
           onChange={(e) => setSortBy(e.target.value as SortKey)}
           className="h-8 px-2 rounded-md border border-input bg-background text-xs"
         >
-          <option value="degree">Most connected</option>
-          <option value="name">Name A-Z</option>
-          <option value="type">By type</option>
+          <option value="degree">Liên kết nhiều nhất</option>
+          <option value="name">Tên A-Z</option>
+          <option value="type">Theo loại</option>
         </select>
       </div>
 
       {/* Count + type chips */}
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs text-muted-foreground">
-          {filtered.length} entit{filtered.length !== 1 ? "ies" : "y"}
+          {filtered.length} entity
         </span>
         {typeFilter && (
           <button
@@ -297,8 +297,8 @@ export const EntityList = memo(function EntityList({ projectId, highlightEntitie
       {/* Table header */}
       <div className="flex items-center gap-3 px-3 py-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider border-b">
         <span className="flex-1">Entity</span>
-        <span className="w-24">Type</span>
-        <span className="w-8 text-right">Links</span>
+        <span className="w-24">Loại</span>
+        <span className="w-8 text-right">Liên kết</span>
         <span className="w-4" />
       </div>
 
@@ -323,7 +323,7 @@ export const EntityList = memo(function EntityList({ projectId, highlightEntitie
 
       {filtered.length === 0 && entities.length > 0 && (
         <p className="text-center text-xs text-muted-foreground py-4">
-          No entities match your filters
+          Không có entity nào khớp bộ lọc
         </p>
       )}
     </div>

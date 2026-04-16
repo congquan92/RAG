@@ -93,7 +93,7 @@ export const ResultCard = memo(function ResultCard({ chunk, index, query }: Resu
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(chunk.content);
     setCopied(true);
-    toast.success("Copied to clipboard");
+    toast.success("Đã sao chép vào clipboard");
     setTimeout(() => setCopied(false), 2000);
   }, [chunk.content]);
 
@@ -137,7 +137,7 @@ export const ResultCard = memo(function ResultCard({ chunk, index, query }: Resu
             <button
               onClick={handleCopy}
               className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-muted"
-              title="Copy content"
+              title="Sao chép nội dung"
             >
               {copied ? (
                 <Check className="w-3.5 h-3.5 text-primary" />
@@ -160,9 +160,9 @@ export const ResultCard = memo(function ResultCard({ chunk, index, query }: Resu
             className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
           >
             {expanded ? (
-              <><ChevronUp className="w-3 h-3" /> Show less</>
+              <><ChevronUp className="w-3 h-3" /> Thu gọn</>
             ) : (
-              <><ChevronDown className="w-3 h-3" /> Show more</>
+              <><ChevronDown className="w-3 h-3" /> Xem thêm</>
             )}
           </button>
         )}
