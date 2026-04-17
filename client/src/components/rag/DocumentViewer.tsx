@@ -139,11 +139,7 @@ function extractHeadings(markdown: string): Heading[] {
     if (match) {
       const level = match[1].length;
       const text = match[2].replace(/[*_`#]/g, "").trim();
-      const id = text
-        .toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, "")
-        .replace(/\s+/g, "-")
-        .slice(0, 80);
+      const id = generateHeadingId(text);
       headings.push({ id, text, level });
     }
   }
@@ -367,7 +363,9 @@ export const DocumentViewer = memo(function DocumentViewer({
     scrollCleanupRef.current = null;
 
     if (!contentRef.current || !markdown) return;
-    if (!scrollToImageSrc && !scrollToHeading && !scrollToPage) return;
+    const fallbackChunk = highlightChunks?.[0];
+    const canFallbackByChunk = !!fallbackChunk?.content;
+    if (!scrollToImageSrc && !scrollToHeading && !scrollToPage && !canFallbackByChunk) return;
 
     // Double rAF: first waits for React commit, second waits for browser paint.
     // This ensures ReactMarkdown has fully rendered headings/page-dividers/images
@@ -403,11 +401,7 @@ export const DocumentViewer = memo(function DocumentViewer({
       }
 
       if (scrollToHeading) {
-        const targetId = scrollToHeading
-          .toLowerCase()
-          .replace(/[^a-z0-9\s-]/g, "")
-          .replace(/\s+/g, "-")
-          .slice(0, 80);
+        const targetId = generateHeadingId(scrollToHeading);
         const el = contentRef.current.querySelector(
           `#${CSS.escape(targetId)}`
         ) as HTMLElement | null;
@@ -425,12 +419,26 @@ export const DocumentViewer = memo(function DocumentViewer({
         ) as HTMLElement | null;
         if (el) {
           scrollCleanupRef.current = scrollTo(el, "start", onScrolled) ?? null;
+          return;
+        }
+      }
+
+      // Final fallback: locate a text block matching the highlighted chunk content.
+      // This handles cases where heading_path/page metadata does not map 1:1 to rendered markdown.
+      if (fallbackChunk?.content) {
+        const matchEl = findElementByChunkContent(contentRef.current, fallbackChunk.content);
+        if (matchEl) {
+          scrollCleanupRef.current = scrollTo(matchEl, "center", onScrolled) ?? null;
+          matchEl.classList.add("chunk-hl", "chunk-hl-sibling");
+          setTimeout(() => {
+            matchEl.classList.remove("chunk-hl", "chunk-hl-sibling");
+          }, 2500);
         }
       }
     }));
 
     return () => cancelAnimationFrame(rafId);
-  }, [scrollToPage, scrollToHeading, scrollToImageSrc, markdown, onScrolled, scrollTo]);
+  }, [scrollToPage, scrollToHeading, scrollToImageSrc, markdown, onScrolled, scrollTo, highlightChunks]);
 
   // ---- Highlight chunks from citations ----
   // Depends on processedMarkdown so highlights re-apply after document switch
@@ -480,6 +488,12 @@ export const DocumentViewer = memo(function DocumentViewer({
           }
           continue;
         }
+      }
+
+      // Fallback: highlight the closest rendered block matching chunk text.
+      const matchEl = findElementByChunkContent(contentRef.current, chunk.content);
+      if (matchEl) {
+        matchEl.classList.add("chunk-hl", "chunk-hl-sibling");
       }
 
     }
@@ -601,9 +615,72 @@ function getHeadingText(children: React.ReactNode): string {
 }
 
 function generateHeadingId(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, "")
+  return normalizeForMatch(text)
     .replace(/\s+/g, "-")
+    .replace(/^-+|-+$/g, "")
     .slice(0, 80);
+}
+
+function normalizeForMatch(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[đĐ]/g, "d")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildChunkSearchNeedle(content: string): string {
+  const firstUsefulLine =
+    content
+      .split("\n")
+      .map((line) => line.trim())
+      .find((line) => line.length > 0) ?? "";
+
+  return firstUsefulLine
+    .replace(/[`*_>#|]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 220);
+}
+
+function findElementByChunkContent(container: HTMLElement, chunkContent: string): HTMLElement | null {
+  const needle = normalizeForMatch(buildChunkSearchNeedle(chunkContent));
+  if (!needle) return null;
+
+  const candidates = Array.from(
+    container.querySelectorAll<HTMLElement>("p, li, td, blockquote, pre, h1, h2, h3, h4")
+  );
+  if (candidates.length === 0) return null;
+
+  // Fast path: exact substring match after normalization.
+  for (const el of candidates) {
+    const hay = normalizeForMatch(el.textContent || "");
+    if (hay && hay.includes(needle)) return el;
+  }
+
+  // Fuzzy fallback: token overlap score.
+  const tokens = Array.from(new Set(needle.split(" ").filter((t) => t.length >= 4))).slice(0, 12);
+  if (tokens.length === 0) return null;
+
+  let bestEl: HTMLElement | null = null;
+  let bestScore = 0;
+  for (const el of candidates) {
+    const hay = normalizeForMatch(el.textContent || "");
+    if (!hay) continue;
+
+    let score = 0;
+    for (const token of tokens) {
+      if (hay.includes(token)) score += 1;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestEl = el;
+    }
+  }
+
+  return bestScore >= Math.max(2, Math.ceil(tokens.length * 0.4)) ? bestEl : null;
 }

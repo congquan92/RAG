@@ -51,6 +51,17 @@ MAX_AGENT_ITERATIONS = 3
 MAX_VISION_IMAGES = 3
 SSE_HEARTBEAT_INTERVAL = 15  # seconds
 
+_SIMPLE_CONVERSATION_RE = re.compile(
+    r"^(?:"
+    r"hi|hello|hey|alo|"
+    r"xin\s*chao|xin\s*chào|chao|chào|"
+    r"ok|okay|vâng|vang|da|dạ|"
+    r"thanks?|thank\s*you|cam\s*on|cảm\s*ơn|"
+    r"bye|goodbye|tam\s*biet|tạm\s*biệt|hen\s*gap\s*lai|hẹn\s*gặp\s*lại"
+    r")(?:[\s!,.?]+)?$",
+    re.IGNORECASE,
+)
+
 _CITATION_ID_CHARS = string.ascii_lowercase + string.digits
 
 
@@ -60,6 +71,16 @@ def _generate_citation_id(existing: set[str]) -> str:
         cid = "".join(random.choices(_CITATION_ID_CHARS, k=4))
         if any(c.isalpha() for c in cid) and cid not in existing:
             return cid
+
+
+def _is_simple_conversation(message: str) -> bool:
+    """Detect short greeting/ack/farewell turns that should not trigger retrieval."""
+    normalized = " ".join(message.strip().lower().split())
+    if not normalized:
+        return True
+    if len(normalized) > 80:
+        return False
+    return bool(_SIMPLE_CONVERSATION_RE.fullmatch(normalized))
 
 
 # ---------------------------------------------------------------------------
@@ -493,6 +514,7 @@ async def agent_chat_stream(
     provider = get_llm_provider()
     provider_name = settings.LLM_PROVIDER.lower()
     is_gemini = provider_name == "gemini"
+    requires_retrieval = not _is_simple_conversation(message)
 
     existing_ids: set[str] = set()
     all_sources: list[ChatSourceChunk] = []
@@ -806,14 +828,19 @@ async def agent_chat_stream(
             # No tool call from model — answer is in accumulated_text, done.
             break
 
-    # ── Fallback: model produced no text and no search was done ──────────
-    # Small Ollama models (e.g. qwen3.5:4b) may output thinking about
-    # needing to search but never produce a <tool_call> tag or any text.
-    # Auto-search and retry once to avoid "Unable to generate a response."
-    if not accumulated_text and not all_sources and not is_gemini:
+    # ── Grounding fallback: non-conversational query must have retrieved sources ──
+    # If no sources were retrieved in this turn, regenerate from explicit retrieval
+    # instead of trusting a possibly hallucinated direct answer.
+    if requires_retrieval and not all_sources:
         logger.warning(
-            "Ollama produced no text and no tool call — fallback to auto-search"
+            "No sources retrieved for non-conversational query; forcing fallback retrieval"
         )
+
+        # If speculative text was already streamed, clear it before grounded retry.
+        if accumulated_text:
+            accumulated_text = ""
+            yield {"event": "token_rollback", "data": {}}
+
         yield {"event": "status", "data": {
             "step": "retrieving",
             "detail": f"Searching: {message[:80]}..."
@@ -878,6 +905,8 @@ async def agent_chat_stream(
                 elif chunk.type == "text":
                     accumulated_text += chunk.text
                     yield {"event": "token", "data": {"text": chunk.text}}
+        else:
+            accumulated_text = "Tài liệu không chứa thông tin này."
 
     # Extract related entities from KG (best-effort)
     related_entities: list[str] = []

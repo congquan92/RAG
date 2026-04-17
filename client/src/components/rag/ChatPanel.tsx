@@ -1210,6 +1210,10 @@ interface ChatPanelProps {
   workspace: KnowledgeBase | null;
 }
 
+interface ChatDefaultPromptResponse {
+  default_system_prompt: string;
+}
+
 export const ChatPanel = memo(function ChatPanel({
   workspaceId,
   hasIndexedDocs,
@@ -1254,8 +1258,17 @@ export const ChatPanel = memo(function ChatPanel({
 
   // System prompt editor
   const updateWorkspaceMutation = useUpdateWorkspace();
+  const { data: defaultPromptData } = useQuery<ChatDefaultPromptResponse>({
+    queryKey: ["chat-default-system-prompt"],
+    queryFn: () => api.get<ChatDefaultPromptResponse>("/config/chat-default-prompt"),
+    staleTime: 10 * 60 * 1000,
+    retry: 1,
+  });
+
+  const backendDefaultPrompt = defaultPromptData?.default_system_prompt?.trim() || "";
+  const effectiveDefaultPrompt = backendDefaultPrompt || DEFAULT_SYSTEM_PROMPT;
   const savedPrompt = workspace?.system_prompt ?? "";
-  const effectivePrompt = savedPrompt || DEFAULT_SYSTEM_PROMPT;
+  const effectivePrompt = savedPrompt || effectiveDefaultPrompt;
   const isCustom = !!savedPrompt;
 
   // Sync draft when workspace data loads/changes
@@ -1268,21 +1281,21 @@ export const ChatPanel = memo(function ChatPanel({
   const handleSavePrompt = useCallback(() => {
     if (!workspace) return;
     // If draft equals default, save empty string → reset to default in DB
-    const toSave = promptDraft.trim() === DEFAULT_SYSTEM_PROMPT ? "" : promptDraft;
+    const toSave = promptDraft.trim() === effectiveDefaultPrompt ? "" : promptDraft;
     updateWorkspaceMutation.mutate(
       { id: workspace.id, data: { system_prompt: toSave } },
       { onSuccess: () => toast.success("Đã lưu system prompt") }
     );
-  }, [workspace, promptDraft, updateWorkspaceMutation]);
+  }, [workspace, promptDraft, effectiveDefaultPrompt, updateWorkspaceMutation]);
 
   const handleResetPrompt = useCallback(() => {
     if (!workspace) return;
-    setPromptDraft(DEFAULT_SYSTEM_PROMPT);
+    setPromptDraft(effectiveDefaultPrompt);
     updateWorkspaceMutation.mutate(
       { id: workspace.id, data: { system_prompt: "" } },
       { onSuccess: () => toast.success("Đã đặt lại system prompt mặc định") }
     );
-  }, [workspace, updateWorkspaceMutation]);
+  }, [workspace, effectiveDefaultPrompt, updateWorkspaceMutation]);
 
   // Check LLM capabilities (thinking support)
   const { data: capabilities } = useQuery<LLMCapabilities>({
