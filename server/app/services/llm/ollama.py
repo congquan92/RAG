@@ -440,13 +440,20 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
         self._host = host
         self._model = model
         self._dimension: Optional[int] = None
+        self._sync_client = None
+
+    def _get_sync_client(self):
+        """Reuse one host-bound sync client for all embedding calls."""
+        import ollama
+
+        if self._sync_client is None:
+            self._sync_client = ollama.Client(host=self._host)
+        return self._sync_client
 
     def _detect_dimension(self) -> int:
         """Detect embedding dimension by running a probe."""
-        import ollama
-
         try:
-            result = ollama.embed(model=self._model, input=["dimension probe"])
+            result = self._get_sync_client().embed(model=self._model, input=["dimension probe"])
             dim = len(result.embeddings[0])
             logger.info(f"Detected Ollama embedding dimension: {dim} for model {self._model}")
             return dim
@@ -457,9 +464,7 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
 
     def _embed_batch_once_sync(self, texts: list[str]) -> np.ndarray:
         """Embed one batch and enforce 1:1 input/output count."""
-        import ollama
-
-        result = ollama.embed(model=self._model, input=texts)
+        result = self._get_sync_client().embed(model=self._model, input=texts)
         arr = np.array(result.embeddings, dtype=np.float32)
 
         if arr.ndim != 2 or arr.shape[0] != len(texts):
