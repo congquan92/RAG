@@ -14,8 +14,10 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
+import re
 import shutil
 from pathlib import Path
 from typing import Optional
@@ -27,6 +29,92 @@ from app.services.llm import get_embedding_provider, get_llm_provider
 from app.services.llm.types import LLMMessage
 
 logger = logging.getLogger(__name__)
+
+_KG_COMPLETION_DELIMITER = "<|COMPLETE|>"
+
+_INPUT_TEXT_PATTERN = re.compile(
+    r"<Input Text>\s*```(?:[A-Za-z0-9_-]+)?\s*(.*?)\s*```",
+    flags=re.IGNORECASE | re.DOTALL,
+)
+_ENTITY_TYPES_PATTERN = re.compile(
+    r"<Entity_types>\s*(\[.*?\])",
+    flags=re.IGNORECASE | re.DOTALL,
+)
+
+
+def _is_kg_extraction_prompt(prompt: str, system_prompt: Optional[str]) -> bool:
+    prompt_lower = (prompt or "").lower()
+    system_lower = (system_prompt or "").lower()
+
+    if "extract entities and relationships" in prompt_lower:
+        return True
+
+    if "based on the last extraction task" in prompt_lower:
+        return True
+
+    return (
+        "knowledge graph specialist responsible for extracting entities and relationships"
+        in system_lower
+    )
+
+
+def _extract_input_text_from_prompt(prompt: str, history_messages: Optional[list]) -> str:
+    def _find_input_text(raw_text: str) -> str:
+        if not raw_text:
+            return ""
+        match = _INPUT_TEXT_PATTERN.search(raw_text)
+        return match.group(1).strip() if match else ""
+
+    text = _find_input_text(prompt)
+    if text:
+        return text
+
+    if not history_messages:
+        return ""
+
+    for message in reversed(history_messages):
+        if not isinstance(message, dict):
+            continue
+        content = message.get("content", "")
+        if isinstance(content, list):
+            flattened: list[str] = []
+            for item in content:
+                if isinstance(item, dict):
+                    flattened.append(str(item.get("text", "")))
+                else:
+                    flattened.append(str(item))
+            content_text = "\n".join(flattened)
+        else:
+            content_text = str(content)
+
+        text = _find_input_text(content_text)
+        if text:
+            return text
+
+    return ""
+
+
+def _extract_entity_types_from_prompt(prompt: str) -> list[str] | None:
+    match = _ENTITY_TYPES_PATTERN.search(prompt or "")
+    if not match:
+        return None
+
+    raw_block = match.group(1).strip()
+    try:
+        parsed = json.loads(raw_block)
+        if isinstance(parsed, list):
+            entity_types = [str(item).strip() for item in parsed if str(item).strip()]
+            return entity_types or None
+    except json.JSONDecodeError:
+        pass
+
+    fallback = raw_block.strip("[]")
+    entity_types = [
+        token.strip().strip('"').strip("'")
+        for token in fallback.split(",")
+        if token.strip().strip('"').strip("'")
+    ]
+    return entity_types or None
 
 
 # ---------------------------------------------------------------------------
@@ -41,6 +129,47 @@ async def _kg_llm_complete(
     **kwargs,
 ) -> str:
     """LightRAG-compatible LLM function using the configured provider."""
+    if (
+        settings.KG_EXTRACTION_METHOD == "specialized"
+        and _is_kg_extraction_prompt(prompt=prompt, system_prompt=system_prompt)
+    ):
+        prompt_lower = (prompt or "").lower()
+
+        # Gleaning stage does not include <Input Text>; no-op to avoid duplicate outputs.
+        if "based on the last extraction task" in prompt_lower:
+            return _KG_COMPLETION_DELIMITER
+
+        input_text = _extract_input_text_from_prompt(
+            prompt=prompt,
+            history_messages=history_messages,
+        )
+        if not input_text:
+            logger.warning(
+                "Specialized KG extraction was requested but no <Input Text> block was found. "
+                "Returning completion delimiter for compatibility."
+            )
+            return _KG_COMPLETION_DELIMITER
+
+        entity_types = _extract_entity_types_from_prompt(prompt)
+
+        try:
+            from app.services.extractor.specialized_kg_extractor import (
+                get_specialized_kg_extractor,
+            )
+
+            extractor = get_specialized_kg_extractor()
+            extracted = await asyncio.to_thread(
+                extractor.extract_entities_and_relations_sync,
+                input_text,
+                entity_types,
+            )
+            return extracted or _KG_COMPLETION_DELIMITER
+        except Exception as exc:
+            logger.exception(
+                "Specialized KG extraction failed, falling back to LLM provider: %s",
+                exc,
+            )
+
     provider = get_llm_provider()
 
     messages: list[LLMMessage] = []
@@ -56,9 +185,7 @@ async def _kg_llm_complete(
 
     messages.append(LLMMessage(role="user", content=prompt))
 
-    return await provider.acomplete(
-        messages, temperature=0.0, max_tokens=4096,
-    )
+    return await provider.acomplete(messages, temperature=0.0, max_tokens=4096)
 
 
 async def _kg_embed(texts: list[str]) -> np.ndarray:
