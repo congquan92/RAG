@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-import argparse
 import ast
 import json
 import os
 import sys
 from pathlib import Path
 from typing import Any
-
-from dotenv import dotenv_values
 
 
 SERVER_DIR = Path(__file__).resolve().parents[1]
@@ -23,10 +20,45 @@ def _default_env_file() -> Path:
 	return SERVER_DIR / ".env"
 
 
+def _dotenv_values(path: Path) -> dict[str, str | None]:
+	"""Minimal .env reader to avoid external runtime dependency."""
+	values: dict[str, str | None] = {}
+	for raw_line in path.read_text(encoding="utf-8").splitlines():
+		line = raw_line.strip()
+		if not line or line.startswith("#"):
+			continue
+		if line.startswith("export "):
+			line = line[len("export ") :].strip()
+
+		if "=" not in line:
+			values[line] = None
+			continue
+
+		key, raw_value = line.split("=", 1)
+		key = key.strip()
+		value = raw_value.strip()
+		if not key:
+			continue
+
+		if value and value[0] in {"\"", "'"} and value[-1:] == value[0]:
+			try:
+				value = ast.literal_eval(value)
+			except Exception:
+				value = value[1:-1]
+		elif " #" in value:
+			# Keep shell-style inline comments only when separated by whitespace.
+			value = value.split(" #", 1)[0].rstrip()
+
+		values[key] = "" if value is None else str(value)
+
+	return values
+
+
 def _is_sensitive(name: str) -> bool:
 	upper = name.upper()
 	return (
 		upper.endswith("_KEY")
+		or "API_KEY" in upper
 		or upper.endswith("_SECRET")
 		or upper.endswith("_PASSWORD")
 		or upper.endswith("_PASS")
@@ -57,7 +89,8 @@ def _mask(key: str, value: str, show_secrets: bool) -> str:
 def _source_for(key: str, env_map: dict[str, str | None]) -> str:
 	if key in os.environ:
 		return "process_env"
-	if key in env_map and env_map.get(key) not in (None, ""):
+	# Keep empty-string values as env_file to match pydantic-settings behavior.
+	if key in env_map and env_map.get(key) is not None:
 		return "env_file"
 	return "default"
 
@@ -100,10 +133,35 @@ def _parse_settings_defaults_from_ast() -> dict[str, str]:
 	return result
 
 
+def _parse_settings_keys_from_ast() -> set[str]:
+	"""Read declared uppercase Settings fields without importing app.core.config."""
+	keys: set[str] = set()
+	config_file = SERVER_DIR / "app" / "core" / "config.py"
+	if not config_file.exists():
+		return keys
+
+	source = config_file.read_text(encoding="utf-8")
+	tree = ast.parse(source)
+
+	for node in tree.body:
+		if isinstance(node, ast.ClassDef) and node.name == "Settings":
+			for stmt in node.body:
+				if not isinstance(stmt, ast.AnnAssign):
+					continue
+				if not isinstance(stmt.target, ast.Name):
+					continue
+				key = stmt.target.id
+				if key.isupper():
+					keys.add(key)
+			break
+
+	return keys
+
+
 def _rows_typed(env_file: Path) -> tuple[list[dict[str, str]], str]:
 	from app.core.config import Settings
 
-	env_map = dotenv_values(env_file)
+	env_map = _dotenv_values(env_file)
 	settings = Settings(_env_file=str(env_file))
 	rows: list[dict[str, str]] = []
 
@@ -112,11 +170,15 @@ def _rows_typed(env_file: Path) -> tuple[list[dict[str, str]], str]:
 		source = _source_for(key, env_map)
 		effective = _serialize(getattr(settings, key))
 
-		default_raw = field.default
-		if default_raw is None:
-			default_str = "None"
+		if field.is_required():
+			default_str = "<required>"
+		elif field.default_factory is not None:
+			try:
+				default_str = _serialize(field.default_factory())
+			except Exception:
+				default_str = "<default_factory>"
 		else:
-			default_str = _serialize(default_raw)
+			default_str = _serialize(field.default)
 
 		rows.append(
 			{
@@ -133,10 +195,14 @@ def _rows_typed(env_file: Path) -> tuple[list[dict[str, str]], str]:
 
 
 def _rows_fallback(env_file: Path) -> tuple[list[dict[str, str]], str]:
-	env_map = dotenv_values(env_file)
+	env_map = _dotenv_values(env_file)
 	defaults = _parse_settings_defaults_from_ast()
+	declared_keys = _parse_settings_keys_from_ast()
 
-	keys = sorted(set(defaults.keys()) | set(env_map.keys()) | set(os.environ.keys()))
+	if declared_keys:
+		keys = sorted(set(defaults.keys()) | set(env_map.keys()) | {k for k in os.environ.keys() if k in declared_keys})
+	else:
+		keys = sorted(set(defaults.keys()) | set(env_map.keys()) | set(os.environ.keys()))
 	keys = [k for k in keys if k.isupper()]
 
 	rows: list[dict[str, str]] = []
@@ -194,92 +260,14 @@ def _print_table(rows: list[dict[str, str]], env_file: Path, mode: str, show_sec
 		print(f"{row['key'].ljust(key_w)}  {row['source'].ljust(src_w)}  {value}")
 
 
-def _print_one(rows: list[dict[str, str]], key: str, env_file: Path, mode: str, show_secrets: bool) -> int:
-	target = key.strip()
-	if not target:
-		print("[CHECK_SETTING] --key cannot be empty")
-		return 1
-
-	row = next((r for r in rows if r["key"] == target), None)
-	if row is None:
-		print(f"[CHECK_SETTING] Unknown key: {target}")
-		print("[CHECK_SETTING] Available keys:")
-		for r in rows:
-			print(f"  - {r['key']}")
-		return 1
-
-	print(f"ENV FILE: {env_file}")
-	print(f"RESOLUTION MODE: {mode}")
-	print(f"KEY: {target}")
-	print(f"SOURCE: {row['source']}")
-	print(f"EFFECTIVE: {_mask(target, row['effective'], show_secrets)}")
-	process = row["process_env_raw"] if row["process_env_raw"] else "(not set)"
-	env_raw = row["env_file_raw"] if row["env_file_raw"] else "(not set)"
-	print(f"PROCESS_ENV_RAW: {_mask(target, process, show_secrets)}")
-	print(f"ENV_FILE_RAW: {_mask(target, env_raw, show_secrets)}")
-	print(f"DEFAULT: {_mask(target, row['default'], show_secrets)}")
-	return 0
-
-
 def main() -> int:
-	parser = argparse.ArgumentParser(
-		description="Inspect runtime settings and show value source (process_env/env_file/default)"
-	)
-	parser.add_argument(
-		"--env-file",
-		default=str(_default_env_file()),
-		help="Path to env file (default: server/.env or project .env if present)",
-	)
-	parser.add_argument(
-		"--key",
-		help="Inspect one setting key only (example: NEXUSRAG_ENABLE_KG)",
-	)
-	parser.add_argument(
-		"--format",
-		choices=["table", "json"],
-		default="table",
-		help="Output format",
-	)
-	parser.add_argument(
-		"--show-secrets",
-		action="store_true",
-		help="Show full values for sensitive keys",
-	)
-	args = parser.parse_args()
-
-	env_file = Path(args.env_file).expanduser().resolve()
+	env_file = _default_env_file().expanduser().resolve()
 	if not env_file.exists():
 		print(f"[CHECK_SETTING] File not found: {env_file}")
 		return 1
 
 	rows, mode, typed_error = _load_rows(env_file)
-
-	if args.key:
-		return _print_one(rows, args.key, env_file, mode, args.show_secrets)
-
-	if args.format == "json":
-		payload: dict[str, Any] = {
-			"env_file": str(env_file),
-			"resolution_mode": mode,
-			"total": len(rows),
-			"settings": [
-				{
-					"key": r["key"],
-					"source": r["source"],
-					"effective": _mask(r["key"], r["effective"], args.show_secrets),
-					"process_env_raw": _mask(r["key"], r["process_env_raw"], args.show_secrets),
-					"env_file_raw": _mask(r["key"], r["env_file_raw"], args.show_secrets),
-					"default": _mask(r["key"], r["default"], args.show_secrets),
-				}
-				for r in rows
-			],
-		}
-		if typed_error:
-			payload["typed_resolution_error"] = typed_error
-		print(json.dumps(payload, ensure_ascii=True, indent=2))
-		return 0
-
-	_print_table(rows, env_file, mode, args.show_secrets)
+	_print_table(rows, env_file, mode, show_secrets=False)
 	if typed_error:
 		print()
 		print(f"NOTE: typed mode failed, fallback mode used: {typed_error}")

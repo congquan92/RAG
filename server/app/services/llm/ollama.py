@@ -1,7 +1,5 @@
 """
 Ollama LLM & Embedding Providers
-==================================
-Concrete implementations using the ``ollama`` Python library for local models.
 """
 from __future__ import annotations
 
@@ -431,6 +429,8 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
 
     _BATCH_SIZE = 64
     _MAX_BATCH_RETRIES = 1
+    _CHUNK_FALLBACK_MAX_CHARS = 1600
+    _CHUNK_FALLBACK_OVERLAP_CHARS = 200
 
     def __init__(
         self,
@@ -440,13 +440,20 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
         self._host = host
         self._model = model
         self._dimension: Optional[int] = None
+        self._sync_client = None
+
+    def _get_sync_client(self):
+        """Reuse one host-bound sync client for all embedding calls."""
+        import ollama
+
+        if self._sync_client is None:
+            self._sync_client = ollama.Client(host=self._host)
+        return self._sync_client
 
     def _detect_dimension(self) -> int:
         """Detect embedding dimension by running a probe."""
-        import ollama
-
         try:
-            result = ollama.embed(model=self._model, input=["dimension probe"])
+            result = self._get_sync_client().embed(model=self._model, input=["dimension probe"])
             dim = len(result.embeddings[0])
             logger.info(f"Detected Ollama embedding dimension: {dim} for model {self._model}")
             return dim
@@ -457,9 +464,7 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
 
     def _embed_batch_once_sync(self, texts: list[str]) -> np.ndarray:
         """Embed one batch and enforce 1:1 input/output count."""
-        import ollama
-
-        result = ollama.embed(model=self._model, input=texts)
+        result = self._get_sync_client().embed(model=self._model, input=texts)
         arr = np.array(result.embeddings, dtype=np.float32)
 
         if arr.ndim != 2 or arr.shape[0] != len(texts):
@@ -531,6 +536,12 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
             return np.zeros((len(texts), self.get_dimension()), dtype=np.float32)
 
         if len(texts) == 1:
+            if self._is_context_length_error(last_error):
+                return self._embed_single_with_chunk_fallback_sync(
+                    texts[0],
+                    batch_start=batch_start,
+                    depth=depth,
+                )
             logger.error(
                 "Ollama embedding failed at leaf batch_start=%d (last batch error: %s)",
                 batch_start,
@@ -582,6 +593,13 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
             return np.zeros((len(texts), self.get_dimension()), dtype=np.float32)
 
         if len(texts) == 1:
+            if self._is_context_length_error(last_error):
+                return await self._embed_single_with_chunk_fallback_async(
+                    client,
+                    texts[0],
+                    batch_start=batch_start,
+                    depth=depth,
+                )
             logger.error(
                 "Ollama async embedding failed at leaf batch_start=%d (last batch error: %s)",
                 batch_start,
@@ -617,6 +635,171 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
             "permission",
         ]
         return any(marker in msg for marker in fatal_markers)
+
+    @staticmethod
+    def _is_context_length_error(error: Exception | None) -> bool:
+        if error is None:
+            return False
+        msg = str(error).lower()
+        markers = [
+            "input length exceeds the context length",
+            "context length",
+            "context window",
+            "prompt is too long",
+            "token limit",
+            "maximum context",
+        ]
+        return any(marker in msg for marker in markers)
+
+    def _split_text_for_embedding(self, text: str) -> list[str]:
+        """Split oversized text into sentence-aware windows for embedding fallback."""
+        normalized = " ".join(str(text or "").split())
+        if not normalized:
+            return ["[empty]"]
+
+        max_chars = self._CHUNK_FALLBACK_MAX_CHARS
+        overlap = self._CHUNK_FALLBACK_OVERLAP_CHARS
+        if len(normalized) <= max_chars:
+            return [normalized]
+
+        parts = re.split(r"(?<=[.!?])\s+", normalized)
+        chunks: list[str] = []
+        current = ""
+
+        for part in parts:
+            sentence = part.strip()
+            if not sentence:
+                continue
+
+            if len(sentence) > max_chars:
+                if current:
+                    chunks.append(current)
+                    current = ""
+
+                step = max(1, max_chars - overlap)
+                for start in range(0, len(sentence), step):
+                    piece = sentence[start : start + max_chars].strip()
+                    if piece:
+                        chunks.append(piece)
+                continue
+
+            candidate = f"{current} {sentence}".strip() if current else sentence
+            if len(candidate) <= max_chars:
+                current = candidate
+            else:
+                if current:
+                    chunks.append(current)
+                current = sentence
+
+        if current:
+            chunks.append(current)
+
+        return chunks if chunks else [normalized[:max_chars]]
+
+    def _force_bisect_text(self, text: str) -> list[str]:
+        """Hard split fallback when sentence-aware splitting cannot reduce further."""
+        normalized = " ".join(str(text or "").split())
+        if len(normalized) <= 128:
+            return [normalized] if normalized else ["[empty]"]
+
+        overlap = min(self._CHUNK_FALLBACK_OVERLAP_CHARS, max(16, len(normalized) // 8))
+        mid = len(normalized) // 2
+        left = normalized[:mid].strip()
+        right_start = max(0, mid - overlap)
+        right = normalized[right_start:].strip()
+        parts = [part for part in (left, right) if part]
+        return parts if parts else [normalized]
+
+    @staticmethod
+    def _pool_chunk_embeddings(vectors: np.ndarray, chunks: list[str]) -> np.ndarray:
+        """Pool chunk vectors back to one vector with length-based weighting."""
+        if vectors.ndim != 2 or vectors.shape[0] == 0:
+            raise ValueError("Cannot pool empty chunk embeddings")
+        if vectors.shape[0] != len(chunks):
+            raise ValueError(
+                "Chunk embedding count mismatch "
+                f"(vectors={vectors.shape[0]} chunks={len(chunks)})"
+            )
+
+        weights = np.array([max(1, len(chunk)) for chunk in chunks], dtype=np.float32)
+        pooled = np.average(vectors, axis=0, weights=weights).astype(np.float32)
+        if np.any(np.isnan(pooled)):
+            pooled = np.nan_to_num(pooled, nan=0.0)
+        return pooled
+
+    def _embed_single_with_chunk_fallback_sync(
+        self,
+        text: str,
+        *,
+        batch_start: int,
+        depth: int,
+    ) -> np.ndarray:
+        chunks = self._split_text_for_embedding(text)
+        if len(chunks) <= 1:
+            chunks = self._force_bisect_text(text)
+        if len(chunks) <= 1:
+            logger.error(
+                "Ollama context-length leaf failure at batch_start=%d depth=%d; returning zeros",
+                batch_start,
+                depth,
+            )
+            return np.zeros((1, self.get_dimension()), dtype=np.float32)
+
+        logger.warning(
+            "Ollama embedding fallback: splitting oversized input at batch_start=%d "
+            "depth=%d into %d chunks",
+            batch_start,
+            depth,
+            len(chunks),
+        )
+
+        vectors = self._embed_batch_resilient_sync(
+            chunks,
+            batch_start=batch_start,
+            depth=depth + 1,
+        )
+        pooled = self._pool_chunk_embeddings(vectors, chunks)
+        if self._dimension is None:
+            self._dimension = int(pooled.shape[0])
+        return pooled.reshape(1, -1)
+
+    async def _embed_single_with_chunk_fallback_async(
+        self,
+        client,
+        text: str,
+        *,
+        batch_start: int,
+        depth: int,
+    ) -> np.ndarray:
+        chunks = self._split_text_for_embedding(text)
+        if len(chunks) <= 1:
+            chunks = self._force_bisect_text(text)
+        if len(chunks) <= 1:
+            logger.error(
+                "Ollama async context-length leaf failure at batch_start=%d depth=%d; returning zeros",
+                batch_start,
+                depth,
+            )
+            return np.zeros((1, self.get_dimension()), dtype=np.float32)
+
+        logger.warning(
+            "Ollama async embedding fallback: splitting oversized input at batch_start=%d "
+            "depth=%d into %d chunks",
+            batch_start,
+            depth,
+            len(chunks),
+        )
+
+        vectors = await self._embed_batch_resilient_async(
+            client,
+            chunks,
+            batch_start=batch_start,
+            depth=depth + 1,
+        )
+        pooled = self._pool_chunk_embeddings(vectors, chunks)
+        if self._dimension is None:
+            self._dimension = int(pooled.shape[0])
+        return pooled.reshape(1, -1)
 
     @staticmethod
     def _sanitize_texts(texts: list[str]) -> list[str]:

@@ -1,5 +1,4 @@
-# DeepRAG — Knowledge Base + RAG Backend
-# ============================================
+# RAG + Knowledge Graph(LightRAG)
 
 # Web framework
 fastapi>=0.104.0
@@ -34,6 +33,9 @@ ollama>=0.4.0
 
 # Knowledge Graph (LightRAG)
 lightrag-hku>=1.0.0
+gliner>=0.2.18
+transformers>=4.45.0
+torch>=2.2.0
 
 # Utilities
 python-dotenv>=1.0.0

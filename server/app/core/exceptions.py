@@ -1,6 +1,5 @@
 from fastapi import HTTPException, status
 
-
 class NotFoundError(HTTPException):
     def __init__(self, resource: str, id: int | str):
         super().__init__(

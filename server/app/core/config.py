@@ -45,6 +45,11 @@ class Settings(BaseSettings):
     # LightRAG LLM timeout (seconds) used for KG extraction/query worker timeouts
     LLM_TIMEOUT: int = Field(default=180, ge=1)
 
+    # KG extraction :"llm" | "specialized"
+    KG_EXTRACTION_METHOD: str = Field(default="specialized")
+    NEXUSRAG_KG_GLINER_MODEL: str = Field(default="urchade/gliner_multi-v2.1")
+    NEXUSRAG_KG_RELATION_MODEL: str = Field(default="Babelscape/mrebel-large")
+
     # KG Embedding provider (can differ from LLM provider)
     KG_EMBEDDING_PROVIDER: str = Field(default="gemini")
     KG_EMBEDDING_MODEL: str = Field(default="gemini-embedding-001")
