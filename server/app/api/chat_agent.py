@@ -499,14 +499,14 @@ async def agent_chat_stream(
     system_prompt: str,
     force_search: bool = False,
 ) -> AsyncGenerator[dict, None]:
-        """Vòng lặp chat semi-agentic có streaming.
+    """Vòng lặp chat semi-agentic có streaming.
 
-        - force_search=True: pre-search trước khi gọi LLM, inject sources làm context.
-            Đảm bảo retrieval cho mọi query bất kể khả năng tool-calling của model.
-        - force_search=False (mặc định): vòng lặp gọi tool theo agentic.
-            Gemini dùng native function calling; Ollama dùng prompt-based tool calling.
+    - force_search=True: pre-search trước khi gọi LLM, inject sources làm context.
+        Đảm bảo retrieval cho mọi query bất kể khả năng tool-calling của model.
+    - force_search=False (mặc định): vòng lặp gọi tool theo agentic.
+        Gemini dùng native function calling; Ollama dùng prompt-based tool calling.
 
-        Yield dict có khóa 'event' và 'data' để format SSE.
+    Yield dict có khóa 'event' và 'data' để format SSE.
     """
     from app.services.llm import get_llm_provider
     from app.core.config import settings
