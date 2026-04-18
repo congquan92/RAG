@@ -2,8 +2,8 @@
 Docling Document Parser
 =======================
 
-Wraps the existing Docling-based parsing pipeline (formerly in
-``deep_document_parser.py``) behind the ``BaseDocumentParser`` interface.
+Đóng gói pipeline parse dùng Docling hiện có (trước đây trong
+``deep_document_parser.py``) phía sau interface ``BaseDocumentParser``.
 """
 from __future__ import annotations
 
@@ -25,19 +25,19 @@ from app.services.models.parsed_document import (
 
 logger = logging.getLogger(__name__)
 
-# File extensions handled by Docling vs legacy
+# File extension được Docling xử lý so với legacy
 _DOCLING_EXTENSIONS = {".pdf", ".docx", ".pptx", ".html"}
 _LEGACY_EXTENSIONS = {".txt", ".md"}
 
 
 class DoclingDocumentParser(BaseDocumentParser):
     """
-    Document parser powered by Docling.
+    Document parser chạy bằng Docling.
 
-    - Converts PDF/DOCX/PPTX/HTML via Docling DocumentConverter
-    - Chunks using HybridChunker (semantic + structural)
-    - Extracts images and optionally captions them via LLM Vision
-    - Falls back to legacy text extraction for TXT/MD
+    - Chuyển đổi PDF/DOCX/PPTX/HTML qua Docling DocumentConverter
+    - Chia chunk bằng HybridChunker (semantic + structural)
+    - Trích xuất images và có thể caption qua LLM Vision
+    - Fallback về trích xuất text legacy cho TXT/MD
     """
 
     parser_name = "docling"
@@ -51,11 +51,11 @@ class DoclingDocumentParser(BaseDocumentParser):
         return _DOCLING_EXTENSIONS | _LEGACY_EXTENSIONS
 
     # ------------------------------------------------------------------
-    # Converter
+    # Bộ chuyển đổi
     # ------------------------------------------------------------------
 
     def _get_converter(self):
-        """Lazy-init Docling DocumentConverter with image extraction."""
+        """Khởi tạo Docling DocumentConverter theo kiểu lazy với image extraction."""
         if self._converter is not None:
             return self._converter
 
@@ -76,11 +76,11 @@ class DoclingDocumentParser(BaseDocumentParser):
 
     @staticmethod
     def is_docling_supported(file_path: str | Path) -> bool:
-        """Check if the file format is supported by Docling (not legacy)."""
+        """Kiểm tra file format có được Docling hỗ trợ (không phải legacy)."""
         return Path(file_path).suffix.lower() in _DOCLING_EXTENSIONS
 
     # ------------------------------------------------------------------
-    # Main parse entry
+    # Điểm vào parse chính
     # ------------------------------------------------------------------
 
     def parse(
@@ -112,7 +112,7 @@ class DoclingDocumentParser(BaseDocumentParser):
         return result
 
     # ------------------------------------------------------------------
-    # Docling pipeline
+    # Pipeline của Docling
     # ------------------------------------------------------------------
 
     def _parse_with_docling(
@@ -121,36 +121,36 @@ class DoclingDocumentParser(BaseDocumentParser):
         document_id: int,
         original_filename: str,
     ) -> ParsedDocument:
-        """Parse with Docling for rich structural extraction."""
+        """Parse bằng Docling để trích xuất cấu trúc phong phú."""
         converter = self._get_converter()
 
         logger.info(f"Docling converting: {file_path}")
         conv_result = converter.convert(str(file_path))
         doc = conv_result.document
 
-        # Extract images and build URL mapping for markdown references
+        # Trích xuất images và tạo URL mapping cho markdown references
         images, pic_url_list = self._extract_images_with_urls(doc, document_id)
 
-        # Extract tables
+        # Trích xuất tables
         tables = self._extract_tables(doc, document_id)
         if settings.NEXUSRAG_ENABLE_TABLE_CAPTIONING and tables:
             self._caption_tables(tables)
 
-        # Export to markdown
+        # Xuất sang markdown
         markdown = self._export_markdown(doc)
 
-        # Post-process: replace image placeholders with real markdown images
+        # Hậu xử lý: thay placeholder image bằng markdown image thật
         markdown = self._inject_image_references(markdown, pic_url_list)
 
-        # Post-process: inject table captions into markdown
+        # Hậu xử lý: chèn table caption vào markdown
         markdown = self._inject_table_captions(markdown, tables)
 
-        # Get page count
+        # Lấy page count
         page_count = 0
         if hasattr(doc, "pages") and doc.pages:
             page_count = len(doc.pages)
 
-        # Chunk with HybridChunker
+        # Chunk bằng HybridChunker
         chunks = self._chunk_document(doc, document_id, original_filename, images, tables)
 
         return ParsedDocument(
@@ -165,7 +165,7 @@ class DoclingDocumentParser(BaseDocumentParser):
         )
 
     # ------------------------------------------------------------------
-    # Chunking (Docling HybridChunker)
+    # Chia chunk (Docling HybridChunker)
     # ------------------------------------------------------------------
 
     def _chunk_document(
@@ -176,7 +176,7 @@ class DoclingDocumentParser(BaseDocumentParser):
         images: list[ExtractedImage] | None = None,
         tables: list[ExtractedTable] | None = None,
     ) -> list[EnrichedChunk]:
-        """Chunk document using Docling's HybridChunker with image/table enrichment."""
+        """Chunk document bằng HybridChunker của Docling với image/table enrichment."""
         from docling_core.transforms.chunker import HybridChunker
 
         chunker = HybridChunker(
@@ -184,13 +184,13 @@ class DoclingDocumentParser(BaseDocumentParser):
             merge_peers=True,
         )
 
-        # Build page→images lookup
+        # Tạo bảng tra page->images
         page_images: dict[int, list[ExtractedImage]] = {}
         if images:
             for img in images:
                 page_images.setdefault(img.page_no, []).append(img)
 
-        # Build page→tables lookup
+        # Tạo bảng tra page->tables
         page_tables: dict[int, list[ExtractedTable]] = {}
         if tables:
             for tbl in tables:
@@ -201,7 +201,7 @@ class DoclingDocumentParser(BaseDocumentParser):
         assigned_tables: set[str] = set()
 
         for i, chunk in enumerate(chunker.chunk(doc)):
-            # Extract page number
+            # Trích xuất số trang
             page_no = 0
             if hasattr(chunk, "meta") and chunk.meta:
                 if hasattr(chunk.meta, "page"):
@@ -216,13 +216,13 @@ class DoclingDocumentParser(BaseDocumentParser):
                             if page_no > 0:
                                 break
 
-            # Extract heading path
+            # Trích xuất heading path
             heading_path = []
             if hasattr(chunk, "meta") and chunk.meta:
                 if hasattr(chunk.meta, "headings") and chunk.meta.headings:
                     heading_path = list(chunk.meta.headings)
 
-            # Detect content types
+            # Nhận diện loại nội dung
             chunk_text = chunk.text if hasattr(chunk, "text") else str(chunk)
             has_table = False
             has_code = False
@@ -239,7 +239,7 @@ class DoclingDocumentParser(BaseDocumentParser):
             if heading_path:
                 contextualized = " > ".join(heading_path) + ": " + chunk_text[:100]
 
-            # ── Image-aware enrichment ──
+            # -- Enrichment nhận biết ảnh --
             chunk_image_refs: list[str] = []
             if page_no > 0 and page_no in page_images:
                 for img in page_images[page_no]:
@@ -260,7 +260,7 @@ class DoclingDocumentParser(BaseDocumentParser):
                 if desc_parts:
                     enriched_text = chunk_text + "\n\n" + "\n".join(desc_parts)
 
-            # ── Table-aware enrichment ──
+            # -- Enrichment nhận biết bảng --
             chunk_table_refs: list[str] = []
             if page_no > 0 and page_no in page_tables:
                 for tbl in page_tables[page_no]:
@@ -308,11 +308,11 @@ class DoclingDocumentParser(BaseDocumentParser):
         return chunks
 
     # ------------------------------------------------------------------
-    # Markdown export
+    # Xuất markdown
     # ------------------------------------------------------------------
 
     def _export_markdown(self, doc) -> str:
-        """Export document to markdown with page break markers if supported."""
+        """Xuất document sang markdown với page break marker nếu được hỗ trợ."""
         try:
             return doc.export_to_markdown(
                 page_break_placeholder="\n\n---\n\n",
@@ -321,7 +321,7 @@ class DoclingDocumentParser(BaseDocumentParser):
             return doc.export_to_markdown()
 
     # ------------------------------------------------------------------
-    # Image extraction
+    # Trich xuat image
     # ------------------------------------------------------------------
 
     def _extract_images_with_urls(
@@ -329,7 +329,7 @@ class DoclingDocumentParser(BaseDocumentParser):
         doc,
         document_id: int,
     ) -> tuple[list[ExtractedImage], list[tuple[str, str]]]:
-        """Extract images and build URL mapping for markdown placeholders."""
+        """Trích xuất image và tạo URL mapping cho markdown placeholder."""
         if not settings.NEXUSRAG_ENABLE_IMAGE_EXTRACTION:
             return [], []
 
@@ -414,7 +414,7 @@ class DoclingDocumentParser(BaseDocumentParser):
     def _inject_image_references(
         self, markdown: str, pic_url_list: list[tuple[str, str]]
     ) -> str:
-        """Replace <!-- image --> placeholders with ![caption](url) markdown."""
+        """Thay placeholder <!-- image --> bằng markdown ![caption](url)."""
         placeholder_count = len(re.findall(r"<!--\s*image\s*-->", markdown))
 
         if not pic_url_list:
@@ -451,11 +451,11 @@ class DoclingDocumentParser(BaseDocumentParser):
         return result
 
     # ------------------------------------------------------------------
-    # Table extraction (Docling-specific)
+    # Trich xuat table (Docling-specific)
     # ------------------------------------------------------------------
 
     def _extract_tables(self, doc, document_id: int) -> list[ExtractedTable]:
-        """Extract tables from Docling document."""
+        """Trích xuất table từ tài liệu Docling."""
         if not hasattr(doc, "tables") or not doc.tables:
             return []
 
@@ -497,7 +497,7 @@ class DoclingDocumentParser(BaseDocumentParser):
         return tables
 
     # ------------------------------------------------------------------
-    # Legacy fallback (TXT/MD)
+    # Fallback kiểu legacy (TXT/MD)
     # ------------------------------------------------------------------
 
     def _parse_legacy(
@@ -506,7 +506,7 @@ class DoclingDocumentParser(BaseDocumentParser):
         document_id: int,
         original_filename: str,
     ) -> ParsedDocument:
-        """Fallback: parse TXT/MD with legacy loader."""
+        """Fallback: parse TXT/MD bằng legacy loader."""
         from app.services.document_loader import load_document
         from app.services.chunker import DocumentChunker
 

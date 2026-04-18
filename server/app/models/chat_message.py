@@ -1,5 +1,5 @@
 """
-ChatMessage model — persists chat history per workspace to PostgreSQL.
+Model ChatMessage — lưu chat history theo từng workspace vào PostgreSQL.
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ class ChatMessage(Base):
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
 
-    # Rich metadata (JSON columns — nullable for user messages)
+    # Metadata mở rộng (JSON columns — nullable cho user messages)
     sources: Mapped[list | None] = mapped_column(JSON, nullable=True)
     related_entities: Mapped[list | None] = mapped_column(JSON, nullable=True)
     image_refs: Mapped[list | None] = mapped_column(JSON, nullable=True)

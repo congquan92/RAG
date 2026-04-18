@@ -34,7 +34,7 @@ class Document(Base):
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
     )
 
-    # NexusRAG fields
+    # Các trường NexusRAG
     markdown_content: Mapped[str | None] = mapped_column(Text, nullable=True)
     page_count: Mapped[int] = mapped_column(Integer, default=0)
     image_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -43,7 +43,7 @@ class Document(Base):
     processing_time_ms: Mapped[int] = mapped_column(Integer, default=0)
     custom_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
-    # Relationships
+    # Quan hệ
     workspace: Mapped["KnowledgeBase"] = relationship(back_populates="documents")
     images: Mapped[list["DocumentImage"]] = relationship(
         back_populates="document", cascade="all, delete-orphan"
@@ -67,7 +67,7 @@ class DocumentImage(Base):
     mime_type: Mapped[str] = mapped_column(String(50), default="image/png")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
-    # Relationships
+    # Quan hệ
     document: Mapped["Document"] = relationship(back_populates="images")
 
 
@@ -84,5 +84,5 @@ class DocumentTable(Base):
     num_cols: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
-    # Relationships
+    # Quan hệ
     document: Mapped["Document"] = relationship(back_populates="tables")

@@ -1,19 +1,19 @@
 """
-Chat Agent — Semi-Agentic SSE Streaming for NexusRAG
+Chat Agent — Semi-Agentic SSE Streaming cho NexusRAG
 ====================================================
 
-Provides an SSE streaming endpoint where the LLM decides whether to call
-``search_documents`` or answer directly, streaming thinking + tokens in real-time.
+Cung cấp SSE streaming endpoint nơi LLM quyết định gọi
+``search_documents`` hay trả lời trực tiếp, đồng thời stream thinking + token theo thời gian thực.
 
-SSE Event Types:
-  - status:         {"step": str, "detail": str}
-  - thinking:       {"text": str}
-  - sources:        {"sources": [...]}
-  - images:         {"image_refs": [...]}
-  - token:          {"text": str}
-  - token_rollback: {}
-  - complete:       {"answer": str, "sources": [...], ...}
-  - error:          {"message": str}
+Các loại SSE Event:
+    - status:         {"step": str, "detail": str}
+    - thinking:       {"text": str}
+    - sources:        {"sources": [...]} 
+    - images:         {"image_refs": [...]} 
+    - token:          {"text": str}
+    - token_rollback: {}
+    - complete:       {"answer": str, "sources": [...], ...}
+    - error:          {"message": str}
 """
 from __future__ import annotations
 
@@ -44,7 +44,7 @@ from app.services.llm.types import LLMMessage, LLMImagePart, StreamChunk
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Constants
+# Hằng số
 # ---------------------------------------------------------------------------
 
 MAX_AGENT_ITERATIONS = 3
@@ -66,7 +66,7 @@ _CITATION_ID_CHARS = string.ascii_lowercase + string.digits
 
 
 def _generate_citation_id(existing: set[str]) -> str:
-    """Generate a unique 4-char alphanumeric citation ID."""
+    """Sinh citation ID 4 ký tự chữ+số duy nhất."""
     while True:
         cid = "".join(random.choices(_CITATION_ID_CHARS, k=4))
         if any(c.isalpha() for c in cid) and cid not in existing:
@@ -74,7 +74,7 @@ def _generate_citation_id(existing: set[str]) -> str:
 
 
 def _is_simple_conversation(message: str) -> bool:
-    """Detect short greeting/ack/farewell turns that should not trigger retrieval."""
+    """Nhận diện câu chào/xác nhận/tạm biệt ngắn không cần trigger retrieval."""
     normalized = " ".join(message.strip().lower().split())
     if not normalized:
         return True
@@ -84,12 +84,12 @@ def _is_simple_conversation(message: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Tool definitions
+# Định nghĩa tool
 # ---------------------------------------------------------------------------
 
 # Gemini native function calling
 def _get_gemini_tool():
-    """Lazily create Gemini Tool to avoid import at module level."""
+    """Khởi tạo Gemini Tool theo kiểu lazy để tránh import ở cấp module."""
     from google.genai import types
     return types.Tool(function_declarations=[
         types.FunctionDeclaration(
@@ -175,15 +175,15 @@ OLLAMA_TOOL_REMINDER = (
 )
 
 # ---------------------------------------------------------------------------
-# Gemini system prompt reinforcement — enforce tool calling for questions
+# Tăng cường system prompt cho Gemini — bắt buộc gọi tool với câu hỏi
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
-# Ollama native tool calling (Gemma 4, Qwen 3.5, Llama 4, etc.)
+# Ollama native tool calling (Gemma 4, Qwen 3.5, Llama 4, v.v.)
 # ---------------------------------------------------------------------------
 
 def _get_ollama_native_tool() -> list[dict]:
-    """Tool definition in OpenAI-compatible format for Ollama native tool calling."""
+    """Định nghĩa tool theo format tương thích OpenAI cho Ollama native tool calling."""
     return [{
         "type": "function",
         "function": {
@@ -276,11 +276,11 @@ fresh sources from a new search.
 
 
 # ---------------------------------------------------------------------------
-# SSE Helpers (ported from PageIndex backend/app/api/v1/chat.py)
+# SSE Helpers (port từ PageIndex backend/app/api/v1/chat.py)
 # ---------------------------------------------------------------------------
 
 def format_sse_event(event: str, data: dict) -> str:
-    """Format data as an SSE event string."""
+    """Định dạng data thành chuỗi SSE event."""
     json_data = json.dumps(data, default=str, ensure_ascii=False)
     return f"event: {event}\ndata: {json_data}\n\n"
 
@@ -288,11 +288,11 @@ def format_sse_event(event: str, data: dict) -> str:
 async def sse_with_heartbeat(
     source: AsyncGenerator[str, None],
 ) -> AsyncGenerator[str, None]:
-    """Wrap an SSE generator with periodic heartbeat comments.
+    """Bọc SSE generator bằng heartbeat comment định kỳ.
 
-    SSE spec allows lines starting with ':' as comments — browsers/clients
-    silently ignore them but they keep the TCP connection alive, preventing
-    timeouts when the upstream LLM takes a long time to respond.
+    SSE spec cho phép dòng bắt đầu bằng ':' như comment — browser/client
+    sẽ bỏ qua, nhưng vẫn giữ kết nối TCP sống để tránh timeout khi
+    upstream LLM phản hồi lâu.
     """
     queue: asyncio.Queue[str | None] = asyncio.Queue()
 
@@ -326,7 +326,7 @@ async def sse_with_heartbeat(
 
 
 # ---------------------------------------------------------------------------
-# Tool executor — retrieval via NexusRAG
+# Bộ thực thi tool — retrieval qua NexusRAG
 # ---------------------------------------------------------------------------
 
 async def _execute_search_documents(
@@ -336,9 +336,9 @@ async def _execute_search_documents(
     db: AsyncSession,
     existing_ids: set[str],
 ) -> tuple[str, list[ChatSourceChunk], list[ChatImageRef], list[dict]]:
-    """Execute document search and return formatted context + structured sources.
+    """Thực thi tìm kiếm document và trả về context đã format + source có cấu trúc.
 
-    Returns:
+    Trả về:
         (context_text, sources, image_refs, image_parts_for_vision)
     """
     from app.services.rag_service import get_rag_service
@@ -373,7 +373,7 @@ async def _execute_search_documents(
                 image_refs=[],
             ))
 
-    # Build sources
+    # Tạo sources
     sources: list[ChatSourceChunk] = []
     context_parts: list[str] = []
     for i, chunk in enumerate(chunks):
@@ -403,7 +403,7 @@ async def _execute_search_documents(
 
     context = "\n\n---\n\n".join(context_parts)
 
-    # Build image references
+    # Tạo image references
     seen_image_ids: set[str] = set()
     chunk_image_ids: list[str] = []
     for c in chunks:
@@ -487,7 +487,7 @@ async def _execute_search_documents(
 
 
 # ---------------------------------------------------------------------------
-# Agent loop — semi-agentic streaming
+# Vòng lặp agent — semi-agentic streaming
 # ---------------------------------------------------------------------------
 
 async def agent_chat_stream(
@@ -499,14 +499,14 @@ async def agent_chat_stream(
     system_prompt: str,
     force_search: bool = False,
 ) -> AsyncGenerator[dict, None]:
-    """Semi-agentic chat loop with streaming.
+        """Vòng lặp chat semi-agentic có streaming.
 
-    - force_search=True: pre-search before calling LLM, inject sources as context.
-      Guarantees retrieval for every query regardless of model tool-calling ability.
-    - force_search=False (default): agentic tool-calling loop.
-      Gemini uses native function calling; Ollama uses prompt-based tool calling.
+        - force_search=True: pre-search trước khi gọi LLM, inject sources làm context.
+            Đảm bảo retrieval cho mọi query bất kể khả năng tool-calling của model.
+        - force_search=False (mặc định): vòng lặp gọi tool theo agentic.
+            Gemini dùng native function calling; Ollama dùng prompt-based tool calling.
 
-    Yields dicts with 'event' and 'data' keys for SSE formatting.
+        Yield dict có khóa 'event' và 'data' để format SSE.
     """
     from app.services.llm import get_llm_provider
     from app.core.config import settings
@@ -521,23 +521,23 @@ async def agent_chat_stream(
     all_images: list[ChatImageRef] = []
     all_image_parts: list[dict] = []
 
-    # Build conversation messages
+    # Tạo conversation messages
     messages: list[LLMMessage] = []
     for msg in history[-10:]:
         role = "user" if msg["role"] == "user" else "assistant"
         messages.append(LLMMessage(role=role, content=msg["content"]))
 
-    # Build user message
+    # Tạo user message
     messages.append(LLMMessage(role="user", content=message))
 
-    # Tool / prompt setup
+    # Thiết lập tool / prompt
     tools = None
     effective_system_prompt = system_prompt
     is_ollama_native = False  # track for tool result handling
 
     if force_search:
-        # ── Force-search mode: pre-search before LLM call ──────────────────
-        # Retrieve sources immediately, inject as context. No tool calling needed.
+        # ── Chế độ force-search: pre-search trước khi gọi LLM ──────────────────
+        # Retrieve sources ngay lập tức, inject làm context. Không cần tool calling.
         yield {"event": "status", "data": {"step": "retrieving", "detail": f"Searching: {message[:80]}..."}}
 
         context, sources, images, img_parts = await _execute_search_documents(
@@ -583,21 +583,21 @@ async def agent_chat_stream(
                 content=tool_result_content,
                 images=user_images_fs,
             ))
-        # tools remain None — model answers directly with provided context
+        # tools giữ None — model trả lời trực tiếp với context đã cung cấp
     elif is_gemini:
         tools = [_get_gemini_tool()]
-        # Reinforce tool-calling obligation in system prompt for Gemini
+        # Tăng cường ràng buộc gọi tool trong system prompt cho Gemini
         effective_system_prompt = system_prompt + GEMINI_TOOL_SYSTEM
     elif provider.supports_native_tools():
-        # Ollama with native tool calling (Gemma 4, Qwen 3.5, Llama 4, etc.)
+        # Ollama với native tool calling (Gemma 4, Qwen 3.5, Llama 4, v.v.)
         is_ollama_native = True
         tools = _get_ollama_native_tool()
         effective_system_prompt = system_prompt + "\n\n" + OLLAMA_NATIVE_TOOL_SYSTEM
     else:
-        # Ollama prompt-based fallback (older models without native tool support)
+        # Ollama prompt-based fallback (model cũ không hỗ trợ native tool)
         effective_system_prompt = system_prompt + "\n\n" + OLLAMA_TOOL_SYSTEM
-        # Also append a reminder directly to the user message so the model
-        # sees it right before generating — reinforces the tool requirement
+        # Đồng thời thêm nhắc nhở trực tiếp vào user message để model
+        # thấy ngay trước khi sinh output — củng cố yêu cầu gọi tool
         messages[-1] = LLMMessage(
             role="user",
             content=messages[-1].content + OLLAMA_TOOL_REMINDER,
@@ -628,14 +628,14 @@ async def agent_chat_stream(
                 function_calls.append(chunk.function_call)
             elif chunk.type == "text":
                 iteration_text += chunk.text
-                # Speculative streaming — send tokens if no tool call seen yet
+                # Speculative streaming — gửi token nếu chưa thấy tool call
                 if not function_calls:
                     accumulated_text += chunk.text
                     tokens_yielded = True
                     yield {"event": "token", "data": {"text": chunk.text}}
 
         if function_calls:
-            # Rollback speculative tokens
+            # Rollback token speculative
             if tokens_yielded:
                 accumulated_text = ""
                 yield {"event": "token_rollback", "data": {}}
@@ -669,7 +669,7 @@ async def agent_chat_stream(
                         "image_refs": [i.model_dump() for i in images]
                     }}
 
-                # Build tool result as user message with sources
+                # Tạo kết quả tool thành user message kèm sources
                 tool_result_parts = [
                     "I have retrieved the following document sources for you.\n",
                     "=== DOCUMENT SOURCES ===",
@@ -688,7 +688,7 @@ async def agent_chat_stream(
                 ]
                 tool_result_content = "\n".join(tool_result_parts)
 
-                # Add image inline references for vision models
+                # Thêm image inline references cho vision models
                 user_images: list[LLMImagePart] = []
                 if img_parts:
                     for img_data in img_parts:
@@ -701,14 +701,14 @@ async def agent_chat_stream(
                 tool_result_content += f"\n\nNow answer the question: {message}"
 
                 if is_gemini:
-                    # Gemini: use native Content with thought_signature
-                    # (required by Gemini 3 for proper multi-turn reasoning)
-                    # and native FunctionResponse for the tool result.
+                    # Gemini: dùng native Content với thought_signature
+                    # (Gemini 3 bắt buộc để reasoning nhiều lượt đúng)
+                    # và native FunctionResponse cho tool result.
                     from google.genai import types as _gtypes
 
                     raw_content = getattr(provider, "last_response_content", None)
                     if raw_content:
-                        # Preserve the model's raw response (with thought_signature)
+                        # Giữ nguyên raw response của model (có thought_signature)
                         messages.append(LLMMessage(
                             role="assistant",
                             content="",
@@ -720,7 +720,7 @@ async def agent_chat_stream(
                             content=f"[Called search_documents(query=\"{query}\")]",
                         ))
 
-                    # Build native FunctionResponse with sources context
+                    # Tạo native FunctionResponse với sources context
                     func_resp_parts = [_gtypes.Part.from_function_response(
                         name="search_documents",
                         response={"result": tool_result_content},
@@ -735,7 +735,7 @@ async def agent_chat_stream(
                         _raw_provider_content=func_resp_content,
                     ))
 
-                    # Send images as a separate user message for vision
+                    # Gửi ảnh như user message riêng cho vision
                     if img_parts:
                         img_llm_parts: list[LLMImagePart] = []
                         img_text = "Referenced document images:\n"
@@ -751,12 +751,12 @@ async def agent_chat_stream(
                             images=img_llm_parts,
                         ))
 
-                    # Remove tool-calling instructions since search is done;
-                    # keep tools so thinking + tool awareness still works.
+                    # Bỏ hướng dẫn gọi tool vì search đã xong;
+                    # giữ tools để thinking + tool awareness vẫn hoạt động.
                     effective_system_prompt = system_prompt
                 elif is_ollama_native:
-                    # Ollama native: preserve raw assistant tool_call response
-                    # and send tool result via native "tool" role message.
+                    # Ollama native: giữ raw assistant tool_call response
+                    # và gửi tool result qua message role "tool" dạng native.
                     raw_msg = getattr(provider, "last_response_message", None)
                     if raw_msg:
                         messages.append(LLMMessage(
@@ -770,7 +770,7 @@ async def agent_chat_stream(
                             content=f"[Called search_documents(query=\"{query}\")]",
                         ))
 
-                    # Send tool result using Ollama's native tool message format
+                    # Gửi tool result bằng format native tool message của Ollama
                     messages.append(LLMMessage(
                         role="tool",
                         content="",
@@ -780,7 +780,7 @@ async def agent_chat_stream(
                         },
                     ))
 
-                    # Send images as a separate user message for vision
+                    # Gửi ảnh như user message riêng cho vision
                     if img_parts:
                         img_llm_parts: list[LLMImagePart] = []
                         img_text = "Referenced document images:\n"
@@ -796,13 +796,13 @@ async def agent_chat_stream(
                             images=img_llm_parts,
                         ))
 
-                    # Remove tool-calling instructions; keep tools for awareness.
+                    # Bỏ hướng dẫn gọi tool; giữ tools để duy trì awareness.
                     effective_system_prompt = system_prompt
                 else:
-                    # Ollama prompt-based: add text-based assistant + user messages
-                    # to maintain proper user/assistant alternation
-                    # (prevents two consecutive user messages which confuses
-                    # small models like qwen3.5).
+                    # Ollama prompt-based: thêm assistant + user message dạng text
+                    # để duy trì luân phiên user/assistant đúng
+                    # (tránh 2 user message liên tiếp gây rối cho
+                    # model nhỏ như qwen3.5).
                     messages.append(LLMMessage(
                         role="assistant",
                         content=f"[Called search_documents(query=\"{query}\")]",
@@ -812,8 +812,8 @@ async def agent_chat_stream(
                         content=tool_result_content,
                         images=user_images,
                     ))
-                    # Remove tool prompt from system prompt so the model
-                    # answers with sources instead of calling the tool again.
+                    # Bỏ tool prompt khỏi system prompt để model
+                    # trả lời bằng sources thay vì gọi tool lặp lại.
                     effective_system_prompt = system_prompt
 
                 yield {"event": "status", "data": {
@@ -821,22 +821,22 @@ async def agent_chat_stream(
                     "detail": "Generating answer..."
                 }}
             else:
-                # Unknown tool — treat accumulated text as answer
+                # Tool không xác định — coi text đã tích lũy là câu trả lời
                 logger.warning(f"Unknown tool call: {fc_name}")
                 break
         else:
-            # No tool call from model — answer is in accumulated_text, done.
+            # Model không gọi tool — câu trả lời nằm trong accumulated_text, hoàn tất.
             break
 
-    # ── Grounding fallback: non-conversational query must have retrieved sources ──
-    # If no sources were retrieved in this turn, regenerate from explicit retrieval
-    # instead of trusting a possibly hallucinated direct answer.
+    # ── Grounding fallback: query không phải hội thoại phải có source đã retrieve ──
+    # Nếu lượt này chưa retrieve được source, sinh lại từ explicit retrieval
+    # thay vì tin vào câu trả lời trực tiếp có thể bị hallucinate.
     if requires_retrieval and not all_sources:
         logger.warning(
             "No sources retrieved for non-conversational query; forcing fallback retrieval"
         )
 
-        # If speculative text was already streamed, clear it before grounded retry.
+        # Nếu đã stream speculative text thì xóa trước khi grounded retry.
         if accumulated_text:
             accumulated_text = ""
             yield {"event": "token_rollback", "data": {}}
@@ -878,9 +878,9 @@ async def agent_chat_stream(
             fallback_content = "\n".join(fallback_parts)
             fallback_content += f"\n\nNow answer the question: {message}"
 
-            # Build CLEAN messages for retry — only keep recent history
-            # and the user question with sources.  Drop the tool-calling
-            # prompt that already failed, so the model focuses on answering.
+            # Tạo CLEAN messages cho lần retry — chỉ giữ history gần đây
+            # và câu hỏi user kèm sources. Bỏ tool-calling
+            # prompt đã thất bại để model tập trung trả lời.
             fallback_msgs: list[LLMMessage] = []
             for msg in history[-6:]:
                 role = "user" if msg["role"] == "user" else "assistant"
@@ -895,7 +895,7 @@ async def agent_chat_stream(
                 fallback_msgs,
                 temperature=0.1,
                 max_tokens=settings.LLM_MAX_OUTPUT_TOKENS,
-                system_prompt=system_prompt,  # original prompt without tool instructions
+                system_prompt=system_prompt,  # prompt gốc không có tool instructions
                 think=enable_thinking,
                 tools=None,
             ):
@@ -908,7 +908,7 @@ async def agent_chat_stream(
         else:
             accumulated_text = "Tài liệu không chứa thông tin này."
 
-    # Extract related entities from KG (best-effort)
+    # Trích xuất related entities từ KG (best-effort)
     related_entities: list[str] = []
     try:
         from app.api.rag import _get_kg_service
@@ -922,7 +922,7 @@ async def agent_chat_stream(
     except Exception:
         pass
 
-    # Strip artifacts
+    # Loại bỏ artifacts
     if accumulated_text:
         accumulated_text = re.sub(r'<unused\d+>:?\s*', '', accumulated_text).strip()
 
@@ -936,7 +936,7 @@ async def agent_chat_stream(
 
 
 # ---------------------------------------------------------------------------
-# SSE Streaming endpoint
+# Endpoint SSE Streaming
 # ---------------------------------------------------------------------------
 
 async def chat_stream_endpoint(
@@ -946,9 +946,9 @@ async def chat_stream_endpoint(
 ):
     """SSE streaming chat endpoint.
 
-    Called from rag.py router — not a standalone router to avoid circular imports.
+    Được gọi từ router rag.py — không tách router riêng để tránh circular imports.
     """
-    # Verify workspace
+    # Xác minh workspace
     result = await db.execute(
         select(KnowledgeBase).where(KnowledgeBase.id == workspace_id)
     )
@@ -959,14 +959,14 @@ async def chat_stream_endpoint(
             detail="Knowledge base not found",
         )
 
-    # Build system prompt
+    # Tạo system prompt
     from app.api.chat_prompt import DEFAULT_SYSTEM_PROMPT, HARD_SYSTEM_PROMPT
     system_prompt = (kb.system_prompt or DEFAULT_SYSTEM_PROMPT) + HARD_SYSTEM_PROMPT
 
-    # Build history
+    # Tạo history
     history = [{"role": m.role, "content": m.content} for m in request.history]
 
-    # Persist user message immediately
+    # Persist user message ngay lập tức
     try:
         from app.models.chat_message import ChatMessage as ChatMessageModel
         user_row = ChatMessageModel(
@@ -988,10 +988,10 @@ async def chat_stream_endpoint(
         final_thinking = None
         final_entities = []
 
-        # Collect agent steps for persistence (ThinkingTimeline survives reload)
+        # Thu thập các bước agent để persist (ThinkingTimeline vẫn giữ sau reload)
         collected_steps: list[dict] = []
         step_counter = 0
-        # Track sources/images as they arrive so sources_found inserts BEFORE generating
+        # Theo dõi sources/images khi đến để chèn sources_found TRƯỚC generating
         streaming_sources: list[dict] = []
         streaming_images: list[dict] = []
 
@@ -1008,11 +1008,11 @@ async def chat_stream_endpoint(
                 event_type = event["event"]
                 event_data = event["data"]
 
-                # Collect status steps; insert sources_found before "generating"
+                # Thu thập status steps; chèn sources_found trước "generating"
                 if event_type == "status":
                     step_name = event_data.get("step", "analyzing")
 
-                    # When generating starts, insert sources_found first (correct order)
+                    # Khi generating bắt đầu, chèn sources_found trước (đúng thứ tự)
                     if step_name == "generating" and streaming_sources:
                         step_counter += 1
                         badges = list(dict.fromkeys(
@@ -1040,14 +1040,14 @@ async def chat_stream_endpoint(
                         "timestamp": 0,
                     })
 
-                # Track sources/images as they arrive
+                # Theo dõi sources/images khi được trả về
                 elif event_type == "sources":
                     streaming_sources.extend(event_data.get("sources", []))
 
                 elif event_type == "images":
                     streaming_images.extend(event_data.get("image_refs", []))
 
-                # Attach thinking text to the analyzing step
+                # Gắn thinking text vào bước analyzing
                 elif event_type == "thinking":
                     thinking_fragment = event_data.get("text", "")
                     for s in collected_steps:
@@ -1062,7 +1062,7 @@ async def chat_stream_endpoint(
                     final_thinking = event_data.get("thinking")
                     final_entities = event_data.get("related_entities", [])
 
-                    # Fallback: if sources arrived but generating step was never emitted
+                    # Fallback: nếu sources đã tới nhưng chưa phát ra bước generating
                     if streaming_sources and not any(s["step"] == "sources_found" for s in collected_steps):
                         step_counter += 1
                         badges = list(dict.fromkeys(
@@ -1079,7 +1079,7 @@ async def chat_stream_endpoint(
                             "sourceBadges": badges,
                         })
 
-                    # Done step
+                    # Bước done
                     step_counter += 1
                     collected_steps.append({
                         "id": f"step-{step_counter}",

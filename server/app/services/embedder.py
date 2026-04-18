@@ -1,10 +1,10 @@
 """
-Embedding Service
+Service Embedding
 =================
-Generates vector embeddings using sentence-transformers.
+Sinh vector embeddings bằng sentence-transformers.
 
-Default model: BAAI/bge-m3 (1024-dim, multilingual, 100+ languages).
-Configurable via NEXUSRAG_EMBEDDING_MODEL in settings.
+Model mặc định: BAAI/bge-m3 (1024-dim, multilingual, 100+ languages).
+Có thể cấu hình qua NEXUSRAG_EMBEDDING_MODEL trong settings.
 """
 from __future__ import annotations
 
@@ -18,11 +18,11 @@ logger = logging.getLogger(__name__)
 
 class EmbeddingService:
     """
-    Service for generating text embeddings.
-    Uses sentence-transformers for local embedding generation.
+    Service để sinh text embeddings.
+    Dùng sentence-transformers để sinh embedding local.
     """
 
-    # Dimension lookup for common models (used before model is loaded)
+    # Tra cứu dimension cho model phổ biến (dùng trước khi model được load)
     _KNOWN_DIMS = {
         "BAAI/bge-m3": 1024,
         "all-MiniLM-L6-v2": 384,
@@ -37,7 +37,7 @@ class EmbeddingService:
 
     @property
     def model(self):
-        """Lazy load the model."""
+        """Tải model theo cơ chế lazy."""
         if self._model is None:
             from sentence_transformers import SentenceTransformer
             logger.info(f"Loading embedding model: {self.model_name}")
@@ -50,13 +50,13 @@ class EmbeddingService:
 
     @property
     def dimension(self) -> int:
-        """Return the embedding dimension size."""
+        """Trả về kích thước embedding dimension."""
         if self._model is not None:
             return self._model.get_sentence_embedding_dimension()
         return self._KNOWN_DIMS.get(self.model_name, 1024)
 
     def embed_text(self, text: str) -> list[float]:
-        """Generate embedding for a single text."""
+        """Sinh embedding cho một text đơn."""
         if not text.strip():
             raise ValueError("Cannot embed empty text")
         embedding = self.model.encode(
@@ -67,7 +67,7 @@ class EmbeddingService:
         return embedding.tolist()
 
     def embed_texts(self, texts: Sequence[str]) -> list[list[float]]:
-        """Generate embeddings for multiple texts in batch."""
+        """Sinh embeddings theo batch cho nhiều text."""
         if not texts:
             return []
         valid_texts = [t for t in texts if t.strip()]
@@ -82,16 +82,16 @@ class EmbeddingService:
         return embeddings.tolist()
 
     def embed_query(self, query: str) -> list[float]:
-        """Generate embedding for a search query."""
+        """Sinh embedding cho search query."""
         return self.embed_text(query)
 
 
-# Default service instance (singleton)
+    # Service mặc định (singleton)
 _default_service: Optional[EmbeddingService] = None
 
 
 def get_embedding_service() -> EmbeddingService:
-    """Get or create the default embedding service."""
+    """Lấy hoặc tạo embedding service mặc định."""
     global _default_service
     if _default_service is None:
         _default_service = EmbeddingService()
@@ -99,10 +99,10 @@ def get_embedding_service() -> EmbeddingService:
 
 
 def embed_text(text: str) -> list[float]:
-    """Convenience function to embed a single text."""
+    """Hàm tiện ích để embed một text đơn."""
     return get_embedding_service().embed_text(text)
 
 
 def embed_texts(texts: Sequence[str]) -> list[list[float]]:
-    """Convenience function to embed multiple texts."""
+    """Hàm tiện ích để embed nhiều text."""
     return get_embedding_service().embed_texts(texts)

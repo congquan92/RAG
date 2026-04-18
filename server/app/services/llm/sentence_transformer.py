@@ -1,10 +1,10 @@
 """
 Sentence-Transformers Embedding Provider
-==========================================
-Concrete EmbeddingProvider using sentence-transformers for fully local,
-open-source KG embeddings — no external API required.
+========================================
+Triển khai EmbeddingProvider bằng sentence-transformers cho KG embedding
+local hoàn toàn, open-source, không cần API ngoài.
 
-Usage::
+Cách dùng::
 
     KG_EMBEDDING_PROVIDER=sentence_transformers
     KG_EMBEDDING_MODEL=BAAI/bge-m3
@@ -19,7 +19,7 @@ from app.services.llm.base import EmbeddingProvider
 
 logger = logging.getLogger(__name__)
 
-# Dimension lookup so we can report dimension before loading the model.
+# Bảng tra dimension để có thể báo dimension trước khi load model.
 _KNOWN_DIMS: dict[str, int] = {
     "BAAI/bge-m3": 1024,
     "BAAI/bge-large-en-v1.5": 1024,
@@ -33,7 +33,7 @@ _KNOWN_DIMS: dict[str, int] = {
 
 
 class SentenceTransformerEmbeddingProvider(EmbeddingProvider):
-    """Local embedding provider using any sentence-transformers model."""
+    """Local embedding provider dùng bất kỳ model sentence-transformers nào."""
 
     _BATCH_SIZE = 64
 
@@ -42,7 +42,7 @@ class SentenceTransformerEmbeddingProvider(EmbeddingProvider):
         self._model = None
         self._dimension: int | None = _KNOWN_DIMS.get(model)
 
-    # -- lazy load to avoid importing at startup --
+    # -- lazy load để tránh import ngay lúc startup --
 
     @property
     def model(self):
@@ -75,5 +75,5 @@ class SentenceTransformerEmbeddingProvider(EmbeddingProvider):
     def get_dimension(self) -> int:
         if self._dimension is not None:
             return self._dimension
-        # Force model load to detect dimension
+        # Bắt buộc load model để phát hiện dimension
         return self.model.get_sentence_embedding_dimension()

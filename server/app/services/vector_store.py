@@ -1,6 +1,6 @@
 """
-Vector Store Service
-Handles ChromaDB operations for storing and retrieving document embeddings.
+Service Vector Store.
+Xử lý thao tác ChromaDB để lưu và truy xuất document embeddings.
 """
 from __future__ import annotations
 
@@ -16,12 +16,12 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Global ChromaDB client
+# ChromaDB client toàn cục
 _chroma_client: Optional[chromadb.HttpClient] = None
 
 
 def get_chroma_client() -> chromadb.HttpClient:
-    """Get or create the ChromaDB client singleton."""
+    """Lấy hoặc tạo singleton ChromaDB client."""
     global _chroma_client
 
     if _chroma_client is None:
@@ -33,7 +33,7 @@ def get_chroma_client() -> chromadb.HttpClient:
                 anonymized_telemetry=False,
             )
         )
-        # Test connection
+        # Kiểm tra kết nối
         _chroma_client.heartbeat()
         logger.info("Connected to ChromaDB successfully")
 
@@ -42,8 +42,8 @@ def get_chroma_client() -> chromadb.HttpClient:
 
 class VectorStore:
     """
-    Vector store service for managing document embeddings in ChromaDB.
-    Each knowledge base has its own collection for namespace isolation.
+    Service vector store để quản lý document embeddings trong ChromaDB.
+    Mỗi knowledge base có collection riêng để tách namespace.
     """
 
     COLLECTION_PREFIX = "kb_"
@@ -55,7 +55,7 @@ class VectorStore:
 
     @property
     def collection(self) -> chromadb.Collection:
-        """Get or create the collection."""
+        """Lấy hoặc tạo collection."""
         if self._collection is None:
             client = get_chroma_client()
             self._collection = client.get_or_create_collection(
@@ -65,7 +65,7 @@ class VectorStore:
         return self._collection
 
     def _recreate_collection(self) -> None:
-        """Delete and recreate the collection (resets cached reference)."""
+        """Xóa và tạo lại collection (reset reference đã cache)."""
         client = get_chroma_client()
         try:
             client.delete_collection(self.collection_name)
@@ -73,7 +73,7 @@ class VectorStore:
         except Exception:
             pass
         self._collection = None
-        # Force re-creation
+        # Bắt buộc tạo lại
         _ = self.collection
 
     def add_documents(
@@ -84,9 +84,9 @@ class VectorStore:
         metadatas: Sequence[dict] | None = None
     ) -> None:
         """
-        Add documents with their embeddings to the collection.
-        Auto-handles dimension mismatch: if the collection was created with
-        a different embedding dimension, it is deleted and recreated.
+        Thêm document và embeddings vào collection.
+        Tự xử lý dimension mismatch: nếu collection được tạo với embedding
+        dimension khác, collection sẽ bị xóa và tạo lại.
         """
         if not ids:
             return
@@ -101,13 +101,13 @@ class VectorStore:
         except Exception as e:
             error_msg = str(e).lower()
             if "dimension" in error_msg:
-                # Dimension mismatch — collection was created with old embedding model
+                # Dimension mismatch: collection được tạo bằng embedding model cũ
                 logger.warning(
                     f"Dimension mismatch in {self.collection_name}: {e}. "
                     f"Recreating collection for new embedding model."
                 )
                 self._recreate_collection()
-                # Retry with fresh collection
+                # Thử lại với collection mới
                 self.collection.add(
                     ids=list(ids),
                     embeddings=list(embeddings),
@@ -126,7 +126,7 @@ class VectorStore:
         where: dict | None = None,
         include: list[str] | None = None
     ) -> dict:
-        """Query the collection for similar documents."""
+        """Truy vấn collection để tìm document tương tự."""
         if include is None:
             include = ["documents", "metadatas", "distances"]
 
@@ -140,7 +140,7 @@ class VectorStore:
         except Exception as e:
             error_msg = str(e).lower()
             if "dimension" in error_msg:
-                # Query with new-dimension embedding against old collection
+                # Query embedding dimension mới trên collection cũ
                 logger.warning(
                     f"Dimension mismatch on query in {self.collection_name}: {e}. "
                     f"Collection needs reindexing."
@@ -148,7 +148,7 @@ class VectorStore:
                 return {"ids": [], "documents": [], "metadatas": [], "distances": []}
             raise
 
-        # Flatten single query results
+        # Làm phẳng kết quả cho truy vấn đơn
         return {
             "ids": results["ids"][0] if results["ids"] else [],
             "documents": results["documents"][0] if results.get("documents") else [],
@@ -157,14 +157,14 @@ class VectorStore:
         }
 
     def delete_by_document_id(self, document_id: int) -> None:
-        """Delete all chunks belonging to a specific document."""
+        """Xóa toàn bộ chunk thuộc về một document cụ thể."""
         self.collection.delete(
             where={"document_id": document_id}
         )
         logger.info(f"Deleted chunks for document {document_id} from collection {self.collection_name}")
 
     def delete_collection(self) -> None:
-        """Delete the entire collection for this knowledge base."""
+        """Xóa toàn bộ collection của knowledge base này."""
         client = get_chroma_client()
         try:
             client.delete_collection(self.collection_name)
@@ -174,11 +174,11 @@ class VectorStore:
             logger.warning(f"Failed to delete collection {self.collection_name}: {e}")
 
     def count(self) -> int:
-        """Return the number of documents in the collection."""
+        """Trả về số lượng document trong collection."""
         return self.collection.count()
 
     def get_by_ids(self, ids: Sequence[str]) -> dict:
-        """Get documents by their IDs."""
+        """Lấy document theo danh sách ID."""
         return self.collection.get(
             ids=list(ids),
             include=["documents", "metadatas"]
@@ -186,5 +186,5 @@ class VectorStore:
 
 
 def get_vector_store(workspace_id: int) -> VectorStore:
-    """Factory function to create a VectorStore for a knowledge base."""
+    """Factory function để tạo VectorStore cho một knowledge base."""
     return VectorStore(workspace_id)

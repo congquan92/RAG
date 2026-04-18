@@ -22,7 +22,7 @@ class DocumentResponse(DocumentBase):
     error_message: str | None
     created_at: datetime
     updated_at: datetime
-    # NexusRAG fields
+    # Các trường NexusRAG
     page_count: int = 0
     image_count: int = 0
     table_count: int = 0

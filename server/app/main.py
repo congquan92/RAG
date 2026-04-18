@@ -25,7 +25,7 @@ async def lifespan(app: FastAPI):
     auto_create = os.environ.get("AUTO_CREATE_TABLES", "true").lower() == "true"
     if auto_create:
         async with engine.begin() as conn:
-            # Check if tables already exist (e.g., alembic_version)
+            # Kiểm tra bảng đã tồn tại chưa (ví dụ: alembic_version)
             result = await conn.execute(
                 text("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'alembic_version');")
             )
@@ -37,14 +37,14 @@ async def lifespan(app: FastAPI):
                     with open(schema_path, "r", encoding="utf-8") as f:
                         schema_sql = f.read()
                     
-                    # Split and execute each statement to avoid asyncpg multi-statement issues
+                    # Tách và chạy từng statement để tránh lỗi multi-statement của asyncpg
                     for statement in schema_sql.split(';'):
                         stmt = statement.strip()
                         if stmt:
                             await conn.execute(text(stmt))
                     logger.info("Database tables created from schema.sql")
                     
-                    # Stamp the alembic version
+                    # Đánh dấu phiên bản alembic
                     await conn.execute(text("INSERT INTO public.alembic_version (version_num) VALUES ('2047460692d0') ON CONFLICT DO NOTHING;"))
                 else:
                     await conn.run_sync(Base.metadata.create_all)
@@ -52,7 +52,7 @@ async def lifespan(app: FastAPI):
             else:
                 logger.info("Database is already initialized.")
 
-        # Recover stale processing documents (stuck from previous runs)
+        # Khôi phục các document bị treo khi xử lý (còn sót từ lần chạy trước)
         from app.models.document import Document, DocumentStatus
         from sqlalchemy.ext.asyncio import AsyncSession
         from sqlalchemy import select as sa_select
@@ -123,15 +123,15 @@ async def ready():
     return {"status": "ready"}
 
 
-# API routes
+# Các API routes
 from app.api.router import api_router  # noqa: E402
 
 app.include_router(api_router, prefix="/api/v1")
 
-# Static files — document images extracted by NexusRAG (Docling)
+# Static files — ảnh tài liệu được trích xuất bởi NexusRAG (Docling)
 _docling_data = Path(__file__).resolve().parent.parent / "data" / "docling"
 _docling_data.mkdir(parents=True, exist_ok=True)
 app.mount("/static/doc-images", StaticFiles(directory=str(_docling_data)), name="static_doc_images")
 
-# Import models so SQLAlchemy registers them
+# Import models để SQLAlchemy đăng ký
 from app.models import knowledge_base, document, chat_message  # noqa: E402, F401

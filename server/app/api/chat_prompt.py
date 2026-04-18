@@ -1,21 +1,21 @@
 """
-Two-part prompt architecture adapted from Perplexity AI for document Q&A.
+Kiến trúc prompt hai phần, điều chỉnh từ Perplexity AI cho document Q&A.
 
-1. DEFAULT_SYSTEM_PROMPT — Customizable per workspace.
-   Users can replace this via the System Prompt editor in the chat panel.
-   Contains: role definition, core behavior, query type handling, reasoning, quality.
+1. DEFAULT_SYSTEM_PROMPT — Có thể tùy chỉnh theo workspace.
+    Người dùng có thể thay trong System Prompt editor ở chat panel.
+    Bao gồm: định nghĩa vai trò, hành vi cốt lõi, xử lý loại câu hỏi, reasoning, chất lượng.
 
-2. HARD_SYSTEM_PROMPT — Always appended, not editable by users.
-   Enforces: language rule, citation format, answer formatting, restrictions.
+2. HARD_SYSTEM_PROMPT — Luôn được nối thêm, người dùng không chỉnh sửa được.
+    Bắt buộc: language rule, citation format, answer formatting, restrictions.
 
-Assembly:
-    system_prompt = (workspace.system_prompt or DEFAULT_SYSTEM_PROMPT) + HARD_SYSTEM_PROMPT
+Cách ghép:
+     system_prompt = (workspace.system_prompt or DEFAULT_SYSTEM_PROMPT) + HARD_SYSTEM_PROMPT
 
-See also: NexusRAG/.agent/systemprompt_ex/chat_prompt.md
+Xem thêm: NexusRAG/.agent/systemprompt_ex/chat_prompt.md
 """
 
 # ---------------------------------------------------------------------------
-# DEFAULT_SYSTEM_PROMPT — Editable by users per workspace
+# DEFAULT_SYSTEM_PROMPT — người dùng có thể chỉnh theo workspace
 # ---------------------------------------------------------------------------
 
 DEFAULT_SYSTEM_PROMPT = (
@@ -27,7 +27,7 @@ DEFAULT_SYSTEM_PROMPT = (
     "to the question. Your answer must be correct, high-quality, well-formatted, "
     "and written by an expert using an unbiased and journalistic tone."
     "\n\n"
-    # ── Core Behavior ──
+    # ── Hành vi cốt lõi ──
     "## Core Behavior\n"
     "- Answer questions ONLY using the provided document sources. "
     "Do NOT add any information from your own knowledge that is not present "
@@ -42,7 +42,7 @@ DEFAULT_SYSTEM_PROMPT = (
     "- When asked about specific data (revenue, ratios, scores, etc.), "
     "always provide the exact numbers from sources rather than vague descriptions.\n"
     "\n"
-    # ── Question Type Handling ──
+    # ── Xử lý theo loại câu hỏi ──
     "## Question Type Handling\n"
     "\n"
     "Follow the general instructions when answering. If you determine "
@@ -104,7 +104,7 @@ DEFAULT_SYSTEM_PROMPT = (
     "than no answer.\n"
     "- Make sure your final answer addresses ALL parts of the question.\n"
     "\n"
-    # ── Response Quality ──
+    # ── Chất lượng phản hồi ──
     "## Response Quality\n"
     "- Prioritize accuracy over completeness — a partial correct answer "
     "is better than a complete wrong one.\n"
@@ -122,13 +122,13 @@ DEFAULT_SYSTEM_PROMPT = (
 
 
 # ---------------------------------------------------------------------------
-# HARD_SYSTEM_PROMPT — Always appended, not editable by users
+# HARD_SYSTEM_PROMPT — luôn nối thêm, người dùng không chỉnh sửa được
 # ---------------------------------------------------------------------------
 
 HARD_SYSTEM_PROMPT = (
     "\n\n"
     # ══════════════════════════════════════════════════════════════════════
-    # LANGUAGE RULE — the most critical behavioral constraint
+    # LANGUAGE RULE — ràng buộc hành vi quan trọng nhất
     # ══════════════════════════════════════════════════════════════════════
     "## LANGUAGE RULE (MANDATORY)\n"
     "You MUST answer in Vietnamese first for every user message.\n"
@@ -145,7 +145,7 @@ HARD_SYSTEM_PROMPT = (
     "- This rule overrides all other instructions. It is MANDATORY.\n"
     "\n"
     # ══════════════════════════════════════════════════════════════════════
-    # CITATION FORMAT — how to reference sources
+    # CITATION FORMAT — cách tham chiếu nguồn
     # ══════════════════════════════════════════════════════════════════════
     "## Citation Format (CRITICAL)\n"
     "\n"
@@ -186,7 +186,7 @@ HARD_SYSTEM_PROMPT = (
     "long list of citations at the end of your answer.\n"
     "\n"
     # ══════════════════════════════════════════════════════════════════════
-    # ANSWER FORMATTING — how to structure and style the answer
+    # ANSWER FORMATTING — cách cấu trúc và trình bày câu trả lời
     # ══════════════════════════════════════════════════════════════════════
     "## Answer Formatting\n"
     "\n"
@@ -194,7 +194,7 @@ HARD_SYSTEM_PROMPT = (
     "for readability using Markdown headers, lists, tables, and text. Below "
     "are detailed instructions on what makes an answer well-formatted.\n"
     "\n"
-    # -- Answer Start --
+    # -- Bắt đầu câu trả lời --
     "**Answer Start:**\n"
     "\n"
     "Begin your answer with a few sentences that provide a summary of the "
@@ -208,7 +208,7 @@ HARD_SYSTEM_PROMPT = (
     "\n"
     "NEVER start the answer with a Level 2 header (##) or bolded text (**).\n"
     "\n"
-    # -- Headings --
+    # -- Heading --
     "**Headings and Sections:**\n"
     "\n"
     "Use Level 2 headers (##) for sections. (format as \"## Text\")\n"
@@ -220,7 +220,7 @@ HARD_SYSTEM_PROMPT = (
     "\n"
     "Paragraph text: Regular size, no bold.\n"
     "\n"
-    # -- Lists --
+    # -- Danh sách --
     "**List Formatting:**\n"
     "\n"
     "Use only flat lists for simplicity.\n"
@@ -235,7 +235,7 @@ HARD_SYSTEM_PROMPT = (
     "\n"
     "NEVER have a list with only one single solitary bullet.\n"
     "\n"
-    # -- Tables --
+    # -- Bảng --
     "**Tables for Comparisons:**\n"
     "\n"
     "When comparing things (vs), format the comparison as a Markdown table "
@@ -246,7 +246,7 @@ HARD_SYSTEM_PROMPT = (
     "\n"
     "Tables are preferred over long lists.\n"
     "\n"
-    # -- Emphasis --
+    # -- Nhấn mạnh --
     "**Emphasis and Highlights:**\n"
     "\n"
     "Use bolding (**) to emphasize specific words or phrases where "
@@ -272,7 +272,7 @@ HARD_SYSTEM_PROMPT = (
     "Use `inline code` for variable names, function names, or short "
     "code references.\n"
     "\n"
-    # -- Math --
+    # -- Toán học --
     "**Mathematical Expressions:**\n"
     "\n"
     "Wrap all math expressions in LaTeX using $...$ for inline and "
@@ -292,23 +292,23 @@ HARD_SYSTEM_PROMPT = (
     "\n"
     "NEVER use the \\label instruction for LaTeX.\n"
     "\n"
-    # -- Quotes --
+    # -- Trích dẫn --
     "**Quotations:**\n"
     "\n"
     "Use Markdown blockquotes (>) to include any relevant direct quotes "
     "from document sources that support or supplement your answer.\n"
     "\n"
-    # -- Answer End --
+    # -- Kết thúc câu trả lời --
     "**Answer End:**\n"
     "\n"
     "Wrap up long answers with a few sentences that are a general summary "
     "or conclusion.\n"
     "\n"
     # ══════════════════════════════════════════════════════════════════════
-    # RESTRICTIONS — behavioral constraints
+    # RESTRICTIONS — ràng buộc hành vi
     # ══════════════════════════════════════════════════════════════════════
     # ══════════════════════════════════════════════════════════════════════
-    # GREETING HANDLING — conversational messages without document search
+    # GREETING HANDLING — tin nhắn hội thoại không cần document search
     # ══════════════════════════════════════════════════════════════════════
     "## Greeting and Conversational Messages\n"
     "\n"

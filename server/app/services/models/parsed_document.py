@@ -1,9 +1,9 @@
 """
-NexusRAG Data Models
-===================
+Data Models cua NexusRAG
+========================
 
-Dataclasses for the NexusRAG pipeline: document parsing, enriched chunks,
-citations, and retrieval results.
+Dataclass cho pipeline NexusRAG: document parsing, enriched chunks,
+citation và retrieval result.
 """
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from typing import Optional
 
 @dataclass
 class ExtractedImage:
-    """An image extracted from a document by Docling."""
+    """Một image được trích xuất từ document bởi Docling."""
     image_id: str
     document_id: int
     page_no: int
@@ -27,35 +27,35 @@ class ExtractedImage:
 
 @dataclass
 class ExtractedTable:
-    """A table extracted from a document by Docling."""
+    """Một table được trích xuất từ document bởi Docling."""
     table_id: str
     document_id: int
     page_no: int
     content_markdown: str  # table.export_to_markdown(doc)
-    caption: str = ""      # LLM-generated description
+    caption: str = ""      # mô tả được sinh bởi LLM
     num_rows: int = 0
     num_cols: int = 0
 
 
 @dataclass
 class EnrichedChunk:
-    """A document chunk enriched with structural metadata."""
+    """Một document chunk được enrich bằng metadata cấu trúc."""
     content: str
     chunk_index: int
     source_file: str
     document_id: int
     page_no: int = 0
     heading_path: list[str] = field(default_factory=list)
-    image_refs: list[str] = field(default_factory=list)  # image_ids nearby
-    table_refs: list[str] = field(default_factory=list)  # table_ids nearby
+    image_refs: list[str] = field(default_factory=list)  # image_id lân cận
+    table_refs: list[str] = field(default_factory=list)  # table_id lân cận
     has_table: bool = False
     has_code: bool = False
-    contextualized: str = ""  # heading_path joined for context
+    contextualized: str = ""  # heading_path được nối lại cho context
 
 
 @dataclass
 class ParsedDocument:
-    """Result of parsing a document with Docling."""
+    """Kết quả parse một document bằng Docling."""
     document_id: int
     original_filename: str
     markdown: str
@@ -68,14 +68,14 @@ class ParsedDocument:
 
 @dataclass
 class Citation:
-    """A source citation pointing to a specific location in a document."""
+    """Source citation trỏ tới vị trí cụ thể trong một document."""
     source_file: str
     document_id: int
     page_no: int = 0
     heading_path: list[str] = field(default_factory=list)
 
     def format(self) -> str:
-        """Format citation as a human-readable string."""
+        """Định dạng citation thành chuỗi dễ đọc cho người dùng."""
         parts = [self.source_file]
         if self.page_no > 0:
             parts.append(f"p.{self.page_no}")
@@ -86,10 +86,10 @@ class Citation:
 
 @dataclass
 class DeepRetrievalResult:
-    """Result of a deep RAG query with citations and KG insights."""
+    """Kết quả deep RAG query kèm citation và KG insights."""
     chunks: list[EnrichedChunk]
     citations: list[Citation]
-    context: str  # assembled context for LLM
+    context: str  # context đã ghép cho LLM
     query: str
     mode: str = "hybrid"
     knowledge_graph_summary: str = ""

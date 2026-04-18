@@ -1,13 +1,13 @@
 """
-Deep Document Parser — Backward Compatibility
-==============================================
+Deep Document Parser - Tuong Thich Nguoc
+========================================
 
-This module re-exports from the new ``document_parser`` package.
-Existing imports like::
+Module này re-export từ package ``document_parser`` mới.
+Các import cũ như::
 
     from app.services.deep_document_parser import DeepDocumentParser
 
-continue to work without changes.
+vẫn hoạt động mà không cần thay đổi.
 """
 from app.services.document_parser.docling_parser import DoclingDocumentParser as DeepDocumentParser
 

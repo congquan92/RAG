@@ -2,11 +2,11 @@
 Marker Document Parser
 ======================
 
-Alternative document parser using Marker (marker-pdf) for high-quality
-math/formula extraction (LaTeX via Surya), lighter GPU footprint (~2-4GB VRAM),
-and broad format support (PDF, DOCX, PPTX, XLSX, EPUB, HTML, images).
+Document parser thay thế dùng Marker (marker-pdf) cho chất lượng trích xuất
+math/formula cao (LaTeX qua Surya), nhẹ GPU hơn (~2-4GB VRAM),
+và hỗ trợ nhiều định dạng (PDF, DOCX, PPTX, XLSX, EPUB, HTML, images).
 
-Install: ``pip install marker-pdf[full]``
+Cài đặt: ``pip install marker-pdf[full]``
 """
 from __future__ import annotations
 
@@ -32,19 +32,19 @@ logger = logging.getLogger(__name__)
 _MARKER_EXTENSIONS = {".pdf", ".docx", ".pptx", ".xlsx", ".html", ".epub"}
 _LEGACY_EXTENSIONS = {".txt", ".md"}
 
-# Default page separator used by Marker when paginate_output=True
+# Page separator mặc định Marker dùng khi paginate_output=True
 _PAGE_SEPARATOR = "-" * 48
 
 
 class MarkerDocumentParser(BaseDocumentParser):
     """
-    Document parser powered by Marker (marker-pdf).
+    Document parser chạy bằng Marker (marker-pdf).
 
-    Features:
-    - Superior math/formula extraction (LaTeX via Surya)
-    - Lighter GPU footprint (~2-4GB vs Docling's ~18-20GB)
-    - Built-in image extraction, table → markdown, code blocks
-    - Optional LLM-enhanced mode for better tables & equations
+    Tính năng:
+    - Trích xuất math/formula tốt hơn (LaTeX qua Surya)
+    - Nhẹ GPU hơn (~2-4GB so với Docling ~18-20GB)
+    - Tích hợp sẵn image extraction, table -> markdown, code blocks
+    - Chế độ LLM-enhanced tùy chọn cho bảng và phương trình tốt hơn
     """
 
     parser_name = "marker"
@@ -59,11 +59,11 @@ class MarkerDocumentParser(BaseDocumentParser):
         return _MARKER_EXTENSIONS | _LEGACY_EXTENSIONS
 
     # ------------------------------------------------------------------
-    # Lazy initialization
+    # Khởi tạo lazy
     # ------------------------------------------------------------------
 
     def _get_converter(self):
-        """Lazy-init Marker PdfConverter with shared model artifacts."""
+        """Khởi tạo Marker PdfConverter theo kiểu lazy với model artifacts dùng chung."""
         if self._converter is not None:
             return self._converter
 
@@ -71,7 +71,7 @@ class MarkerDocumentParser(BaseDocumentParser):
         from marker.models import create_model_dict
         from marker.config.parser import ConfigParser
 
-        # Load models once (~2GB, cached across calls)
+        # Tải model một lần (~2GB, cache qua nhiều lần gọi)
         if self._artifact_dict is None:
             logger.info("Loading Marker ML models...")
             self._artifact_dict = create_model_dict()
@@ -82,7 +82,7 @@ class MarkerDocumentParser(BaseDocumentParser):
             "disable_image_extraction": not settings.NEXUSRAG_ENABLE_IMAGE_EXTRACTION,
         }
 
-        # LLM-enhanced mode (better tables, equations, handwriting)
+        # Chế độ LLM-enhanced (tốt hơn cho bảng, phương trình, chữ viết tay)
         if settings.NEXUSRAG_MARKER_USE_LLM:
             config["use_llm"] = True
 
@@ -95,7 +95,7 @@ class MarkerDocumentParser(BaseDocumentParser):
             renderer=config_parser.get_renderer(),
         )
 
-        # Attach LLM service if enabled
+        # Gắn LLM service nếu được bật
         if settings.NEXUSRAG_MARKER_USE_LLM:
             try:
                 self._converter.llm_service = config_parser.get_llm_service()
@@ -105,7 +105,7 @@ class MarkerDocumentParser(BaseDocumentParser):
         return self._converter
 
     # ------------------------------------------------------------------
-    # Main parse entry
+    # Điểm vào parse chính
     # ------------------------------------------------------------------
 
     def parse(
@@ -137,7 +137,7 @@ class MarkerDocumentParser(BaseDocumentParser):
         return result
 
     # ------------------------------------------------------------------
-    # Marker pipeline
+    # Pipeline của Marker
     # ------------------------------------------------------------------
 
     def _parse_with_marker(
@@ -146,7 +146,7 @@ class MarkerDocumentParser(BaseDocumentParser):
         document_id: int,
         original_filename: str,
     ) -> ParsedDocument:
-        """Parse with Marker for rich document extraction."""
+        """Parse bằng Marker để trích xuất tài liệu có cấu trúc phong phú."""
         from marker.output import text_from_rendered
 
         converter = self._get_converter()
@@ -155,33 +155,33 @@ class MarkerDocumentParser(BaseDocumentParser):
         rendered = converter(str(file_path))
         text, ext, marker_images = text_from_rendered(rendered)
 
-        # Extract and save images
+        # Trích xuất và lưu images
         images = self._save_marker_images(marker_images, document_id)
 
-        # Caption images with LLM vision
+        # Tạo caption cho images bằng LLM vision
         if settings.NEXUSRAG_ENABLE_IMAGE_CAPTIONING and images:
             self._caption_images(images)
 
-        # Clean Marker page number markers like "{0}", "{1}" from output
+        # Làm sạch marker số trang của Marker như "{0}", "{1}" trong output
         markdown = re.sub(r"\n\{(\d+)\}", "", text)
 
-        # Update image references in markdown with served URLs
+        # Cập nhật image references trong markdown bằng served URL
         markdown = self._replace_image_refs_in_markdown(markdown, marker_images, images)
 
-        # Extract tables from markdown
+        # Trích xuất tables từ markdown
         tables = self._extract_tables_from_markdown(markdown, document_id)
 
-        # Caption tables
+        # Tạo caption cho tables
         if settings.NEXUSRAG_ENABLE_TABLE_CAPTIONING and tables:
             self._caption_tables(tables)
 
-        # Inject table captions
+        # Chèn caption của table
         markdown = self._inject_table_captions(markdown, tables)
 
-        # Count pages from paginated output
+        # Đếm số trang từ paginated output
         page_count = self._count_pages(markdown)
 
-        # Chunk the document
+        # Chia document thành chunk
         chunks = self._chunk_markdown(
             markdown, document_id, original_filename, images, tables
         )
@@ -198,7 +198,7 @@ class MarkerDocumentParser(BaseDocumentParser):
         )
 
     # ------------------------------------------------------------------
-    # Image handling
+    # Xử lý image
     # ------------------------------------------------------------------
 
     def _save_marker_images(
@@ -206,7 +206,7 @@ class MarkerDocumentParser(BaseDocumentParser):
         marker_images: dict,
         document_id: int,
     ) -> list[ExtractedImage]:
-        """Save Marker-extracted images (PIL) to disk and create ExtractedImage list."""
+        """Lưu images Marker trích xuất (PIL) xuống đĩa và tạo danh sách ExtractedImage."""
         if not marker_images or not settings.NEXUSRAG_ENABLE_IMAGE_EXTRACTION:
             return []
 
@@ -224,14 +224,14 @@ class MarkerDocumentParser(BaseDocumentParser):
                 image_id = str(uuid.uuid4())
                 image_path = images_dir / f"{image_id}.png"
 
-                # Convert to RGB if needed (RGBA/P modes fail with some formats)
+                # Chuyển sang RGB nếu cần (RGBA/P có thể lỗi với một số định dạng)
                 if pil_image.mode in ("RGBA", "P", "LA"):
                     pil_image = pil_image.convert("RGB")
 
                 pil_image.save(str(image_path), format="PNG")
                 width, height = pil_image.size
 
-                # Try to extract page number from filename (e.g., "page_3_image_1.png")
+                # Thử trích xuất số trang từ filename (vd: "page_3_image_1.png")
                 page_no = self._extract_page_from_filename(filename)
 
                 images.append(ExtractedImage(
@@ -254,8 +254,8 @@ class MarkerDocumentParser(BaseDocumentParser):
 
     @staticmethod
     def _extract_page_from_filename(filename: str) -> int:
-        """Try to extract page number from Marker image filenames."""
-        # Marker filenames are like: "{doc_name}_page_{N}_image_{M}.png"
+        """Thử trích xuất số trang từ filename image của Marker."""
+        # Filename Marker có dạng: "{doc_name}_page_{N}_image_{M}.png"
         match = re.search(r"page[_-]?(\d+)", filename, re.IGNORECASE)
         if match:
             return int(match.group(1))
@@ -267,31 +267,31 @@ class MarkerDocumentParser(BaseDocumentParser):
         marker_images: dict,
         images: list[ExtractedImage],
     ) -> str:
-        """Replace Marker image filenames in markdown with served URLs."""
+        """Thay filename image của Marker trong markdown bằng served URL."""
         if not marker_images or not images:
             return markdown
 
-        # Build mapping: original filename → served URL
-        # Marker images dict and our images list are in the same order
+        # Tạo mapping: original filename -> served URL
+        # dict images từ Marker và danh sách images của ta cùng thứ tự
         filenames = list(marker_images.keys())
         for i, img in enumerate(images):
             if i < len(filenames):
                 original_name = filenames[i]
                 served_url = f"/static/doc-images/kb_{self.workspace_id}/images/{img.image_id}.png"
-                # Replace in markdown: ![alt](original_name) → ![alt](served_url)
+                # Thay trong markdown: ![alt](original_name) -> ![alt](served_url)
                 markdown = markdown.replace(f"]({original_name})", f"]({served_url})")
 
         return markdown
 
     # ------------------------------------------------------------------
-    # Table extraction from markdown
+    # Trích xuất table từ markdown
     # ------------------------------------------------------------------
 
     @staticmethod
     def _extract_tables_from_markdown(
         markdown: str, document_id: int
     ) -> list[ExtractedTable]:
-        """Extract table blocks from markdown output."""
+        """Trích xuất các block table từ markdown output."""
         tables: list[ExtractedTable] = []
         lines = markdown.split("\n")
         current_page = 1
@@ -300,13 +300,13 @@ class MarkerDocumentParser(BaseDocumentParser):
         while i < len(lines):
             line = lines[i]
 
-            # Track page numbers from page separators
+            # Theo dõi số trang từ page separator
             if line.strip() == _PAGE_SEPARATOR:
                 current_page += 1
                 i += 1
                 continue
 
-            # Detect table start
+            # Phát hiện điểm bắt đầu table
             if line.strip().startswith("|"):
                 table_lines = [line]
                 while i + 1 < len(lines) and lines[i + 1].strip().startswith("|"):
@@ -315,12 +315,12 @@ class MarkerDocumentParser(BaseDocumentParser):
 
                 content_md = "\n".join(table_lines)
 
-                # Count rows/cols
+                # Đếm số hàng/cột
                 data_rows = [
                     l for l in table_lines
                     if l.strip().startswith("|") and "---" not in l
                 ]
-                num_rows = max(0, len(data_rows) - 1)  # exclude header
+                num_rows = max(0, len(data_rows) - 1)  # loại trừ hàng header
                 num_cols = 0
                 if data_rows:
                     num_cols = len([
@@ -344,20 +344,20 @@ class MarkerDocumentParser(BaseDocumentParser):
         return tables
 
     # ------------------------------------------------------------------
-    # Page counting
+    # Đếm trang
     # ------------------------------------------------------------------
 
     @staticmethod
     def _count_pages(markdown: str) -> int:
-        """Count pages from paginated markdown output."""
+        """Đếm số trang từ paginated markdown output."""
         if not markdown:
             return 0
-        # Marker uses 48 hyphens as page separator
+        # Marker dùng 48 dấu gạch ngang làm page separator
         separators = markdown.count(_PAGE_SEPARATOR)
         return separators + 1  # pages = separators + 1
 
     # ------------------------------------------------------------------
-    # Chunking
+    # Chia chunk
     # ------------------------------------------------------------------
 
     def _chunk_markdown(
@@ -370,8 +370,8 @@ class MarkerDocumentParser(BaseDocumentParser):
     ) -> list[EnrichedChunk]:
         """Chunk Marker markdown output into EnrichedChunks.
 
-        Strategy: split by page separators first, then by headings within
-        each page, respecting max_tokens. Each chunk retains page_no and
+        Chiến lược: tách theo page separator trước, rồi tách theo heading trong
+        từng trang, tôn trọng giới hạn max_tokens. Mỗi chunk giữ page_no và
         heading context.
         """
         pages = markdown.split(_PAGE_SEPARATOR)
@@ -384,17 +384,17 @@ class MarkerDocumentParser(BaseDocumentParser):
             if not page_text:
                 continue
 
-            # Remove Marker page number markers like "{0}", "{1}", etc.
+            # Bỏ marker số trang của Marker như "{0}", "{1}", ...
             page_text = re.sub(r"^\{(\d+)\}\s*", "", page_text)
 
-            # Split page into sections by headings
+            # Tách trang thành section theo heading
             sections = self._split_by_headings(page_text)
 
             for heading_path, section_text in sections:
                 if not section_text.strip():
                     continue
 
-                # Split long sections into sub-chunks
+                # Tách section dài thành sub-chunk
                 sub_chunks = self._split_text_by_tokens(
                     section_text,
                     max_tokens=settings.NEXUSRAG_CHUNK_MAX_TOKENS,
@@ -424,16 +424,16 @@ class MarkerDocumentParser(BaseDocumentParser):
                     ))
                     chunk_index += 1
 
-        # Enrich chunks with image/table refs (shared logic from base)
+        # Enrich chunk bằng image/table refs (logic dùng chung từ base)
         chunks = self._enrich_chunks_with_refs(chunks, images, tables)
 
         return chunks
 
     @staticmethod
     def _split_by_headings(text: str) -> list[tuple[list[str], str]]:
-        """Split text into sections by markdown headings.
+        """Tách text thành các section theo markdown heading.
 
-        Returns list of (heading_path, section_text) tuples.
+        Trả về danh sách tuple (heading_path, section_text).
         """
         heading_pattern = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)
         matches = list(heading_pattern.finditer(text))
@@ -442,26 +442,26 @@ class MarkerDocumentParser(BaseDocumentParser):
             return [([], text)]
 
         sections: list[tuple[list[str], str]] = []
-        # Track current heading hierarchy
+        # Theo dõi thứ bậc heading hiện tại
         heading_stack: list[tuple[int, str]] = []
 
-        # Text before first heading
+        # Phần text trước heading đầu tiên
         if matches[0].start() > 0:
             pre_text = text[:matches[0].start()].strip()
             if pre_text:
                 sections.append(([], pre_text))
 
         for i, match in enumerate(matches):
-            level = len(match.group(1))  # number of #
+            level = len(match.group(1))  # số lượng #
             title = match.group(2).strip()
 
-            # Update heading stack
+            # Cập nhật heading stack
             while heading_stack and heading_stack[-1][0] >= level:
                 heading_stack.pop()
             heading_stack.append((level, title))
             heading_path = [h[1] for h in heading_stack]
 
-            # Get section text (from after this heading to next heading)
+            # Lấy text section (từ sau heading này tới heading kế tiếp)
             start = match.end()
             end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
             section_text = text[start:end].strip()
@@ -473,16 +473,16 @@ class MarkerDocumentParser(BaseDocumentParser):
 
     @staticmethod
     def _split_text_by_tokens(text: str, max_tokens: int = 512) -> list[str]:
-        """Split text into chunks respecting approximate token limit.
+        """Tách text thành chunk theo giới hạn token xấp xỉ.
 
-        Uses a simple word-based approximation (1 token ≈ 0.75 words).
+        Dùng xấp xỉ đơn giản theo word (1 token ~= 0.75 words).
         """
-        # Approximate: 1 token ≈ 4 chars for English, 2 chars for CJK
+        # Xấp xỉ: 1 token ~= 4 chars cho English, 2 chars cho CJK
         max_chars = max_tokens * 4
         if len(text) <= max_chars:
             return [text]
 
-        # Split by paragraphs first
+        # Tách theo đoạn văn trước
         paragraphs = re.split(r"\n\s*\n", text)
         chunks: list[str] = []
         current = ""
@@ -491,9 +491,9 @@ class MarkerDocumentParser(BaseDocumentParser):
             if len(current) + len(para) + 2 > max_chars:
                 if current:
                     chunks.append(current.strip())
-                # Handle paragraphs longer than max_chars
+                # Xử lý đoạn văn dài hơn max_chars
                 if len(para) > max_chars:
-                    # Split by sentences
+                    # Tách theo câu
                     sentences = re.split(r"(?<=[.!?])\s+", para)
                     current = ""
                     for sent in sentences:
@@ -514,7 +514,7 @@ class MarkerDocumentParser(BaseDocumentParser):
         return chunks if chunks else [text]
 
     # ------------------------------------------------------------------
-    # Legacy fallback (TXT/MD) — same as Docling
+    # Fallback kiểu legacy (TXT/MD) - giống Docling
     # ------------------------------------------------------------------
 
     def _parse_legacy(
@@ -523,7 +523,7 @@ class MarkerDocumentParser(BaseDocumentParser):
         document_id: int,
         original_filename: str,
     ) -> ParsedDocument:
-        """Fallback: parse TXT/MD with legacy loader."""
+        """Fallback: parse TXT/MD bằng bộ legacy loader."""
         from app.services.document_loader import load_document
         from app.services.chunker import DocumentChunker
 

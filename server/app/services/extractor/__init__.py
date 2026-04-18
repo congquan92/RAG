@@ -1,4 +1,4 @@
-"""Specialized extractors for offline KG workflows."""
+"""Các extractor chuyên dụng cho workflow KG chạy offline."""
 
 from app.services.extractor.specialized_kg_extractor import (
     SpecializedKGExtractor,

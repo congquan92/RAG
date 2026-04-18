@@ -1,11 +1,11 @@
 """
-Knowledge Graph Service
-========================
+Service Knowledge Graph
+=======================
 
-Per-workspace Knowledge Graph using LightRAG with configurable LLM + embeddings.
-File-based storage (NetworkX graph + NanoVectorDB) — no extra Docker services.
+Knowledge Graph theo từng workspace dùng LightRAG với LLM + embeddings có thể cấu hình.
+Lưu trữ dạng file (NetworkX graph + NanoVectorDB), không cần thêm Docker service.
 
-Usage:
+Cách dùng:
     kg = KnowledgeGraphService(workspace_id=1)
     await kg.ingest("markdown text from document...")
     result = await kg.query("What are the key themes?", mode="hybrid")
@@ -118,7 +118,7 @@ def _extract_entity_types_from_prompt(prompt: str) -> list[str] | None:
 
 
 # ---------------------------------------------------------------------------
-# Provider-based adapters for LightRAG
+# Adapter theo provider cho LightRAG
 # ---------------------------------------------------------------------------
 
 async def _kg_llm_complete(
@@ -128,14 +128,14 @@ async def _kg_llm_complete(
     keyword_extraction: bool = False,
     **kwargs,
 ) -> str:
-    """LightRAG-compatible LLM function using the configured provider."""
+    """Hàm LLM tương thích LightRAG dùng provider đã cấu hình."""
     if (
         settings.KG_EXTRACTION_METHOD == "specialized"
         and _is_kg_extraction_prompt(prompt=prompt, system_prompt=system_prompt)
     ):
         prompt_lower = (prompt or "").lower()
 
-        # Gleaning stage does not include <Input Text>; no-op to avoid duplicate outputs.
+        # Giai đoạn gleaning không có <Input Text>; no-op để tránh output trùng lặp.
         if "based on the last extraction task" in prompt_lower:
             return _KG_COMPLETION_DELIMITER
 
@@ -146,7 +146,7 @@ async def _kg_llm_complete(
         if not input_text:
             logger.warning(
                 "Specialized KG extraction was requested but no <Input Text> block was found. "
-                "Returning completion delimiter for compatibility."
+                "Trả về completion delimiter để tương thích."
             )
             return _KG_COMPLETION_DELIMITER
 
@@ -189,21 +189,21 @@ async def _kg_llm_complete(
 
 
 async def _kg_embed(texts: list[str]) -> np.ndarray:
-    """LightRAG-compatible embedding function using the configured provider."""
+    """Hàm embedding tương thích LightRAG dùng provider đã cấu hình."""
     provider = get_embedding_provider()
     return await provider.embed(texts)
 
 
 # ---------------------------------------------------------------------------
-# Main service
+# Service chính
 # ---------------------------------------------------------------------------
 
 class KnowledgeGraphService:
     """
-    Per-workspace Knowledge Graph service backed by LightRAG.
+    Service Knowledge Graph theo từng workspace chạy trên LightRAG.
 
-    Storage: file-based (NetworkX for graph, NanoVectorDB for vectors).
-    Each knowledge base gets its own working directory.
+    Storage: file-based (NetworkX cho graph, NanoVectorDB cho vectors).
+    Mỗi knowledge base có working directory riêng.
     """
 
     def __init__(
@@ -216,14 +216,14 @@ class KnowledgeGraphService:
         self.working_dir = str(
             settings.BASE_DIR / "data" / "lightrag" / f"kb_{workspace_id}"
         )
-        # Per-workspace overrides (fallback to global settings)
+        # Override theo workspace (fallback về global settings)
         self.kg_language = kg_language or settings.NEXUSRAG_KG_LANGUAGE
         self.kg_entity_types = kg_entity_types or settings.NEXUSRAG_KG_ENTITY_TYPES
         self._rag = None
         self._initialized = False
 
     async def _get_rag(self):
-        """Lazy-initialize LightRAG instance."""
+        """Khởi tạo LightRAG instance theo kiểu lazy."""
         if self._rag is not None and self._initialized:
             return self._rag
 
@@ -233,11 +233,11 @@ class KnowledgeGraphService:
 
         os.makedirs(self.working_dir, exist_ok=True)
 
-        # Dynamic embedding dimension from the configured provider
+        # Embedding dimension động từ provider đã cấu hình
         emb_provider = get_embedding_provider()
         embedding_dim = emb_provider.get_dimension()
 
-        # Detect dimension mismatch when switching providers
+        # Phát hiện dimension mismatch khi chuyển provider
         dim_marker = Path(self.working_dir) / ".embedding_dim"
         if dim_marker.exists():
             prev_dim = int(dim_marker.read_text().strip())
@@ -283,8 +283,8 @@ class KnowledgeGraphService:
 
     async def ingest(self, markdown_content: str) -> None:
         """
-        Ingest markdown content into the knowledge graph.
-        LightRAG extracts entities and relationships automatically.
+        Nạp nội dung markdown vào knowledge graph.
+        LightRAG tự động trích xuất entities và relationships.
         """
         rag = await self._get_rag()
 
@@ -298,7 +298,7 @@ class KnowledgeGraphService:
                 f"KG ingested {len(markdown_content)} chars for workspace {self.workspace_id}"
             )
 
-            # Check if entities were actually extracted
+            # Kiểm tra xem entities có thực sự được trích xuất hay không
             try:
                 all_nodes = await rag.chunk_entity_relation_graph.get_all_nodes()
                 if not all_nodes:
@@ -327,15 +327,15 @@ class KnowledgeGraphService:
         top_k: int = 10,
     ) -> str:
         """
-        Query the knowledge graph.
+        Truy vấn knowledge graph.
 
         Args:
-            question: Natural language question
-            mode: Query mode — "naive", "local", "global", "hybrid"
-            top_k: Number of results
+            question: Câu hỏi ngôn ngữ tự nhiên
+            mode: Query mode - "naive", "local", "global", "hybrid"
+            top_k: Số lượng kết quả
 
         Returns:
-            LightRAG response text with KG-augmented answer
+            Văn bản phản hồi từ LightRAG với câu trả lời được tăng cường bởi KG
         """
         from lightrag import QueryParam
 
@@ -361,7 +361,7 @@ class KnowledgeGraphService:
             return ""
 
     async def cleanup(self) -> None:
-        """Finalize storages on shutdown."""
+        """Finalize storages khi shutdown."""
         if self._rag:
             try:
                 await self._rag.finalize_storages()
@@ -372,7 +372,7 @@ class KnowledgeGraphService:
             self._initialized = False
 
     def delete_project_data(self) -> None:
-        """Delete all KG data for this knowledge base."""
+        """Xóa toàn bộ dữ liệu KG của knowledge base này."""
         path = Path(self.working_dir)
         if path.exists():
             shutil.rmtree(path)
@@ -381,7 +381,7 @@ class KnowledgeGraphService:
         self._initialized = False
 
     # ------------------------------------------------------------------
-    # Knowledge Graph exploration (Phase 9)
+    # Khám phá Knowledge Graph (Giai đoạn 9)
     # ------------------------------------------------------------------
 
     async def get_entities(
@@ -392,9 +392,9 @@ class KnowledgeGraphService:
         offset: int = 0,
     ) -> list[dict]:
         """
-        List all entities in the knowledge graph.
+        Liệt kê toàn bộ entities trong knowledge graph.
 
-        Returns list of dicts with: name, entity_type, description, degree.
+        Trả về danh sách dict gồm: name, entity_type, description, degree.
         """
         rag = await self._get_rag()
         storage = rag.chunk_entity_relation_graph
@@ -411,13 +411,13 @@ class KnowledgeGraphService:
             etype = node.get("entity_type", "Unknown")
             desc = node.get("description", "")
 
-            # Filters
+            # Bộ lọc
             if entity_type and etype.lower() != entity_type.lower():
                 continue
             if search and search.lower() not in node_id.lower():
                 continue
 
-            # Get degree (number of relationships)
+            # Lấy degree (số lượng relationships)
             try:
                 degree = await storage.node_degree(node_id)
             except Exception:
@@ -430,7 +430,7 @@ class KnowledgeGraphService:
                 "degree": degree,
             })
 
-        # Sort by degree descending
+        # Sắp xếp degree giảm dần
         entities.sort(key=lambda e: e["degree"], reverse=True)
 
         return entities[offset:offset + limit]
@@ -441,10 +441,10 @@ class KnowledgeGraphService:
         limit: int = 500,
     ) -> list[dict]:
         """
-        List relationships in the knowledge graph.
+        Liệt kê relationships trong knowledge graph.
 
-        If entity_name is provided, returns only relationships involving that entity.
-        Returns list of dicts with: source, target, description, keywords, weight.
+        Nếu có entity_name, chỉ trả về relationships liên quan entity đó.
+        Trả về danh sách dict gồm: source, target, description, keywords, weight.
         """
         rag = await self._get_rag()
         storage = rag.chunk_entity_relation_graph
@@ -481,9 +481,9 @@ class KnowledgeGraphService:
         max_nodes: int = 150,
     ) -> dict:
         """
-        Export graph data for frontend visualization.
+        Export dữ liệu graph cho frontend visualization.
 
-        Returns {nodes: [...], edges: [...], is_truncated: bool}.
+        Trả về {nodes: [...], edges: [...], is_truncated: bool}.
         """
         rag = await self._get_rag()
         storage = rag.chunk_entity_relation_graph
@@ -536,17 +536,17 @@ class KnowledgeGraphService:
         max_relationships: int = 30,
     ) -> str:
         """
-        Build RAG context from raw KG data (no LLM generation).
+                Dựng context RAG từ dữ liệu KG thô (không generate bằng LLM).
 
-        Instead of calling LightRAG's aquery() which uses LLM to generate
-        a narrative (and can hallucinate), this method:
-          1. Tokenizes the question into keywords
-          2. Finds entities whose names match any keyword
-          3. Gets relationships connecting those entities
-          4. Formats everything as structured factual text
+                Thay vì gọi aquery() của LightRAG (dùng LLM để tạo narrative,
+                có thể hallucinate), phương thức này sẽ:
+                    1. Tách question thành keywords
+                    2. Tìm entities có tên khớp keywords
+                    3. Lấy relationships nối các entities đó
+                    4. Định dạng lại thành văn bản facts có cấu trúc
 
         Returns:
-            Structured string of entities + relationships, or "" if nothing found.
+                        Chuỗi có cấu trúc gồm entities + relationships, hoặc "" nếu không có.
         """
         rag = await self._get_rag()
         storage = rag.chunk_entity_relation_graph
@@ -561,13 +561,13 @@ class KnowledgeGraphService:
         if not all_nodes:
             return ""
 
-        # -- 1. Extract keywords from question --
-        # Simple but effective: split, lowercase, filter short words
+        # -- 1. Trích xuất keywords từ question --
+        # Đơn giản nhưng hiệu quả: tách từ, lowercase, lọc từ quá ngắn
         raw_tokens = question.lower().split()
-        # Also handle hyphenated/versioned tokens like "deepseek-v3.2"
+        # Đồng thời xử lý token có dấu gạch ngang/phiên bản như "deepseek-v3.2"
         keywords = set()
         for token in raw_tokens:
-            # Remove punctuation at edges
+            # Loại dấu câu ở rìa token
             cleaned = token.strip(".,?!:;\"'()[]{}").lower()
             if len(cleaned) >= 2:
                 keywords.add(cleaned)
@@ -575,21 +575,21 @@ class KnowledgeGraphService:
         if not keywords:
             return ""
 
-        # -- 2. Find matching entities --
+        # -- 2. Tìm entities khớp --
         matched_entity_names: set[str] = set()
-        entity_info: dict[str, dict] = {}  # name → {type, description}
+        entity_info: dict[str, dict] = {}  # name -> {type, description}
 
         for node in all_nodes:
             node_id = node.get("id", "")
             node_lower = node_id.lower()
 
-            # Check if any keyword is a substring of entity name OR vice versa
+            # Kiểm tra keyword là chuỗi con của entity name HOẶC ngược lại
             matched = False
             for kw in keywords:
                 if kw in node_lower or node_lower in kw:
                     matched = True
                     break
-                # Also check multi-word keywords (e.g., "deepseek" matches "DEEPSEEK-V3.2")
+                # Kiểm tra thêm keyword nhiều phần (vd: "deepseek" khớp "DEEPSEEK-V3.2")
                 for part in node_lower.split("-"):
                     if kw in part or part in kw:
                         matched = True
@@ -605,7 +605,7 @@ class KnowledgeGraphService:
                 }
 
         if not matched_entity_names and len(all_nodes) <= 50:
-            # Small graph: include top entities by default
+            # Graph nhỏ: mặc định lấy thêm top entities
             for node in all_nodes[:10]:
                 nid = node.get("id", "")
                 matched_entity_names.add(nid)
@@ -617,10 +617,10 @@ class KnowledgeGraphService:
         if not matched_entity_names:
             return ""
 
-        # Limit entities
+        # Giới hạn số entities
         matched_list = list(matched_entity_names)[:max_entities]
 
-        # -- 3. Find relationships involving matched entities --
+        # -- 3. Tìm relationships liên quan các entities đã khớp --
         relevant_rels: list[dict] = []
         matched_lower = {n.lower() for n in matched_list}
 
@@ -634,9 +634,9 @@ class KnowledgeGraphService:
                     "description": edge.get("description", ""),
                     "keywords": edge.get("keywords", ""),
                 })
-                # Also add connected entities we might have missed
+                # Bổ sung entities liên thông có thể đã bị bỏ sót
                 if src not in entity_info:
-                    # Find node info
+                    # Tìm thông tin node
                     for n in all_nodes:
                         if n.get("id", "") == src:
                             entity_info[src] = {
@@ -656,17 +656,17 @@ class KnowledgeGraphService:
             if len(relevant_rels) >= max_relationships:
                 break
 
-        # -- 4. Format as structured text --
+        # -- 4. Định dạng thành text có cấu trúc --
         parts: list[str] = []
 
-        # Entities section
+        # Phần entities
         if matched_list:
             parts.append("Entities found in documents:")
             for name in matched_list:
                 info = entity_info.get(name, {})
                 etype = info.get("entity_type", "")
                 desc = info.get("description", "")
-                # Truncate long descriptions
+                # Cắt ngắn description quá dài
                 if len(desc) > 200:
                     desc = desc[:200] + "..."
                 type_str = f" [{etype}]" if etype and etype != "Unknown" else ""
@@ -675,7 +675,7 @@ class KnowledgeGraphService:
                 else:
                     parts.append(f"- {name}{type_str}")
 
-        # Relationships section
+        # Phần relationships
         if relevant_rels:
             parts.append("")
             parts.append("Relationships:")
@@ -697,9 +697,9 @@ class KnowledgeGraphService:
 
     async def get_analytics(self) -> dict:
         """
-        Compute KG analytics summary.
+        Tính toán tóm tắt analytics của KG.
 
-        Returns: entity_count, relationship_count, entity_types, top_entities, avg_degree.
+        Trả về: entity_count, relationship_count, entity_types, top_entities, avg_degree.
         """
         rag = await self._get_rag()
         storage = rag.chunk_entity_relation_graph
@@ -720,7 +720,7 @@ class KnowledgeGraphService:
         entity_count = len(all_nodes)
         relationship_count = len(all_edges)
 
-        # Count entity types
+        # Đếm số lượng theo entity type
         type_counts: dict[str, int] = {}
         entities_with_degree = []
         for node in all_nodes:
@@ -737,7 +737,7 @@ class KnowledgeGraphService:
                 "degree": degree,
             })
 
-        # Sort by degree for top entities
+        # Sắp xếp theo degree để lấy top entities
         entities_with_degree.sort(key=lambda e: e["degree"], reverse=True)
         top_entities = entities_with_degree[:10]
 

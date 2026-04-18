@@ -1,14 +1,14 @@
 """
-LLM Provider Package
-=====================
-Factory functions to create LLM and embedding providers based on config.
+Goi LLM Provider
+================
+Factory function để tạo LLM provider và embedding provider dựa trên config.
 
-Usage::
+Cách dùng::
 
     from app.services.llm import get_llm_provider, get_embedding_provider
 
-    llm = get_llm_provider()          # uses LLM_PROVIDER from .env
-    emb = get_embedding_provider()    # uses KG_EMBEDDING_PROVIDER from .env
+    llm = get_llm_provider()          # dùng LLM_PROVIDER từ .env
+    emb = get_embedding_provider()    # dùng KG_EMBEDDING_PROVIDER từ .env
 """
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from app.services.llm.base import EmbeddingProvider, LLMProvider
 
 @lru_cache
 def get_llm_provider() -> LLMProvider:
-    """Create (and cache) the LLM provider configured via ``LLM_PROVIDER``."""
+    """Tạo (và cache) LLM provider được cấu hình qua ``LLM_PROVIDER``."""
     from app.core.config import settings
 
     provider = settings.LLM_PROVIDER.lower()
@@ -48,7 +48,7 @@ def get_llm_provider() -> LLMProvider:
 
 @lru_cache
 def get_embedding_provider() -> EmbeddingProvider:
-    """Create (and cache) the embedding provider for KG (LightRAG)."""
+    """Tạo (và cache) embedding provider cho KG (LightRAG)."""
     from app.core.config import settings
 
     provider = settings.KG_EMBEDDING_PROVIDER.lower()

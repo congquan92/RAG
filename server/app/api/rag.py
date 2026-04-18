@@ -1,5 +1,5 @@
 """
-RAG API endpoints for document querying and retrieval.
+Các RAG API endpoint cho truy vấn và retrieval tài liệu.
 """
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -46,16 +46,16 @@ import string, random
 from app.services.rag_service import get_rag_service
 
 # ---------------------------------------------------------------------------
-# Citation ID generation — 4-char alphanumeric IDs matching PageIndex format
+# Sinh Citation ID — ID 4 ký tự chữ+số khớp format của PageIndex
 # ---------------------------------------------------------------------------
 _CITATION_ID_CHARS = string.ascii_lowercase + string.digits
 
 
 def _generate_citation_id(existing: set[str]) -> str:
-    """Generate a unique 4-char alphanumeric citation ID.
+    """Sinh citation ID 4 ký tự chữ+số duy nhất.
 
-    Always contains at least one letter so it cannot be confused with
-    old-style numeric indices (e.g. "1", "23").
+    Luôn chứa ít nhất một chữ cái để không nhầm với
+    chỉ mục số kiểu cũ (ví dụ: "1", "23").
     """
     while True:
         cid = "".join(random.choices(_CITATION_ID_CHARS, k=4))
@@ -66,7 +66,7 @@ router = APIRouter(prefix="/rag", tags=["rag"])
 
 UPLOAD_DIR = "uploads"
 
-# Prompt constants — see chat_prompt.py for full documentation
+# Hằng số prompt — xem tài liệu đầy đủ trong chat_prompt.py
 from app.api.chat_prompt import DEFAULT_SYSTEM_PROMPT, HARD_SYSTEM_PROMPT
 
 
@@ -74,7 +74,7 @@ async def verify_workspace_access(
     workspace_id: int,
     db: AsyncSession,
 ) -> KnowledgeBase:
-    """Verify knowledge base exists."""
+    """Xác minh knowledge base có tồn tại."""
     result = await db.execute(select(KnowledgeBase).where(KnowledgeBase.id == workspace_id))
     kb = result.scalar_one_or_none()
 
@@ -90,12 +90,12 @@ async def query_documents(
     request: RAGQueryRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """Query indexed documents using semantic search (+ optional KG)."""
+    """Truy vấn document đã indexed bằng semantic search (+ KG tùy chọn)."""
     await verify_workspace_access(workspace_id, db)
 
     rag_service = get_rag_service(db, workspace_id)
 
-    # Try deep query if available
+    # Thử deep query nếu khả dụng
     from app.services.nexus_rag_service import NexusRAGService
     if isinstance(rag_service, NexusRAGService) and request.mode != "vector_only":
         result = await rag_service.query_deep(
@@ -164,7 +164,7 @@ async def query_documents(
             image_refs=image_refs,
         )
 
-    # Fallback: legacy sync query
+    # Fallback: truy vấn sync kiểu legacy
     result = rag_service.query(
         question=request.question,
         top_k=request.top_k,
@@ -192,7 +192,7 @@ async def process_document(
     document_id: int,
     db: AsyncSession = Depends(get_db),
 ):
-    """Trigger document processing (parsing + indexing) as a background task."""
+    """Trigger xử lý document (parsing + indexing) dưới dạng background task."""
     result = await db.execute(select(Document).where(Document.id == document_id))
     document = result.scalar_one_or_none()
 
@@ -200,13 +200,13 @@ async def process_document(
         raise NotFoundError("Document", document_id)
 
     if document.status in (DocumentStatus.PROCESSING, DocumentStatus.PARSING, DocumentStatus.INDEXING):
-        # Check if stale (exceeded processing timeout) — auto-recover
+        # Kiểm tra stale (quá processing timeout) — tự khôi phục
         from datetime import datetime, timedelta
         from app.core.config import settings
         timeout = settings.NEXUSRAG_PROCESSING_TIMEOUT_MINUTES
         cutoff = datetime.utcnow() - timedelta(minutes=timeout)
         if document.updated_at < cutoff:
-            # Stale — reset to allow re-processing
+            # Stale — reset để cho phép xử lý lại
             document.status = DocumentStatus.FAILED
             document.error_message = f"Processing timeout ({timeout}min). Retrying..."
             await db.commit()
@@ -233,12 +233,12 @@ async def process_document(
             detail="Document file not found on disk"
         )
 
-    # Mark as processing immediately so UI updates
+    # Đánh dấu processing ngay để UI cập nhật
     document.status = DocumentStatus.PROCESSING
     document.error_message = None
     await db.commit()
 
-    # Launch background task
+    # Khởi chạy background task
     from app.api.documents import process_document_background
     import asyncio
     asyncio.get_event_loop().create_task(
@@ -259,9 +259,9 @@ async def process_batch(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Process multiple documents sequentially in the background.
-    Marks all as PROCESSING immediately, then processes one-by-one to avoid
-    resource contention (each doc uses Docling + embeddings + KG ingest).
+    Xử lý nhiều document tuần tự trong background.
+    Đánh dấu tất cả là PROCESSING ngay, sau đó xử lý từng cái một để tránh
+    tranh chấp tài nguyên (mỗi document dùng Docling + embeddings + KG ingest).
     """
     from pathlib import Path as _P
 
@@ -275,7 +275,7 @@ async def process_batch(
             skipped_ids.append(doc_id)
             continue
 
-        # Skip documents already being processed or already indexed
+        # Bỏ qua document đang xử lý hoặc đã indexed
         if doc.status in (
             DocumentStatus.PROCESSING, DocumentStatus.PARSING, DocumentStatus.INDEXING,
         ):
@@ -287,7 +287,7 @@ async def process_batch(
             skipped_ids.append(doc_id)
             continue
 
-        # Mark as processing immediately so UI updates
+        # Đánh dấu processing ngay để UI cập nhật
         doc.status = DocumentStatus.PROCESSING
         doc.error_message = None
         accepted_ids.append((doc_id, str(file_path), doc.workspace_id))
@@ -310,7 +310,7 @@ async def process_batch(
 async def _process_batch_background(
     items: list[tuple[int, str, int]],
 ):
-    """Process documents sequentially to avoid resource contention."""
+    """Xử lý document tuần tự để tránh tranh chấp tài nguyên."""
     from app.api.documents import process_document_background
 
     for doc_id, file_path, workspace_id in items:
@@ -326,7 +326,7 @@ async def reindex_document(
     document_id: int,
     db: AsyncSession = Depends(get_db),
 ):
-    """Re-process an existing document through the NexusRAG pipeline."""
+    """Xử lý lại document hiện có qua pipeline NexusRAG."""
     result = await db.execute(select(Document).where(Document.id == document_id))
     document = result.scalar_one_or_none()
 
@@ -350,13 +350,13 @@ async def reindex_document(
 
     rag_service = get_rag_service(db, document.workspace_id)
 
-    # Delete existing data first
+    # Xóa dữ liệu hiện có trước
     try:
         await rag_service.delete_document(document_id)
     except Exception as e:
         logging.getLogger(__name__).warning(f"Failed to delete old data for reindex: {e}")
 
-    # Reset document metadata
+    # Reset metadata của document
     document.status = DocumentStatus.PENDING
     document.chunk_count = 0
     document.markdown_content = None
@@ -391,14 +391,14 @@ async def reindex_workspace(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Reindex ALL documents in a workspace.
-    Deletes the old vector collection (handles embedding dimension changes)
-    and re-processes every document through the NexusRAG pipeline.
-    Runs in background — returns immediately with document count.
+    Reindex TOÀN BỘ document trong workspace.
+    Xóa vector collection cũ (xử lý thay đổi embedding dimension)
+    và xử lý lại từng document qua pipeline NexusRAG.
+    Chạy background — trả về ngay với số lượng document.
     """
     await verify_workspace_access(workspace_id, db)
 
-    # Find all documents in this workspace
+    # Tìm tất cả document trong workspace này
     result = await db.execute(
         select(Document).where(
             Document.workspace_id == workspace_id,
@@ -414,7 +414,7 @@ async def reindex_workspace(
     if not documents:
         return {"message": "No documents to reindex", "document_count": 0}
 
-    # Delete old vector collection (required when embedding dimensions change)
+    # Xóa vector collection cũ (bắt buộc khi embedding dimension thay đổi)
     try:
         from app.services.vector_store import get_vector_store
         vs = get_vector_store(workspace_id)
@@ -424,7 +424,7 @@ async def reindex_workspace(
         logger.warning(f"Failed to delete old collection: {e}")
 
     async def _reindex_all(doc_ids: list[int], ws_id: int):
-        """Background task: reindex each document sequentially."""
+        """Background task: reindex từng document theo thứ tự."""
         from app.core.database import AsyncSessionLocal
         async with AsyncSessionLocal() as session:
             rag_service = get_rag_service(session, ws_id)
@@ -443,7 +443,7 @@ async def reindex_workspace(
                         logger.warning(f"Skipping doc {did}: file not found")
                         continue
 
-                    # Delete old chunk data for this document
+                    # Xóa chunk data cũ của document này
                     try:
                         await rag_service.delete_document(did)
                     except Exception:
@@ -456,7 +456,7 @@ async def reindex_workspace(
                     doc.error_message = None
                     await session.commit()
 
-                    # Re-process
+                    # Xử lý lại
                     await rag_service.process_document(
                         document_id=did, file_path=str(file_path)
                     )
@@ -479,7 +479,7 @@ async def get_workspace_rag_stats(
     workspace_id: int,
     db: AsyncSession = Depends(get_db),
 ):
-    """Get RAG statistics for a knowledge base."""
+    """Lấy thống kê RAG cho một knowledge base."""
     await verify_workspace_access(workspace_id, db)
 
     total_result = await db.execute(
@@ -495,7 +495,7 @@ async def get_workspace_rag_stats(
     )
     indexed_documents = indexed_result.scalar() or 0
 
-    # Count NexusRAG documents (parser_version = 'docling')
+    # Đếm document NexusRAG (parser_version = 'docling')
     nexusrag_result = await db.execute(
         select(func.count(Document.id)).where(
             Document.workspace_id == workspace_id,
@@ -504,7 +504,7 @@ async def get_workspace_rag_stats(
     )
     nexusrag_documents = nexusrag_result.scalar() or 0
 
-    # Count total images
+    # Đếm tổng số ảnh
     image_result = await db.execute(
         select(func.count(DocumentImage.id))
         .join(Document, DocumentImage.document_id == Document.id)
@@ -533,7 +533,7 @@ async def get_document_chunks(
     document_id: int,
     db: AsyncSession = Depends(get_db),
 ):
-    """Get all chunks for a specific document."""
+    """Lấy toàn bộ chunk cho một document cụ thể."""
     result = await db.execute(select(Document).where(Document.id == document_id))
     document = result.scalar_one_or_none()
 
@@ -577,11 +577,11 @@ async def get_document_chunks(
 
 
 # ---------------------------------------------------------------------------
-# Knowledge Graph exploration endpoints (Phase 9)
+# Các endpoint khám phá Knowledge Graph (Giai đoạn 9)
 # ---------------------------------------------------------------------------
 
 async def _get_kg_service(workspace_id: int):
-    """Get KnowledgeGraphService for a knowledge base (if NexusRAG is active)."""
+    """Lấy KnowledgeGraphService cho knowledge base (nếu NexusRAG đang active)."""
     from app.services.knowledge_graph_service import KnowledgeGraphService
     return KnowledgeGraphService(workspace_id)
 
@@ -595,7 +595,7 @@ async def get_kg_entities(
     offset: int = 0,
     db: AsyncSession = Depends(get_db),
 ):
-    """List entities in the workspace's knowledge graph."""
+    """Liệt kê entities trong knowledge graph của workspace."""
     await verify_workspace_access(workspace_id, db)
     kg = await _get_kg_service(workspace_id)
     try:
@@ -615,7 +615,7 @@ async def get_kg_relationships(
     limit: int = 500,
     db: AsyncSession = Depends(get_db),
 ):
-    """List relationships in the workspace's knowledge graph."""
+    """Liệt kê relationships trong knowledge graph của workspace."""
     await verify_workspace_access(workspace_id, db)
     kg = await _get_kg_service(workspace_id)
     try:
@@ -634,7 +634,7 @@ async def get_kg_graph(
     max_nodes: int = 150,
     db: AsyncSession = Depends(get_db),
 ):
-    """Export knowledge graph data for frontend visualization."""
+    """Xuất dữ liệu knowledge graph để frontend visualization."""
     await verify_workspace_access(workspace_id, db)
     kg = await _get_kg_service(workspace_id)
     try:
@@ -656,10 +656,10 @@ async def get_workspace_analytics(
     workspace_id: int,
     db: AsyncSession = Depends(get_db),
 ):
-    """Get extended analytics for a knowledge base (stats + KG + per-doc breakdown)."""
+    """Lấy analytics mở rộng cho knowledge base (stats + KG + per-doc breakdown)."""
     await verify_workspace_access(workspace_id, db)
 
-    # Base stats
+    # Thống kê cơ bản
     total_result = await db.execute(
         select(func.count(Document.id)).where(Document.workspace_id == workspace_id)
     )
@@ -703,7 +703,7 @@ async def get_workspace_analytics(
         nexusrag_documents=nexusrag_documents,
     )
 
-    # KG analytics (optional — only if NexusRAG active)
+    # KG analytics (tùy chọn — chỉ khi NexusRAG active)
     kg_analytics = None
     if nexusrag_documents > 0:
         try:
@@ -719,7 +719,7 @@ async def get_workspace_analytics(
         except Exception as e:
             logger.warning(f"Failed to get KG analytics for workspace {workspace_id}: {e}")
 
-    # Per-document breakdown
+    # Breakdown theo từng document
     doc_result = await db.execute(
         select(Document)
         .where(Document.workspace_id == workspace_id)
@@ -747,7 +747,7 @@ async def get_workspace_analytics(
 
 
 # ---------------------------------------------------------------------------
-# Chat history persistence
+# Lưu trữ bền vững chat history
 # ---------------------------------------------------------------------------
 
 @router.get("/chat/{workspace_id}/history", response_model=ChatHistoryResponse)
@@ -755,7 +755,7 @@ async def get_chat_history(
     workspace_id: int,
     db: AsyncSession = Depends(get_db),
 ):
-    """Load persisted chat history for a workspace."""
+    """Tải chat history đã lưu cho workspace."""
     await verify_workspace_access(workspace_id, db)
 
     from app.models.chat_message import ChatMessage as ChatMessageModel
@@ -792,7 +792,7 @@ async def delete_chat_history(
     workspace_id: int,
     db: AsyncSession = Depends(get_db),
 ):
-    """Clear all chat history for a workspace."""
+    """Xóa toàn bộ chat history của workspace."""
     await verify_workspace_access(workspace_id, db)
 
     from app.models.chat_message import ChatMessage as ChatMessageModel
@@ -805,7 +805,7 @@ async def delete_chat_history(
 
 
 # ---------------------------------------------------------------------------
-# Source Rating endpoint
+# Endpoint đánh giá Source
 # ---------------------------------------------------------------------------
 
 @router.post("/chat/{workspace_id}/rate")
@@ -814,7 +814,7 @@ async def rate_source(
     body: RateSourceRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """Rate a source citation in a chat message."""
+    """Đánh giá một source citation trong chat message."""
     await verify_workspace_access(workspace_id, db)
 
     from app.models.chat_message import ChatMessage as ChatMessageModel
@@ -843,7 +843,7 @@ async def rate_source(
 
 
 # ---------------------------------------------------------------------------
-# Chat endpoint — LLM-powered document Q&A via NexusRAG
+# Chat endpoint — document Q&A dùng LLM qua NexusRAG
 # ---------------------------------------------------------------------------
 # SSE Streaming chat endpoint
 # ---------------------------------------------------------------------------
@@ -854,7 +854,7 @@ async def chat_stream(
     request: ChatRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """SSE streaming chat with semi-agentic retrieval."""
+    """SSE streaming chat với semi-agentic retrieval."""
     from app.api.chat_agent import chat_stream_endpoint
     return await chat_stream_endpoint(workspace_id, request, db)
 
@@ -867,12 +867,12 @@ async def chat_with_documents(
     request: ChatRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """Chat with documents using NexusRAG retrieval + LLM answer generation."""
+    """Chat với document bằng NexusRAG retrieval + LLM answer generation."""
     kb = await verify_workspace_access(workspace_id, db)
 
     rag_service = get_rag_service(db, workspace_id)
 
-    # -- 1. Retrieve relevant chunks via NexusRAG --
+    # -- 1. Retrieve các chunk liên quan qua NexusRAG --
     chunks = []
     citations = []
     kg_summary = ""
@@ -908,9 +908,9 @@ async def chat_with_documents(
                 image_refs=[],
             ))
 
-    # -- 2. Build sources list --
-    # Source labels use "Source [XXXX]" format (4-char alphanumeric IDs).
-    # Never put extra text inside brackets — LLMs copy that format.
+    # -- 2. Tạo danh sách sources --
+    # Nhãn source dùng format "Source [XXXX]" (ID 4 ký tự chữ+số).
+    # Không đặt thêm text trong ngoặc vuông — LLM thường copy nguyên format đó.
     used_ids: set[str] = set()
     sources = []
     context_parts = []
@@ -928,7 +928,7 @@ async def chat_with_documents(
             score=0.0,
             source_type="vector",
         ))
-        # Build metadata line (filename, page, heading) — OUTSIDE brackets
+        # Tạo dòng metadata (filename, page, heading) — Ở NGOÀI ngoặc vuông
         meta_parts = []
         if citation:
             meta_parts.append(citation.source_file)
@@ -941,17 +941,17 @@ async def chat_with_documents(
 
         context_parts.append(f"Source [{cid}]{meta_line}:\n{chunk.content}")
 
-    # NOTE: KG summary is NOT added as a citable source.
-    # LightRAG's query() can hallucinate data that doesn't exist in documents.
-    # If we make it a citable [N] source, the LLM faithfully cites fabricated data.
-    # Instead, KG summary is only used as background context (no source number).
+    # LƯU Ý: KG summary KHÔNG được thêm thành source có thể trích dẫn.
+    # query() của LightRAG có thể hallucinate dữ liệu không tồn tại trong document.
+    # Nếu biến nó thành source [N] có thể trích dẫn, LLM sẽ trích dẫn cả dữ liệu bịa.
+    # Vì vậy KG summary chỉ dùng làm background context (không có source number).
     context = "\n\n---\n\n".join(context_parts)
 
-    # -- 2b. Build image references (chunk metadata → fallback: page-based) --
+    # -- 2b. Tạo image references (chunk metadata → fallback: theo page) --
     from pathlib import Path as _P
     from app.core.config import settings
 
-    # Strategy 1: collect image_ids from chunk metadata (image-aware chunks)
+    # Chiến lược 1: gom image_ids từ chunk metadata (image-aware chunks)
     seen_image_ids: set[str] = set()
     chunk_image_ids: list[str] = []
     for c in chunks:
@@ -960,7 +960,7 @@ async def chat_with_documents(
                 seen_image_ids.add(iid)
                 chunk_image_ids.append(iid)
 
-    # Look up DocumentImage rows for these IDs
+    # Tra cứu bản ghi DocumentImage theo các ID này
     resolved_images: list[DocumentImage] = []
     if chunk_image_ids:
         img_result = await db.execute(
@@ -968,8 +968,8 @@ async def chat_with_documents(
         )
         resolved_images = list(img_result.scalars().all())
 
-    # Strategy 2 (fallback): if chunk metadata yielded no images, try
-    # page-based lookup from the retrieved chunks' page numbers.
+    # Chiến lược 2 (fallback): nếu chunk metadata không trả về ảnh,
+    # thử tra cứu theo page number của các chunk đã retrieve.
     if not resolved_images:
         source_pages = {
             (getattr(c, "document_id", 0), getattr(c, "page_no", 0))
@@ -989,7 +989,7 @@ async def chat_with_documents(
                 select(DocumentImage).where(or_(*page_filters))
             )
             resolved_images = list(img_result.scalars().all())
-            # Deduplicate
+            # Khử trùng lặp
             seen = set()
             deduped = []
             for img in resolved_images:
@@ -1000,9 +1000,9 @@ async def chat_with_documents(
 
     chat_image_refs: list[ChatImageRef] = []
     image_context_parts: list[str] = []
-    image_parts = []  # genai.types.Part for multimodal
+    image_parts = []  # genai.types.Part cho multimodal
 
-    MAX_VISION_IMAGES = 3  # Limit images to control token cost
+    MAX_VISION_IMAGES = 3  # Giới hạn số ảnh để kiểm soát token cost
     for idx, img in enumerate(resolved_images[:MAX_VISION_IMAGES]):
         img_ref_id = _generate_citation_id(used_ids)
         used_ids.add(img_ref_id)
@@ -1017,12 +1017,12 @@ async def chat_with_documents(
             width=img.width,
             height=img.height,
         ))
-        # Image caption for text context — [IMG-XXXX] format
+        # Image caption cho text context — format [IMG-XXXX]
         cap = f'"{img.caption}"' if img.caption else "no caption"
         image_context_parts.append(
             f"- [IMG-{img_ref_id}] Page {img.page_no}: {cap}"
         )
-        # Read actual image file for Gemini Vision
+        # Đọc file ảnh thực cho Gemini Vision
         img_path = _P(img.file_path)
         if img_path.exists():
             try:
@@ -1037,37 +1037,37 @@ async def chat_with_documents(
             except Exception as e:
                 logger.warning(f"Failed to read image {img.image_id}: {e}")
 
-    # -- 3. Call LLM with context + images --
+    # -- 3. Gọi LLM với context + images --
     from app.services.llm import get_llm_provider
     from app.services.llm.types import LLMImagePart, LLMMessage, LLMResult
 
     provider = get_llm_provider()
 
-    # ── Prompt architecture for local models (gemma3, etc.) ──────────
-    # Key insight: Local models ignore system prompts when context is long.
-    # Solution: SHORT system prompt + sources/rules in USER MESSAGE.
-    # The model pays most attention to the user message.
+    # ── Kiến trúc prompt cho local models (gemma3, v.v.) ──────────
+    # Insight chính: local model thường bỏ qua system prompt khi context dài.
+    # Giải pháp: system prompt NGẮN + đưa sources/rules vào USER MESSAGE.
+    # Model thường chú ý user message nhiều nhất.
 
     system_prompt = (kb.system_prompt or DEFAULT_SYSTEM_PROMPT) + HARD_SYSTEM_PROMPT
 
-    # ── Build user message: sources + rules + question ──────────────
-    # Structure: CONTEXT → RULES → QUESTION (model reads context first)
+    # ── Tạo user message: sources + rules + question ──────────────
+    # Cấu trúc: CONTEXT → RULES → QUESTION (model đọc context trước)
 
     user_parts: list[str] = []
 
-    # 1. Document sources (the model reads this first)
+    # 1. Document sources (model đọc phần này trước)
     user_parts.append("I have retrieved the following document sources for you.\n")
     user_parts.append("=== DOCUMENT SOURCES ===")
     user_parts.append(context)
     user_parts.append("=== END SOURCES ===\n")
 
-    # 2. Image references (if any)
+    # 2. Image references (nếu có)
     if image_context_parts:
         user_parts.append("Document Images:")
         user_parts.extend(image_context_parts)
         user_parts.append("")
 
-    # 3. Contextual rules (only things not covered by system prompt)
+    # 3. Contextual rules (chỉ phần chưa có trong system prompt)
     user_parts.append(
         "IMPORTANT:\n"
         "- Read EVERY source above carefully. Answers often require "
@@ -1079,9 +1079,9 @@ async def chat_with_documents(
         "\"Tài liệu không chứa thông tin này.\"\n"
     )
 
-    # 4. Conversation context recap (if history exists)
+    # 4. Tóm tắt conversation context (nếu có history)
     if request.history:
-        last_exchange = request.history[-2:]  # last Q+A pair
+        last_exchange = request.history[-2:]  # cặp Q+A gần nhất
         recap_parts = []
         for msg in last_exchange:
             prefix = "User" if msg.role == "user" else "Assistant"
@@ -1091,17 +1091,17 @@ async def chat_with_documents(
             + "\n".join(recap_parts) + "\n"
         )
 
-    # 5. The actual question (last = highest attention position)
+    # 5. Câu hỏi thực tế (đặt cuối = vị trí được chú ý cao nhất)
     user_parts.append(f"My question: {request.message}")
 
     user_content = "\n".join(user_parts)
 
     messages: list[LLMMessage] = []
-    for msg in request.history[-10:]:  # Keep last 10 messages for context
+    for msg in request.history[-10:]:  # Giữ 10 message gần nhất làm context
         role = "user" if msg.role == "user" else "assistant"
         messages.append(LLMMessage(role=role, content=msg.content))
 
-    # Attach images to user message (for multimodal models)
+    # Gắn ảnh vào user message (cho multimodal models)
     user_images: list[LLMImagePart] = []
     if image_parts:
         for img_data in image_parts:
@@ -1129,14 +1129,14 @@ async def chat_with_documents(
             answer = result
         if not answer:
             answer = "Unable to generate a response."
-        # Strip Gemini token artifacts (e.g. <unused778>:)
+        # Loại bỏ token artifacts của Gemini (ví dụ: <unused778>:)
         import re
         answer = re.sub(r'<unused\d+>:?\s*', '', answer).strip()
     except Exception as e:
         logger.error(f"LLM chat error: {e}")
         answer = f"Sorry, I encountered an error generating the response: {str(e)}"
 
-    # -- 4. Extract related entities from KG --
+    # -- 4. Trích xuất related entities từ KG --
     related_entities: list[str] = []
     if kg_summary:
         try:
@@ -1151,7 +1151,7 @@ async def chat_with_documents(
         except Exception as e:
             logger.warning(f"Failed to extract related entities: {e}")
 
-    # -- 5. Persist messages to DB (best-effort) --
+    # -- 5. Persist messages vào DB (best-effort) --
     try:
         import uuid
         from app.models.chat_message import ChatMessage as ChatMessageModel
@@ -1183,7 +1183,7 @@ async def chat_with_documents(
     return ChatResponse(
         answer=answer,
         sources=sources,
-        related_entities=related_entities[:30],  # Cap at 30
+        related_entities=related_entities[:30],  # Giới hạn 30 phần tử
         kg_summary=kg_summary or None,
         image_refs=chat_image_refs,
         thinking=thinking_text,
@@ -1191,21 +1191,21 @@ async def chat_with_documents(
 
 
 # ---------------------------------------------------------------------------
-# LLM Capabilities endpoint
+# Endpoint khả năng của LLM
 # ---------------------------------------------------------------------------
 
 @router.get("/capabilities", response_model=LLMCapabilitiesResponse)
 async def get_llm_capabilities():
-    """Check LLM provider capabilities (thinking, vision)."""
+    """Kiểm tra khả năng của LLM provider (thinking, vision)."""
     from app.services.llm import get_llm_provider
     from app.core.config import settings
 
     provider = get_llm_provider()
     provider_name = settings.LLM_PROVIDER.lower()
 
-    # Per-provider thinking default:
-    # Gemini: thinking ON by default (fast, cloud-based)
-    # Ollama: thinking OFF by default (slow on local hardware), configurable via OLLAMA_ENABLE_THINKING
+    # Giá trị thinking mặc định theo từng provider:
+    # Gemini: mặc định thinking ON (nhanh, cloud-based)
+    # Ollama: mặc định thinking OFF (chậm trên local hardware), cấu hình qua OLLAMA_ENABLE_THINKING
     if provider_name == "ollama":
         thinking_default = settings.OLLAMA_ENABLE_THINKING
     else:
@@ -1221,7 +1221,7 @@ async def get_llm_capabilities():
 
 
 # ---------------------------------------------------------------------------
-# Debug endpoint — inspect retrieval + LLM answer quality
+# Endpoint debug — kiểm tra retrieval + chất lượng câu trả lời của LLM
 # ---------------------------------------------------------------------------
 
 @router.post("/debug-chat/{workspace_id}", response_model=DebugChatResponse)
@@ -1231,8 +1231,8 @@ async def debug_chat(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Debug version of chat — returns retrieval details + system prompt + answer
-    so you can inspect what the LLM received vs what it answered.
+    Phiên bản debug của chat — trả về retrieval details + system prompt + answer
+    để kiểm tra LLM đã nhận gì và đã trả lời gì.
     """
     kb = await verify_workspace_access(workspace_id, db)
 
@@ -1256,7 +1256,7 @@ async def debug_chat(
         citations = result.citations
         kg_summary = result.knowledge_graph_summary
 
-    # -- 2. Build sources + context (same logic as chat endpoint) --
+    # -- 2. Tạo sources + context (cùng logic với chat endpoint) --
     debug_used_ids: set[str] = set()
     debug_sources: list[DebugRetrievedSource] = []
     context_parts = []
@@ -1285,14 +1285,14 @@ async def debug_chat(
         meta_line = f" ({', '.join(meta_parts)})" if meta_parts else ""
         context_parts.append(f"Source [{cid}]{meta_line}:\n{chunk.content}")
 
-    # NOTE: KG summary NOT added as citable source (can contain hallucinated data)
+    # LƯU Ý: KG summary KHÔNG thêm làm source có thể trích dẫn (có thể chứa dữ liệu hallucinated)
     context = "\n\n---\n\n".join(context_parts)
 
-    # -- 3. Build prompt (same architecture as chat endpoint) --
-    # SHORT system prompt + sources/rules in USER MESSAGE
+    # -- 3. Tạo prompt (cùng kiến trúc với chat endpoint) --
+    # system prompt NGẮN + sources/rules trong USER MESSAGE
     sys_prompt = (kb.system_prompt or DEFAULT_SYSTEM_PROMPT) + HARD_SYSTEM_PROMPT
 
-    # Build user message: CONTEXT → RULES → QUESTION
+    # Tạo user message: CONTEXT → RULES → QUESTION
     user_parts: list[str] = []
     user_parts.append("I have retrieved the following document sources for you.\n")
     user_parts.append("=== DOCUMENT SOURCES ===")
@@ -1320,7 +1320,7 @@ async def debug_chat(
         "- Answer in Vietnamese first. Default to Vietnamese-only output.\n"
     )
 
-    # Conversation context recap (if history exists)
+    # Tóm tắt conversation context (nếu có history)
     if request.history:
         last_exchange = request.history[-2:]
         recap_parts = []
@@ -1335,7 +1335,7 @@ async def debug_chat(
     user_parts.append(f"My question: {request.message}")
     user_content = "\n".join(user_parts)
 
-    # -- 4. Call LLM --
+    # -- 4. Gọi LLM --
     from app.services.llm import get_llm_provider
     from app.services.llm.types import LLMMessage, LLMResult
 
@@ -1362,7 +1362,7 @@ async def debug_chat(
             thinking_text = llm_result.thinking or None
         else:
             answer = llm_result
-        # Strip Gemini token artifacts (e.g. <unused778>:)
+        # Loại bỏ token artifacts của Gemini (ví dụ: <unused778>:)
         import re
         answer = re.sub(r'<unused\d+>:?\s*', '', answer).strip()
     except Exception as e:

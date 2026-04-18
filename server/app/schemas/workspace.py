@@ -1,5 +1,5 @@
 """
-Knowledge Base (Workspace) schemas for request/response validation.
+Schema Knowledge Base (Workspace) cho request/response validation.
 """
 from pydantic import BaseModel, Field
 from datetime import datetime
@@ -36,7 +36,7 @@ class WorkspaceResponse(BaseModel):
 
 
 class WorkspaceSummary(BaseModel):
-    """Compact summary for dropdown selectors."""
+    """Tóm tắt gọn cho dropdown selectors."""
     id: int
     name: str
     document_count: int = 0

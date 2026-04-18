@@ -19,7 +19,7 @@ class KnowledgeBase(Base):
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
     )
 
-    # Relationships
+    # Quan hệ
     documents: Mapped[list["Document"]] = relationship(
         back_populates="workspace", cascade="all, delete-orphan"
     )

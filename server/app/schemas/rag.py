@@ -1,24 +1,24 @@
 """
-RAG-related Pydantic schemas for request/response validation.
+Pydantic schema liên quan đến RAG dùng để validate request/response.
 """
 from typing import Literal
 from pydantic import BaseModel, Field, field_validator
 
 
 class RAGQueryRequest(BaseModel):
-    """Request schema for RAG query endpoint."""
-    question: str = Field(..., min_length=1, max_length=1000, description="The question to query")
-    top_k: int = Field(default=5, ge=1, le=20, description="Number of chunks to retrieve")
-    document_ids: list[int] | None = Field(default=None, description="Filter to specific document IDs")
-    metadata_filter: dict | None = Field(default=None, description="Optional metadata filter for vector search")
+    """Schema yêu cầu cho endpoint RAG query."""
+    question: str = Field(..., min_length=1, max_length=1000, description="Câu hỏi cần truy vấn")
+    top_k: int = Field(default=5, ge=1, le=20, description="Số lượng chunk cần truy xuất")
+    document_ids: list[int] | None = Field(default=None, description="Lọc theo document ID cụ thể")
+    metadata_filter: dict | None = Field(default=None, description="Bộ lọc metadata tùy chọn cho vector search")
     mode: str = Field(
         default="hybrid",
-        description="Search mode: hybrid (default), vector_only, naive, local, global"
+        description="Chế độ search: hybrid (mặc định), vector_only, naive, local, global"
     )
 
 
 class CitationResponse(BaseModel):
-    """A source citation."""
+    """Một trích dẫn nguồn."""
     source_file: str
     document_id: int
     page_no: int = 0
@@ -27,7 +27,7 @@ class CitationResponse(BaseModel):
 
 
 class RetrievedChunkResponse(BaseModel):
-    """Response schema for a single retrieved chunk."""
+    """Schema phản hồi cho một chunk được truy xuất."""
     content: str
     chunk_id: str
     score: float
@@ -38,7 +38,7 @@ class RetrievedChunkResponse(BaseModel):
 
 
 class DocumentImageResponse(BaseModel):
-    """Response schema for a document image."""
+    """Schema phản hồi cho ảnh tài liệu."""
     image_id: str
     document_id: int
     page_no: int
@@ -49,7 +49,7 @@ class DocumentImageResponse(BaseModel):
 
 
 class RAGQueryResponse(BaseModel):
-    """Response schema for RAG query."""
+    """Schema phản hồi cho RAG query."""
     query: str
     chunks: list[RetrievedChunkResponse]
     context: str
@@ -60,12 +60,12 @@ class RAGQueryResponse(BaseModel):
 
 
 class DocumentProcessRequest(BaseModel):
-    """Request schema for document processing."""
+    """Schema yêu cầu cho xử lý tài liệu."""
     document_id: int
 
 
 class DocumentProcessResponse(BaseModel):
-    """Response schema for document processing."""
+    """Schema phản hồi cho xử lý tài liệu."""
     document_id: int
     status: str
     chunk_count: int
@@ -73,12 +73,12 @@ class DocumentProcessResponse(BaseModel):
 
 
 class BatchProcessRequest(BaseModel):
-    """Request schema for batch document processing."""
-    document_ids: list[int] = Field(..., min_length=1, description="List of document IDs to process")
+    """Schema yêu cầu cho xử lý tài liệu hàng loạt."""
+    document_ids: list[int] = Field(..., min_length=1, description="Danh sách document ID cần xử lý")
 
 
 class ProjectRAGStatsResponse(BaseModel):
-    """Response schema for workspace RAG statistics."""
+    """Schema phản hồi cho thống kê RAG của workspace."""
     workspace_id: int
     total_documents: int
     indexed_documents: int
@@ -88,19 +88,19 @@ class ProjectRAGStatsResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Knowledge Graph schemas
+# Schema cho Knowledge Graph
 # ---------------------------------------------------------------------------
 
 class KGEntityResponse(BaseModel):
-    """A knowledge graph entity (node)."""
+    """Một entity (node) trong Knowledge Graph."""
     name: str
     entity_type: str = "Unknown"
     description: str = ""
-    degree: int = 0  # number of relationships
+    degree: int = 0  # số lượng relationship
 
 
 class KGRelationshipResponse(BaseModel):
-    """A knowledge graph relationship (edge)."""
+    """Một relationship (edge) trong Knowledge Graph."""
     source: str
     target: str
     description: str = ""
@@ -109,7 +109,7 @@ class KGRelationshipResponse(BaseModel):
 
 
 class KGGraphNodeResponse(BaseModel):
-    """Node in the graph visualization payload."""
+    """Node trong payload visualization của graph."""
     id: str
     label: str
     entity_type: str = "Unknown"
@@ -117,7 +117,7 @@ class KGGraphNodeResponse(BaseModel):
 
 
 class KGGraphEdgeResponse(BaseModel):
-    """Edge in the graph visualization payload."""
+    """Edge trong payload visualization của graph."""
     source: str
     target: str
     label: str = ""
@@ -125,23 +125,23 @@ class KGGraphEdgeResponse(BaseModel):
 
 
 class KGGraphResponse(BaseModel):
-    """Full graph export for frontend visualization."""
+    """Dữ liệu export graph đầy đủ cho frontend visualization."""
     nodes: list[KGGraphNodeResponse] = []
     edges: list[KGGraphEdgeResponse] = []
     is_truncated: bool = False
 
 
 class KGAnalyticsResponse(BaseModel):
-    """Knowledge Graph analytics summary."""
+    """Tóm tắt analytics của Knowledge Graph."""
     entity_count: int = 0
     relationship_count: int = 0
-    entity_types: dict[str, int] = {}  # type → count
-    top_entities: list[KGEntityResponse] = []  # top N by degree
+    entity_types: dict[str, int] = {}  # type -> count
+    top_entities: list[KGEntityResponse] = []  # top N theo degree
     avg_degree: float = 0.0
 
 
 class DocumentBreakdownItem(BaseModel):
-    """Per-document breakdown for analytics."""
+    """Thông tin breakdown theo từng tài liệu cho analytics."""
     document_id: int
     filename: str
     chunk_count: int = 0
@@ -152,34 +152,34 @@ class DocumentBreakdownItem(BaseModel):
 
 
 class ProjectAnalyticsResponse(BaseModel):
-    """Extended project analytics."""
+    """Analytics mở rộng của project."""
     stats: ProjectRAGStatsResponse
     kg_analytics: KGAnalyticsResponse | None = None
     document_breakdown: list[DocumentBreakdownItem] = []
 
 
 # ---------------------------------------------------------------------------
-# Chat schemas
+# Schema cho Chat
 # ---------------------------------------------------------------------------
 
 class ChatMessageSchema(BaseModel):
-    """A single chat message in conversation history."""
-    role: str = Field(..., description="user or assistant")
+    """Một chat message trong conversation history."""
+    role: str = Field(..., description="user hoặc assistant")
     content: str
 
 
 class ChatRequest(BaseModel):
-    """Request for the chat endpoint."""
+    """Yêu cầu cho chat endpoint."""
     message: str = Field(..., min_length=1, max_length=5000)
     history: list[ChatMessageSchema] = []
     document_ids: list[int] | None = None
     enable_thinking: bool = False
-    force_search: bool = False  # Pre-search before LLM call; injects sources as context directly
+    force_search: bool = False  # Pre-search trước khi gọi LLM; inject trực tiếp sources vào context
 
 
 class ChatSourceChunk(BaseModel):
-    """A source chunk referenced in the chat answer."""
-    index: str  # 4-char alphanumeric ID, e.g. "a3x9" (was: int)
+    """Một source chunk được tham chiếu trong câu trả lời chat."""
+    index: str  # ID alphanumeric 4 ký tự, ví dụ "a3x9" (trước đây: int)
     chunk_id: str
 
     @field_validator("index", mode="before")
@@ -195,8 +195,8 @@ class ChatSourceChunk(BaseModel):
 
 
 class ChatImageRef(BaseModel):
-    """An image referenced in the chat answer."""
-    ref_id: str | None = None  # 4-char alphanumeric ID, e.g. "p4f2"
+    """Một ảnh được tham chiếu trong câu trả lời chat."""
+    ref_id: str | None = None  # ID alphanumeric 4 ký tự, ví dụ "p4f2"
     image_id: str
     document_id: int
     page_no: int = 0
@@ -207,7 +207,7 @@ class ChatImageRef(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    """Response from the chat endpoint."""
+    """Phản hồi từ chat endpoint."""
     answer: str
     sources: list[ChatSourceChunk] = []
     related_entities: list[str] = []
@@ -217,7 +217,7 @@ class ChatResponse(BaseModel):
 
 
 class PersistedChatMessage(BaseModel):
-    """A persisted chat message from the database."""
+    """Chat message đã được lưu trong database."""
     id: int
     message_id: str
     role: str
@@ -227,36 +227,36 @@ class PersistedChatMessage(BaseModel):
     image_refs: list[ChatImageRef] | None = None
     thinking: str | None = None
     agent_steps: list | None = None
-    created_at: str  # ISO format
+    created_at: str  # định dạng ISO
 
     model_config = {"from_attributes": True}
 
 
 class ChatHistoryResponse(BaseModel):
-    """Response for GET chat history."""
+    """Response cho API GET chat history."""
     workspace_id: int
     messages: list[PersistedChatMessage]
     total: int
 
 
 class RateSourceRequest(BaseModel):
-    """Request to rate a source citation."""
-    message_id: str = Field(..., description="The message_id containing the source")
-    source_index: str = Field(..., description="Source citation ID, e.g. 'a3x9'")
+    """Request để đánh giá một source citation."""
+    message_id: str = Field(..., description="message_id chứa source")
+    source_index: str = Field(..., description="ID source citation, ví dụ 'a3x9'")
     rating: Literal["relevant", "partial", "not_relevant"] = Field(
-        ..., description="Source rating"
+        ..., description="Mức đánh giá source"
     )
 
 
 class RateSourceResponse(BaseModel):
-    """Response after rating a source."""
+    """Response sau khi đánh giá source."""
     success: bool
     message_id: str
     ratings: dict[str, str]
 
 
 class LLMCapabilitiesResponse(BaseModel):
-    """Response for LLM capabilities check."""
+    """Response cho kiểm tra capabilities của LLM."""
     provider: str
     model: str
     supports_thinking: bool
@@ -265,12 +265,12 @@ class LLMCapabilitiesResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Debug / QA schemas
+# Schema cho Debug / QA
 # ---------------------------------------------------------------------------
 
 class DebugRetrievedSource(BaseModel):
-    """A retrieved source for debug inspection."""
-    index: str  # 4-char alphanumeric ID (was: int)
+    """Một source đã truy xuất để debug inspection."""
+    index: str  # ID alphanumeric 4 ký tự (trước đây: int)
     document_id: int
 
     @field_validator("index", mode="before")
@@ -280,18 +280,18 @@ class DebugRetrievedSource(BaseModel):
     page_no: int
     heading_path: list[str] = []
     source_file: str = ""
-    content_preview: str = ""  # first 500 chars
+    content_preview: str = ""  # 500 ký tự đầu tiên
     score: float = 0.0
     source_type: str = "vector"
 
 
 class DebugChatResponse(BaseModel):
-    """Full debug response — retrieval + LLM answer for quality inspection."""
-    # Query
+    """Debug response đầy đủ: retrieval + câu trả lời LLM để quality inspection."""
+    # Truy vấn
     question: str
     workspace_id: int
 
-    # Retrieval
+    # Truy xuất
     retrieved_sources: list[DebugRetrievedSource] = []
     kg_summary: str = ""
     total_sources: int = 0
@@ -301,9 +301,9 @@ class DebugChatResponse(BaseModel):
     answer: str = ""
     thinking: str | None = None
 
-    # Images
+    # Ảnh
     image_count: int = 0
 
-    # Meta
+    # Metadata
     provider: str = ""
     model: str = ""

@@ -1,12 +1,12 @@
 """
-Deep RAG Service
-=================
+Service Deep RAG
+================
 
-Orchestrator for the NexusRAG pipeline:
-  Document → Docling Parse → ChromaDB Index + LightRAG KG → Hybrid Retrieval
+Orchestrator cho pipeline NexusRAG:
+    Document -> Docling Parse -> ChromaDB Index + LightRAG KG -> Hybrid Retrieval
 
-Backward-compatible: exposes the same `process_document()`, `query()`,
-`delete_document()`, `get_chunk_count()` interface as legacy RAGService.
+Tương thích ngược: cung cấp cùng interface `process_document()`, `query()`,
+`delete_document()`, `get_chunk_count()` như RAGService cũ.
 """
 from __future__ import annotations
 
@@ -34,16 +34,16 @@ logger = logging.getLogger(__name__)
 
 class NexusRAGService:
     """
-    Full NexusRAG pipeline orchestrator.
+    Orchestrator đầy đủ cho pipeline NexusRAG.
 
-    Phases:
-      1. PARSING  — Docling parse → markdown + chunks + images
-      2. INDEXING — Embed chunks → ChromaDB + ingest markdown → LightRAG KG
-      3. INDEXED  — Update document metadata in DB
+        Phases:
+            1. PARSING  - Docling parse -> markdown + chunks + images
+            2. INDEXING - Embed chunks -> ChromaDB + ingest markdown -> LightRAG KG
+            3. INDEXED  - Cập nhật metadata document trong DB
 
-    Query:
-      - query()       — backward-compatible sync vector-only search
-      - query_deep()  — full async hybrid retrieval (KG + vector + images)
+        Query:
+            - query()       - sync vector-only search tương thích ngược
+            - query_deep()  - async hybrid retrieval đầy đủ (KG + vector + images)
     """
 
     def __init__(
@@ -56,12 +56,12 @@ class NexusRAGService:
         self.db = db
         self.workspace_id = workspace_id
 
-        # Services
+        # Các service
         self.parser = get_document_parser(workspace_id=workspace_id)
         self.embedder = get_embedding_service()
         self.vector_store = get_vector_store(workspace_id)
 
-        # KG service (optional, gated by config)
+        # KG service (tùy chọn, bật/tắt qua config)
         self.kg_service: Optional[KnowledgeGraphService] = None
         if settings.NEXUSRAG_ENABLE_KG:
             self.kg_service = KnowledgeGraphService(
@@ -70,7 +70,7 @@ class NexusRAGService:
                 kg_entity_types=kg_entity_types,
             )
 
-        # Retriever (with cross-encoder reranker)
+        # Retriever (kèm cross-encoder reranker)
         self.retriever = DeepRetriever(
             workspace_id=workspace_id,
             kg_service=self.kg_service,
@@ -81,15 +81,15 @@ class NexusRAGService:
         )
 
     # ------------------------------------------------------------------
-    # Document Processing
+    # Xử lý tài liệu
     # ------------------------------------------------------------------
 
     async def process_document(self, document_id: int, file_path: str) -> int:
         """
-        Process a document through the full NexusRAG pipeline.
+        Xử lý tài liệu qua toàn bộ pipeline NexusRAG.
 
         Returns:
-            Number of chunks created
+            Số lượng chunk được tạo
         """
         result = await self.db.execute(
             select(Document).where(Document.id == document_id)
@@ -101,7 +101,7 @@ class NexusRAGService:
         start_time = time.time()
 
         try:
-            # Phase 1: PARSING
+            # Giai đoạn 1: PARSING
             document.status = DocumentStatus.PARSING
             await self.db.commit()
 
@@ -113,20 +113,20 @@ class NexusRAGService:
                 original_filename=document.original_filename,
             )
 
-            # Save markdown + images to DB
+            # Lưu markdown + images vào DB
             document.markdown_content = parsed.markdown
             document.page_count = parsed.page_count
             document.table_count = parsed.tables_count
             document.parser_version = self.parser.parser_name
             await self.db.commit()
 
-            # Clean up old image records before saving new ones (handles re-processing)
+            # Dọn bản ghi image cũ trước khi lưu mới (xử lý re-processing)
             await self.db.execute(
                 delete(DocumentImage).where(DocumentImage.document_id == document_id)
             )
             await self.db.commit()
 
-            # Save extracted images to DB
+            # Lưu images đã trích xuất vào DB
             for img in parsed.images:
                 db_image = DocumentImage(
                     document_id=document_id,
@@ -143,13 +143,13 @@ class NexusRAGService:
                 document.image_count = len(parsed.images)
                 await self.db.commit()
 
-            # Clean up old table records before saving new ones (handles re-processing)
+            # Dọn bản ghi table cũ trước khi lưu mới (xử lý re-processing)
             await self.db.execute(
                 delete(DocumentTable).where(DocumentTable.document_id == document_id)
             )
             await self.db.commit()
 
-            # Save extracted tables to DB
+            # Lưu tables đã trích xuất vào DB
             for tbl in parsed.tables:
                 db_table = DocumentTable(
                     document_id=document_id,
@@ -164,7 +164,7 @@ class NexusRAGService:
             if parsed.tables:
                 await self.db.commit()
 
-            # Phase 1.5: PRE-INGESTION DEDUP
+            # Giai đoạn 1.5: PRE-INGESTION DEDUP
             if parsed.chunks:
                 parsed.chunks, dedup_stats = deduplicate_chunks(parsed.chunks)
                 if dedup_stats["input"] != dedup_stats["output"]:
@@ -176,14 +176,14 @@ class NexusRAGService:
                         f"near={dedup_stats['near_removed']})"
                     )
 
-            # Phase 2: INDEXING
+            # Giai đoạn 2: INDEXING
             document.status = DocumentStatus.INDEXING
             await self.db.commit()
 
             chunk_count = 0
             if parsed.chunks:
                 def _index_sync():
-                    # Embed and store in ChromaDB
+                    # Embed và lưu vào ChromaDB
                     chunk_texts = [c.content for c in parsed.chunks]
                     embeddings = self.embedder.embed_texts(chunk_texts)
 
@@ -191,7 +191,7 @@ class NexusRAGService:
                         f"doc_{document_id}_chunk_{i}"
                         for i in range(len(parsed.chunks))
                     ]
-                    # Build image_id→URL lookup for metadata
+                    # Tạo bảng tra image_id->URL cho metadata
                     _img_url_map = {
                         img.image_id: f"/static/doc-images/kb_{self.workspace_id}/images/{img.image_id}.png"
                         for img in parsed.images
@@ -208,7 +208,7 @@ class NexusRAGService:
                             "heading_path": " > ".join(c.heading_path) if c.heading_path else "",
                             "has_table": c.has_table,
                             "has_code": c.has_code,
-                            # Image-aware metadata: pipe-separated IDs and URLs
+                            # Metadata hỗ trợ image: ID và URL phân tách bằng pipe
                             "image_ids": "|".join(c.image_refs) if c.image_refs else "",
                             "table_ids": "|".join(c.table_refs) if c.table_refs else "",
                             "image_urls": "|".join(
@@ -228,7 +228,7 @@ class NexusRAGService:
                 await asyncio.to_thread(_index_sync)
                 chunk_count = len(parsed.chunks)
 
-            # KG ingest (async, non-blocking failure)
+            # KG ingest (async, lỗi không chặn luồng chính)
             if self.kg_service and parsed.markdown:
                 try:
                     await self.kg_service.ingest(parsed.markdown)
@@ -238,7 +238,7 @@ class NexusRAGService:
                         f"continuing without KG: {e}"
                     )
 
-            # Phase 3: INDEXED
+            # Giai đoạn 3: INDEXED
             elapsed_ms = int((time.time() - start_time) * 1000)
             document.status = DocumentStatus.INDEXED
             document.chunk_count = chunk_count
@@ -260,7 +260,7 @@ class NexusRAGService:
             raise
 
     # ------------------------------------------------------------------
-    # Querying
+    # Truy vấn
     # ------------------------------------------------------------------
 
     def query(
@@ -271,12 +271,12 @@ class NexusRAGService:
         metadata_filter: dict | None = None,
     ) -> RAGQueryResult:
         """
-        Backward-compatible sync query (vector-only).
-        Returns same RAGQueryResult as legacy RAGService.
+        Truy vấn sync tương thích ngược (chỉ vector).
+        Trả về cùng kiểu RAGQueryResult như RAGService cũ.
         """
         query_embedding = self.embedder.embed_query(question)
 
-        # Merge metadata_filter and document_ids
+        # Gộp metadata_filter và document_ids
         where = metadata_filter.copy() if metadata_filter else {}
         if document_ids:
             where["document_id"] = {"$in": document_ids}
@@ -302,7 +302,7 @@ class NexusRAGService:
 
         chunks.sort(key=lambda x: x.score)
 
-        # Assemble context with citations
+        # Ghép context kèm citation
         context_parts = []
         for i, chunk in enumerate(chunks):
             source = chunk.metadata.get("source", "Unknown")
@@ -333,7 +333,7 @@ class NexusRAGService:
         metadata_filter: dict | None = None,
     ) -> DeepRetrievalResult:
         """
-        Full async hybrid retrieval with KG + vector + images + citations.
+        Async hybrid retrieval đầy đủ với KG + vector + images + citation.
         """
         return await self.retriever.query(
             question=question,
@@ -345,14 +345,14 @@ class NexusRAGService:
         )
 
     # ------------------------------------------------------------------
-    # Management
+    # Quản lý
     # ------------------------------------------------------------------
 
     async def delete_document(self, document_id: int) -> None:
-        """Delete a document's data from vector store and KG."""
+        """Xóa dữ liệu của tài liệu khỏi vector store và KG."""
         self.vector_store.delete_by_document_id(document_id)
 
-        # Delete images from DB (cascade handles it, but clean up files)
+        # Xóa image khỏi DB (cascade xử lý, nhưng cần dọn file)
         result = await self.db.execute(
             select(DocumentImage).where(DocumentImage.document_id == document_id)
         )
@@ -365,5 +365,5 @@ class NexusRAGService:
         logger.info(f"Deleted document {document_id} from NexusRAG stores")
 
     def get_chunk_count(self) -> int:
-        """Return total number of chunks in the knowledge base's vector store."""
+        """Trả về tổng số chunk trong vector store của knowledge base."""
         return self.vector_store.count()

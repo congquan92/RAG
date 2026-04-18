@@ -1,5 +1,5 @@
 """
-Config status endpoint — expose active LLM/embedding provider info to frontend.
+Config status endpoint — cung cấp thông tin LLM/embedding provider đang active cho frontend.
 """
 from fastapi import APIRouter
 
@@ -11,7 +11,7 @@ router = APIRouter(prefix="/config", tags=["config"])
 
 @router.get("/status")
 async def get_config_status():
-    """Return active provider and model names for UI display."""
+    """Trả về provider đang active và tên model để hiển thị trên UI."""
     llm_provider = settings.LLM_PROVIDER.lower()
 
     if llm_provider == "ollama":
@@ -35,7 +35,7 @@ async def get_config_status():
 
 @router.get("/chat-default-prompt")
 async def get_chat_default_prompt():
-    """Return backend default system prompt used when workspace prompt is empty."""
+    """Trả về default system prompt của backend khi workspace prompt đang rỗng."""
     return {
         "default_system_prompt": DEFAULT_SYSTEM_PROMPT,
     }

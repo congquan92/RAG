@@ -24,7 +24,7 @@ AsyncSessionLocal = async_sessionmaker(
     autoflush=False,
 )
 
-# Alias for background tasks
+# Alias cho background tasks
 async_session_maker = AsyncSessionLocal
 
 

@@ -1,15 +1,15 @@
 """
 Deep Retriever
-===============
+==============
 
-Hybrid retrieval combining Knowledge Graph (LightRAG) + Vector Search (ChromaDB)
+Hybrid retrieval kết hợp Knowledge Graph (LightRAG) + Vector Search (ChromaDB)
 + Cross-encoder Reranking (bge-reranker-v2-m3).
 
 Pipeline:
-  1. KG query  (parallel) → entity/relationship summary
-  2. Vector search → over-fetch top-N candidates (NEXUSRAG_VECTOR_PREFETCH)
-  3. Cross-encoder rerank → precision filter to top-K (NEXUSRAG_RERANKER_TOP_K)
-  4. Merge with citations + optional image references
+    1. KG query  (song song) -> tóm tắt entity/relationship
+    2. Vector search -> over-fetch top-N ứng viên (NEXUSRAG_VECTOR_PREFETCH)
+    3. Cross-encoder rerank -> lọc chính xác tới top-K (NEXUSRAG_RERANKER_TOP_K)
+    4. Gộp với citation + image references tùy chọn
 """
 from __future__ import annotations
 
@@ -68,26 +68,26 @@ class DeepRetriever:
         metadata_filter: dict | None = None,
     ) -> DeepRetrievalResult:
         """
-        Execute hybrid retrieval with reranking.
+        Chạy hybrid retrieval với reranking.
 
-        Flow:
-          1. [parallel] KG query + Vector over-fetch (NEXUSRAG_VECTOR_PREFETCH)
-          2. Cross-encoder rerank vector results → final top_k
-          3. Optionally find related images from chunk pages
-          4. Assemble structured context for LLM
+                Luồng xử lý:
+                    1. [song song] KG query + Vector over-fetch (NEXUSRAG_VECTOR_PREFETCH)
+                    2. Cross-encoder rerank kết quả vector -> top_k cuối cùng
+                    3. Tùy chọn tìm image liên quan từ các trang của chunk
+                    4. Ghép context có cấu trúc cho LLM
 
         Args:
-            question: Natural language query
+            question: Truy vấn ngôn ngữ tự nhiên
             mode: "hybrid" (default), "naive", "local", "global", "vector_only"
-            top_k: Number of final chunks to return (after reranking)
-            document_ids: Optional filter to specific documents
-            include_images: Whether to find related images
+            top_k: Số lượng chunk cuối cùng trả về (sau reranking)
+            document_ids: Bộ lọc tùy chọn theo tài liệu cụ thể
+            include_images: Có tìm image liên quan hay không
 
         Returns:
-            DeepRetrievalResult with chunks, citations, context, and optional images
+            DeepRetrievalResult gồm chunk, citation, context và image tùy chọn
         """
-        # Apply global rerank cap from settings so env NEXUSRAG_RERANKER_TOP_K
-        # always affects runtime, while still allowing callers to request fewer.
+        # Áp dụng trần rerank toàn cục từ settings để env NEXUSRAG_RERANKER_TOP_K
+        # luôn tác động runtime, nhưng vẫn cho phép caller yêu cầu ít hơn.
         effective_top_k = min(top_k, settings.NEXUSRAG_RERANKER_TOP_K)
         if effective_top_k < top_k:
             logger.info(
@@ -96,14 +96,14 @@ class DeepRetriever:
                 settings.NEXUSRAG_RERANKER_TOP_K,
             )
 
-        # Run KG and vector search in parallel
+        # Chạy KG và vector search song song
         kg_task = None
         if self.kg_service and mode != "vector_only":
             kg_task = asyncio.create_task(
                 self._kg_query(question, mode)
             )
 
-        # Over-fetch from vector DB for reranking
+        # Over-fetch từ vector DB để reranking
         prefetch_k = max(settings.NEXUSRAG_VECTOR_PREFETCH, effective_top_k * 3)
         vector_task = asyncio.create_task(
             asyncio.to_thread(
@@ -111,7 +111,7 @@ class DeepRetriever:
             )
         )
 
-        # Await results
+        # Đợi kết quả
         kg_summary = ""
         if kg_task:
             try:
@@ -121,12 +121,12 @@ class DeepRetriever:
 
         raw_chunks, raw_citations = await vector_task
 
-        # Rerank: cross-encoder scoring for precision
+        # Rerank: chấm điểm bằng cross-encoder để tăng độ chính xác
         chunks, citations = await asyncio.to_thread(
             self._rerank_chunks, question, raw_chunks, raw_citations, effective_top_k
         )
 
-        # Find related images and tables
+        # Tìm image và table liên quan
         image_refs = []
         table_refs = []
         if include_images and self.db and chunks:
@@ -137,7 +137,7 @@ class DeepRetriever:
                     self._find_related_tables(page_nos),
                 )
 
-        # Assemble context
+        # Ghép context
         context = self._assemble_context(chunks, citations, kg_summary, image_refs, table_refs)
 
         return DeepRetrievalResult(
@@ -152,10 +152,10 @@ class DeepRetriever:
         )
 
     async def _kg_query(self, question: str, mode: str) -> str:
-        """Get raw KG context (entities + relationships) relevant to the question.
+        """Lấy KG context thô (entities + relationships) liên quan câu hỏi.
 
-        Uses factual graph data instead of LLM-generated narrative to avoid
-        hallucination from LightRAG's aquery().
+        Dùng dữ liệu graph factual thay vì narrative do LLM sinh để tránh
+        hallucination từ aquery() của LightRAG.
         """
         if not self.kg_service:
             return ""
@@ -178,10 +178,10 @@ class DeepRetriever:
         document_ids: Optional[list[int]],
         metadata_filter: dict | None = None,
     ) -> tuple[list[EnrichedChunk], list[Citation]]:
-        """Synchronous vector search via ChromaDB (over-fetch stage)."""
+        """Vector search đồng bộ qua ChromaDB (giai đoạn over-fetch)."""
         query_embedding = self.embedder.embed_query(question)
 
-        # Merge metadata_filter and document_ids
+        # Gộp metadata_filter và document_ids
         where = metadata_filter.copy() if metadata_filter else {}
         if document_ids:
             where["document_id"] = {"$in": document_ids}
@@ -247,13 +247,13 @@ class DeepRetriever:
         top_k: int,
     ) -> tuple[list[EnrichedChunk], list[Citation]]:
         """
-        Cross-encoder reranking: score each (query, chunk) pair jointly,
-        then filter by relevance threshold and return top_k.
+        Cross-encoder reranking: chấm điểm đồng thời từng cặp (query, chunk),
+        sau đó lọc theo relevance threshold và trả về top_k.
         """
         if not chunks:
             return [], []
 
-        # Extract texts for reranking
+        # Trích xuất text cho bước reranking
         doc_texts = [c.content for c in chunks]
 
         reranked = self.reranker.rerank(
@@ -264,7 +264,7 @@ class DeepRetriever:
         )
 
         if not reranked:
-            # Fallback: if reranker filtered everything, keep top 3 by original order
+            # Fallback: nếu reranker lọc hết, giữ top 3 theo thứ tự ban đầu
             fallback_k = min(top_k, 3)
             logger.warning(
                 f"Reranker filtered all {len(chunks)} chunks below threshold "
@@ -272,7 +272,7 @@ class DeepRetriever:
             )
             return chunks[:min(fallback_k, len(chunks))], citations[:min(fallback_k, len(citations))]
 
-        # Map reranked results back to original chunks/citations
+        # Ánh xạ kết quả rerank về chunk/citation gốc
         reranked_chunks = [chunks[r.index] for r in reranked]
         reranked_citations = [citations[r.index] for r in reranked]
 
@@ -287,7 +287,7 @@ class DeepRetriever:
         self,
         page_refs: set[tuple[int, int]],  # (document_id, page_no)
     ) -> list[ExtractedImage]:
-        """Find images on the exact same pages as retrieved chunks."""
+        """Tìm image ở đúng các trang trùng với chunk đã truy xuất."""
         if not self.db:
             return []
 
@@ -311,7 +311,7 @@ class DeepRetriever:
                     mime_type=img.mime_type,
                 ))
 
-        # Deduplicate by image_id
+        # Deduplicate theo image_id
         seen = set()
         unique = []
         for img in images:
@@ -325,7 +325,7 @@ class DeepRetriever:
         self,
         page_refs: set[tuple[int, int]],
     ) -> list[ExtractedTable]:
-        """Find tables on the exact same pages as retrieved chunks."""
+        """Tìm table ở đúng các trang trùng với chunk đã truy xuất."""
         if not self.db:
             return []
 
@@ -348,7 +348,7 @@ class DeepRetriever:
                     num_cols=tbl.num_cols,
                 ))
 
-        # Deduplicate by table_id
+        # Deduplicate theo table_id
         seen = set()
         unique = []
         for tbl in tables:
@@ -366,7 +366,7 @@ class DeepRetriever:
         image_refs: list[ExtractedImage],
         table_refs: list[ExtractedTable] | None = None,
     ) -> str:
-        """Assemble a structured context string for the LLM."""
+        """Ghép chuỗi context có cấu trúc cho LLM."""
         parts = []
 
         # KG insights
@@ -375,7 +375,7 @@ class DeepRetriever:
             parts.append(kg_summary)
             parts.append("")
 
-        # Retrieved chunks with citations
+        # Chunk đã truy xuất kèm citation
         if chunks:
             parts.append("## Retrieved Document Sections")
             for i, (chunk, citation) in enumerate(zip(chunks, citations)):
@@ -383,7 +383,7 @@ class DeepRetriever:
                 parts.append(chunk.content)
                 parts.append("")
 
-        # Available images
+        # Image khả dụng
         if image_refs:
             parts.append("## Available Document Images")
             for img in image_refs:
@@ -393,7 +393,7 @@ class DeepRetriever:
                 )
             parts.append("")
 
-        # Available tables
+        # Table khả dụng
         if table_refs:
             parts.append("## Available Document Tables")
             for tbl in table_refs:

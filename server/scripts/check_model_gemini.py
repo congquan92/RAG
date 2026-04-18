@@ -29,10 +29,8 @@ def main() -> None:
                 if "embedContent" in methods:
                     print(f"Model name: {model.name}")
                     printed = True
-        except ModuleNotFoundError as exc:
-            raise RuntimeError(
-                "Neither google-genai nor google-generativeai is installed"
-            ) from exc
+        except ModuleNotFoundError:
+            pass
 
     if not printed:
         print("No embedding-capable Gemini model found for this API key/project.")

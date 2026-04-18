@@ -1,14 +1,12 @@
 """
-Document Parser Base
-====================
+Base cho Document Parser
 
-Abstract interface for document parsers. Follows the same provider pattern
-as ``services/llm/base.py`` so parsers are swappable via config.
+Interface trừu tượng cho document parser. Theo cùng provider pattern
+như ``services/llm/base.py`` để có thể thay parser qua config.
 """
 from __future__ import annotations
 
 import logging
-import re
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional
@@ -25,9 +23,9 @@ logger = logging.getLogger(__name__)
 
 
 class BaseDocumentParser(ABC):
-    """Abstract base for all document parsers (Docling, Marker, …)."""
+    """Base trừu tượng cho mọi document parser (Docling, Marker, ...)."""
 
-    # Subclasses set this so nexus_rag_service can store the parser name.
+    # Subclass sẽ set giá trị này để nexus_rag_service lưu tên parser.
     parser_name: str = "unknown"
 
     def __init__(self, workspace_id: int, output_dir: Optional[Path] = None):
@@ -37,7 +35,7 @@ class BaseDocumentParser(ABC):
         )
 
     # ------------------------------------------------------------------
-    # Abstract interface
+    # Giao diện trừu tượng
     # ------------------------------------------------------------------
 
     @abstractmethod
@@ -47,22 +45,22 @@ class BaseDocumentParser(ABC):
         document_id: int,
         original_filename: str,
     ) -> ParsedDocument:
-        """Parse a document and return a unified ``ParsedDocument``."""
+        """Parse tài liệu và trả về ``ParsedDocument`` thống nhất."""
         ...
 
     @staticmethod
     @abstractmethod
     def supported_extensions() -> set[str]:
-        """Return the set of file extensions this parser handles."""
+        """Trả về tập file extension parser này xử lý."""
         ...
 
     @classmethod
     def is_supported(cls, file_path: str | Path) -> bool:
-        """Check whether *file_path* can be handled by this parser."""
+        """Kiểm tra *file_path* có thể được parser này xử lý không."""
         return Path(file_path).suffix.lower() in cls.supported_extensions()
 
     # ------------------------------------------------------------------
-    # Shared helpers — used by all concrete parsers
+    # Trợ giúp dùng chung - cho mọi parser cụ thể
     # ------------------------------------------------------------------
 
     _IMAGE_CAPTION_PROMPT = (
@@ -99,7 +97,7 @@ class BaseDocumentParser(ABC):
     )
 
     def _caption_images(self, images: list[ExtractedImage]) -> None:
-        """Caption images using the configured LLM provider (best-effort)."""
+        """Tạo caption cho image bằng LLM provider đã cấu hình (best-effort)."""
         from app.services.llm import get_llm_provider
         from app.services.llm.types import LLMImagePart, LLMMessage
 
@@ -132,7 +130,7 @@ class BaseDocumentParser(ABC):
                 logger.debug(f"Failed to caption image {img.image_id}: {e}")
 
     def _caption_tables(self, tables: list[ExtractedTable]) -> None:
-        """Caption tables using LLM (text-only, no vision needed)."""
+        """Tạo caption cho table bằng LLM (chỉ text, không cần vision)."""
         from app.services.llm import get_llm_provider
         from app.services.llm.types import LLMMessage
 
@@ -161,7 +159,7 @@ class BaseDocumentParser(ABC):
     def _inject_table_captions(
         markdown: str, tables: list[ExtractedTable]
     ) -> str:
-        """Inject table captions as blockquotes after matching table blocks."""
+        """Inject table caption dưới dạng blockquote sau table block tương ứng."""
         if not tables:
             return markdown
 
@@ -222,10 +220,10 @@ class BaseDocumentParser(ABC):
         images: list[ExtractedImage] | None = None,
         tables: list[ExtractedTable] | None = None,
     ) -> list[EnrichedChunk]:
-        """Enrich chunks with image/table references based on page matching.
+        """Enrich chunk với image/table references dựa trên khớp theo trang.
 
-        Each image/table is assigned to the FIRST chunk on its page to avoid
-        duplicating descriptions across many chunks.
+        Mỗi image/table được gán vào chunk ĐẦU TIÊN của trang đó để tránh
+        lặp description ở nhiều chunk.
         """
         if not images and not tables:
             return chunks
@@ -246,7 +244,7 @@ class BaseDocumentParser(ABC):
         for chunk in chunks:
             page_no = chunk.page_no
 
-            # Image refs
+            # Tham chiếu ảnh
             if page_no > 0 and page_no in page_images:
                 for img in page_images[page_no]:
                     if img.image_id not in assigned_images:
@@ -265,7 +263,7 @@ class BaseDocumentParser(ABC):
                 if desc_parts:
                     chunk.content = chunk.content + "\n\n" + "\n".join(desc_parts)
 
-            # Table refs
+            # Tham chiếu bảng
             if page_no > 0 and page_no in page_tables:
                 for tbl in page_tables[page_no]:
                     if tbl.table_id not in assigned_tables:

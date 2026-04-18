@@ -1,14 +1,14 @@
 """
-Offline specialized KG extraction service.
+Service specialized KG extraction chay offline.
 
-This module replaces generic LLM-based extraction with two local NLP models:
+Module này thay thế extraction generic dựa trên LLM bằng 2 model NLP local:
 - GLiNER: entity extraction
 - mREBEL: relation extraction
 
-Output format intentionally mirrors LightRAG's extraction format:
-  entity<|#|>entity_name<|#|>entity_type<|#|>entity_description
-  relation<|#|>source_entity<|#|>target_entity<|#|>relationship_keywords<|#|>relationship_description
-  <|COMPLETE|>
+Định dạng output cố ý bám theo format extraction của LightRAG:
+    entity<|#|>entity_name<|#|>entity_type<|#|>entity_description
+    relation<|#|>source_entity<|#|>target_entity<|#|>relationship_keywords<|#|>relationship_description
+    <|COMPLETE|>
 """
 from __future__ import annotations
 
@@ -49,7 +49,7 @@ class ExtractedRelation:
 
 
 class SpecializedKGExtractor:
-    """Singleton extractor that keeps GLiNER + mREBEL loaded in memory."""
+    """Singleton extractor giữ GLiNER + mREBEL được load sẵn trong memory."""
 
     _instance: SpecializedKGExtractor | None = None
     _instance_lock: Lock = Lock()
@@ -80,7 +80,7 @@ class SpecializedKGExtractor:
 
     @classmethod
     def get_instance(cls) -> SpecializedKGExtractor:
-        """Return a single process-wide instance."""
+        """Trả về một instance duy nhất cho toàn bộ process."""
         if cls._instance is None:
             with cls._instance_lock:
                 if cls._instance is None:
@@ -89,9 +89,9 @@ class SpecializedKGExtractor:
 
     async def extract_entities_and_relations(self, text: str) -> str:
         """
-        Async wrapper for CPU/GPU-bound extraction.
+        Wrapper async cho extraction bị ràng buộc CPU/GPU.
 
-        This method is safe to call from async request handlers.
+        Phương thức này an toàn để gọi từ async request handler.
         """
         return await asyncio.to_thread(self.extract_entities_and_relations_sync, text)
 
@@ -100,14 +100,14 @@ class SpecializedKGExtractor:
         text: str,
         entity_types: Sequence[str] | None = None,
     ) -> str:
-        """Run extraction in blocking mode and return LightRAG-compatible text."""
+        """Chạy extraction ở chế độ blocking và trả về text tương thích LightRAG."""
         clean_text = text.strip()
         if not clean_text:
             return COMPLETION_DELIMITER
 
         try:
             normalized_entity_types = self._normalize_entity_types(entity_types)
-            # Shared tokenizer/model instances are not thread-safe under concurrent calls.
+            # Instance tokenizer/model dùng chung không thread-safe khi gọi đồng thời.
             with self._inference_lock:
                 entities = self._extract_entities(clean_text, normalized_entity_types)
                 relations = self._extract_relations(clean_text)
@@ -118,7 +118,7 @@ class SpecializedKGExtractor:
             raise
 
     def _initialize_models(self) -> None:
-        """Load cached models only (strict offline behavior at runtime)."""
+        """Chỉ load model từ cache (hành vi runtime offline nghiêm ngặt)."""
 
         os.environ.setdefault("HF_HUB_OFFLINE", "1")
         os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
@@ -132,7 +132,7 @@ class SpecializedKGExtractor:
         )
 
         try:
-            # GLiNER newer versions
+            # GLiNER bản mới
             try:
                 self._gliner_model = GLiNER.from_pretrained(
                     self._gliner_model_name,
@@ -140,7 +140,7 @@ class SpecializedKGExtractor:
                     local_files_only=True,
                 )
             except TypeError:
-                # Backward compatibility with older GLiNER signatures.
+                # Tương thích ngược với signature GLiNER bản cũ.
                 self._gliner_model = GLiNER.from_pretrained(self._gliner_model_name)
         except Exception as exc:
             raise FileNotFoundError(
@@ -272,9 +272,9 @@ class SpecializedKGExtractor:
 
     def _parse_mrebel_triplets(self, text: str) -> list[dict[str, str]]:
         """
-        Parse mREBEL generation format.
+        Parse định dạng generation của mREBEL.
 
-        Adapted from Babelscape model-card parser logic.
+        Điều chỉnh từ logic parser trong Babelscape model-card.
         """
         triplets: list[dict[str, str]] = []
         current = "x"
@@ -500,5 +500,5 @@ class SpecializedKGExtractor:
 
 
 def get_specialized_kg_extractor() -> SpecializedKGExtractor:
-    """Factory helper for the singleton extractor."""
+    """Hàm factory trợ giúp cho singleton extractor."""
     return SpecializedKGExtractor.get_instance()

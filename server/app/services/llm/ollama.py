@@ -1,5 +1,5 @@
 """
-Ollama LLM & Embedding Providers
+Ollama LLM va Embedding Provider
 """
 from __future__ import annotations
 
@@ -15,22 +15,22 @@ from app.services.llm.types import LLMMessage, LLMResult, StreamChunk
 
 logger = logging.getLogger(__name__)
 
-# Regex to strip <think>...</think> blocks from model output
+# Regex để loại bỏ block <think>...</think> khỏi output model
 _THINK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
 
 
 class OllamaLLMProvider(LLMProvider):
-    """Local Ollama text/multimodal generation."""
+    """Sinh text/multimodal local bằng Ollama."""
 
     def __init__(self, host: str = "http://localhost:11434", model: str = "gemma3:12b"):
         self._host = host
         self._model = model
-        self._thinking_supported: bool | None = None  # lazy probe
-        self._native_tools_supported: bool | None = None  # lazy probe
-        self.last_response_message: dict | None = None  # for native tool call history
+        self._thinking_supported: bool | None = None  # probe lazy
+        self._native_tools_supported: bool | None = None  # probe lazy
+        self.last_response_message: dict | None = None  # dùng cho lịch sử native tool call
 
     # ------------------------------------------------------------------
-    # Internal helpers
+    # Trợ giúp nội bộ
     # ------------------------------------------------------------------
 
     @staticmethod
@@ -38,22 +38,22 @@ class OllamaLLMProvider(LLMProvider):
         messages: list[LLMMessage],
         system_prompt: Optional[str] = None,
     ) -> list[dict]:
-        """Convert LLMMessage list to Ollama message dicts."""
+        """Chuyển danh sách LLMMessage thành dict message của Ollama."""
         result: list[dict] = []
 
         if system_prompt:
             result.append({"role": "system", "content": system_prompt})
 
         for msg in messages:
-            # Raw Ollama message dict — pass through as-is
-            # (used for native tool call history: assistant w/ tool_calls, tool results)
+            # Dict message thô của Ollama - truyền thẳng nguyên trạng
+            # (dùng cho native tool call history: assistant có tool_calls, tool results)
             if msg._raw_provider_content is not None:
                 result.append(msg._raw_provider_content)
                 continue
 
             entry: dict = {"role": msg.role, "content": msg.content}
             if msg.images:
-                # Ollama accepts raw bytes in the 'images' field
+                # Ollama chấp nhận raw bytes trong field 'images'
                 entry["images"] = [img.data for img in msg.images]
             result.append(entry)
 
@@ -61,23 +61,23 @@ class OllamaLLMProvider(LLMProvider):
 
     @staticmethod
     def _extract_content(response, keep_thinking: bool = False) -> str | LLMResult:
-        """Extract usable text from Ollama response.
+        """Trích xuất text hữu dụng từ Ollama response.
 
-        Handles edge cases:
-        - ``content`` is empty but ``thinking`` field has the answer
-        - ``content`` contains embedded ``<think>...</think>`` blocks
+        Xử lý các edge case:
+        - ``content`` rỗng nhưng field ``thinking`` lại có câu trả lời
+        - ``content`` chứa block ``<think>...</think>`` nhúng
 
-        When *keep_thinking* is True, returns an LLMResult with the
-        thinking text preserved separately.
+        Khi *keep_thinking* là True, trả về LLMResult với
+        thinking text được giữ riêng.
         """
         content = response.message.content or ""
         thinking = getattr(response.message, "thinking", None) or ""
 
-        # Strip <think>...</think> blocks from content
+        # Loại bỏ block <think>...</think> khỏi content
         if "<think>" in content:
             content = _THINK_RE.sub("", content).strip()
 
-        # Fallback: if content is still empty, check thinking field
+        # Fallback: nếu content vẫn rỗng, kiểm tra field thinking
         if not content:
             if thinking:
                 logger.warning(
@@ -91,7 +91,7 @@ class OllamaLLMProvider(LLMProvider):
         return content
 
     # ------------------------------------------------------------------
-    # LLMProvider interface
+    # Giao diện LLMProvider
     # ------------------------------------------------------------------
 
     def complete(
@@ -140,7 +140,7 @@ class OllamaLLMProvider(LLMProvider):
         system_prompt: Optional[str] = None,
         think: bool = False,
     ) -> str | LLMResult:
-        """Native async via ollama.AsyncClient (better than to_thread)."""
+        """Async native qua ollama.AsyncClient (tốt hơn to_thread)."""
         import ollama
 
         ollama_msgs = self._to_ollama_messages(messages, system_prompt)
@@ -179,11 +179,11 @@ class OllamaLLMProvider(LLMProvider):
         think: bool = False,
         tools: list | None = None,
     ) -> AsyncGenerator[StreamChunk, None]:
-        """Streaming generation via Ollama's async stream API.
+        """Streaming generation qua async stream API của Ollama.
 
-        When *tools* is provided, native tool calling is used and tool calls
-        arrive via ``chunk.message.tool_calls``.  Otherwise, prompt-based
-        ``<tool_call>`` XML tags are detected via a state machine.
+        Khi có *tools*, dùng native tool calling và tool call sẽ đến qua
+        ``chunk.message.tool_calls``. Ngược lại, tag XML ``<tool_call>``
+        kiểu prompt-based sẽ được phát hiện bằng state machine.
         """
         import ollama
 
@@ -206,7 +206,7 @@ class OllamaLLMProvider(LLMProvider):
             stream = await client.chat(**kwargs)
 
             if tools:
-                # ── Native tool calling path ──────────────────────────────
+                # -- Nhánh native tool calling --
                 self.last_response_message = None
 
                 async for chunk in stream:
@@ -221,7 +221,7 @@ class OllamaLLMProvider(LLMProvider):
                         if cleaned:
                             yield StreamChunk(type="text", text=cleaned)
 
-                    # Native tool calls arrive as complete objects
+                    # Native tool call đến dưới dạng object đầy đủ
                     tool_calls = getattr(chunk.message, "tool_calls", None)
                     if tool_calls:
                         self.last_response_message = {
@@ -247,7 +247,7 @@ class OllamaLLMProvider(LLMProvider):
                                 },
                             )
             else:
-                # ── Prompt-based tool calling path (XML state machine) ────
+                # -- Nhánh tool calling dạng prompt (XML state machine) --
                 tool_buffer = ""
                 in_tool_call = False
 
@@ -332,13 +332,13 @@ class OllamaLLMProvider(LLMProvider):
             yield StreamChunk(type="text", text="")
 
     def supports_vision(self) -> bool:
-        # Vision support depends on the model (e.g. qwen3-vl, llava, etc.)
-        # We return True and let the model handle it; if the model doesn't
-        # support vision, the Ollama API will return an error gracefully.
+        # Hỗ trợ vision phụ thuộc model (vd: qwen3-vl, llava, ...)
+        # Trả về True và để model tự xử lý; nếu model không hỗ trợ,
+        # Ollama API sẽ trả lỗi một cách an toàn.
         return True
 
     def supports_thinking(self) -> bool:
-        """Detect if the model supports thinking mode via a probe call."""
+        """Phát hiện model có hỗ trợ thinking mode bằng probe call."""
         if self._thinking_supported is not None:
             return self._thinking_supported
 
@@ -352,7 +352,7 @@ class OllamaLLMProvider(LLMProvider):
                 options={"num_predict": 2},
                 think=True,
             )
-            # If we get here without error, thinking is supported
+            # Nếu chạy tới đây không lỗi thì thinking được hỗ trợ
             thinking = getattr(response.message, "thinking", None) or ""
             self._thinking_supported = True
             logger.info(
@@ -369,11 +369,11 @@ class OllamaLLMProvider(LLMProvider):
         return self._thinking_supported
 
     def supports_native_tools(self) -> bool:
-        """Detect if the model supports native tool calling via a probe call.
+        """Phát hiện model có hỗ trợ native tool calling bằng probe call.
 
-        Sends a question that should trigger a tool call.  Only marks the
-        model as supporting native tools if it *actually* produces a
-        ``tool_calls`` response — not just that the API accepts the param.
+        Gửi một câu hỏi có khả năng kích hoạt tool call. Chỉ đánh dấu model
+        là hỗ trợ native tools khi nó *thực sự* sinh response ``tool_calls``,
+        không chỉ đơn giản là API chấp nhận tham số.
         """
         if self._native_tools_supported is not None:
             return self._native_tools_supported
@@ -425,7 +425,7 @@ class OllamaLLMProvider(LLMProvider):
 
 
 class OllamaEmbeddingProvider(EmbeddingProvider):
-    """Local Ollama text embedding."""
+    """Text embedding local bằng Ollama."""
 
     _BATCH_SIZE = 64
     _MAX_BATCH_RETRIES = 1
@@ -443,7 +443,7 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
         self._sync_client = None
 
     def _get_sync_client(self):
-        """Reuse one host-bound sync client for all embedding calls."""
+        """Tái sử dụng một sync client theo host cho mọi lần gọi embedding."""
         import ollama
 
         if self._sync_client is None:
@@ -451,7 +451,7 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
         return self._sync_client
 
     def _detect_dimension(self) -> int:
-        """Detect embedding dimension by running a probe."""
+        """Phát hiện embedding dimension bằng cách chạy probe."""
         try:
             result = self._get_sync_client().embed(model=self._model, input=["dimension probe"])
             dim = len(result.embeddings[0])
@@ -463,7 +463,7 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
             return settings.KG_EMBEDDING_DIMENSION
 
     def _embed_batch_once_sync(self, texts: list[str]) -> np.ndarray:
-        """Embed one batch and enforce 1:1 input/output count."""
+        """Embed một batch và ép ràng buộc số lượng input/output 1:1."""
         result = self._get_sync_client().embed(model=self._model, input=texts)
         arr = np.array(result.embeddings, dtype=np.float32)
 
@@ -483,7 +483,7 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
         return arr
 
     async def _embed_batch_once_async(self, client, texts: list[str]) -> np.ndarray:
-        """Async batch embedding with strict output validation."""
+        """Embed batch async với kiểm tra output nghiêm ngặt."""
         result = await client.embed(model=self._model, input=texts)
         arr = np.array(result.embeddings, dtype=np.float32)
 
@@ -509,7 +509,7 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
         batch_start: int,
         depth: int = 0,
     ) -> np.ndarray:
-        """Retry full batch, then split recursively to isolate unstable items."""
+        """Thử lại cả batch, rồi tách đệ quy để cô lập item không ổn định."""
         last_error: Exception | None = None
         for attempt in range(self._MAX_BATCH_RETRIES + 1):
             try:
@@ -566,7 +566,7 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
         batch_start: int,
         depth: int = 0,
     ) -> np.ndarray:
-        """Async variant of retry + split-batch fallback."""
+        """Biến thể async của cơ chế retry + fallback tách batch."""
         last_error: Exception | None = None
         for attempt in range(self._MAX_BATCH_RETRIES + 1):
             try:
@@ -652,7 +652,7 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
         return any(marker in msg for marker in markers)
 
     def _split_text_for_embedding(self, text: str) -> list[str]:
-        """Split oversized text into sentence-aware windows for embedding fallback."""
+        """Tách text quá dài thành cửa sổ theo câu để fallback embedding."""
         normalized = " ".join(str(text or "").split())
         if not normalized:
             return ["[empty]"]
@@ -697,7 +697,7 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
         return chunks if chunks else [normalized[:max_chars]]
 
     def _force_bisect_text(self, text: str) -> list[str]:
-        """Hard split fallback when sentence-aware splitting cannot reduce further."""
+        """Fallback tách cứng khi cách tách theo câu không giảm được thêm."""
         normalized = " ".join(str(text or "").split())
         if len(normalized) <= 128:
             return [normalized] if normalized else ["[empty]"]
@@ -712,7 +712,7 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
 
     @staticmethod
     def _pool_chunk_embeddings(vectors: np.ndarray, chunks: list[str]) -> np.ndarray:
-        """Pool chunk vectors back to one vector with length-based weighting."""
+        """Gộp vector của chunk về một vector bằng trọng số theo độ dài."""
         if vectors.ndim != 2 or vectors.shape[0] == 0:
             raise ValueError("Cannot pool empty chunk embeddings")
         if vectors.shape[0] != len(chunks):
@@ -803,17 +803,17 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
 
     @staticmethod
     def _sanitize_texts(texts: list[str]) -> list[str]:
-        """Clean texts to prevent Ollama embedding NaN errors.
+        """Làm sạch text để tránh lỗi NaN khi embedding bằng Ollama.
 
-        Some texts (empty, special chars only, extremely long) cause
-        bge-m3 via Ollama to return NaN embeddings or 500 errors.
+        Một số text (rỗng, chỉ có ký tự đặc biệt, quá dài) có thể khiến
+        bge-m3 qua Ollama trả NaN embedding hoặc lỗi 500.
         """
         sanitized = []
         for t in texts:
             t = t.strip()
             if not t:
                 t = "[empty]"
-            # Truncate extremely long texts (>8192 tokens ≈ 32k chars)
+            # Cắt bớt text quá dài (>8192 tokens ≈ 32k chars)
             if len(t) > 32000:
                 t = t[:32000]
             sanitized.append(t)
@@ -831,7 +831,7 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
         return np.vstack(parts)
 
     async def embed(self, texts: list[str]) -> np.ndarray:
-        """Native async embedding via ollama.AsyncClient."""
+        """Embedding async native qua ollama.AsyncClient."""
         import ollama
 
         if not texts:

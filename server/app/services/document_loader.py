@@ -1,6 +1,6 @@
 """
-Document Loader Service
-Handles loading and extracting text from various document formats.
+Service Document Loader.
+Xử lý việc load và trích xuất text từ nhiều định dạng tài liệu.
 """
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class LoadedDocument(NamedTuple):
-    """Represents a loaded document with its content and metadata."""
+    """Đại diện cho tài liệu đã load cùng nội dung và metadata."""
     content: str
     source: str
     file_type: str
@@ -20,7 +20,7 @@ class LoadedDocument(NamedTuple):
 
 
 def load_txt_file(file_path: Path) -> LoadedDocument:
-    """Load a plain text file."""
+    """Tải file văn bản thuần (plain text)."""
     try:
         content = file_path.read_text(encoding="utf-8")
         return LoadedDocument(
@@ -30,7 +30,7 @@ def load_txt_file(file_path: Path) -> LoadedDocument:
             page_count=1
         )
     except UnicodeDecodeError:
-        # Try with different encoding
+        # Thử với encoding khác
         content = file_path.read_text(encoding="latin-1")
         return LoadedDocument(
             content=content,
@@ -41,7 +41,7 @@ def load_txt_file(file_path: Path) -> LoadedDocument:
 
 
 def load_pdf_file(file_path: Path) -> LoadedDocument:
-    """Load a PDF file and extract text."""
+    """Tải file PDF và trích xuất nội dung text."""
     try:
         from pypdf import PdfReader
 
@@ -67,7 +67,7 @@ def load_pdf_file(file_path: Path) -> LoadedDocument:
 
 
 def load_markdown_file(file_path: Path) -> LoadedDocument:
-    """Load a markdown file."""
+    """Tải file markdown."""
     content = file_path.read_text(encoding="utf-8")
     return LoadedDocument(
         content=content,
@@ -79,18 +79,18 @@ def load_markdown_file(file_path: Path) -> LoadedDocument:
 
 def load_document(file_path: str | Path) -> LoadedDocument:
     """
-    Load a document based on its file type.
+    Load tài liệu dựa theo file type.
 
-    Supported formats: .txt, .pdf, .md
+    Định dạng hỗ trợ: .txt, .pdf, .md
 
     Args:
-        file_path: Path to the document file
+        file_path: Đường dẫn tới file tài liệu
 
     Returns:
-        LoadedDocument with content and metadata
+        LoadedDocument gồm content và metadata
 
     Raises:
-        ValueError: If file type is not supported or file cannot be read
+        ValueError: Nếu file type không hỗ trợ hoặc file không thể đọc
     """
     path = Path(file_path)
 
@@ -113,5 +113,5 @@ def load_document(file_path: str | Path) -> LoadedDocument:
 
 
 def get_supported_extensions() -> list[str]:
-    """Return list of supported file extensions."""
+    """Trả về danh sách file extension được hỗ trợ."""
     return [".txt", ".pdf", ".md"]

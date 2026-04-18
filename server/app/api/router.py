@@ -1,5 +1,5 @@
 """
-NexusRAG API router — aggregates workspace, document, and RAG endpoints.
+NexusRAG API router — tổng hợp endpoint workspace, document và RAG.
 """
 from fastapi import APIRouter
 

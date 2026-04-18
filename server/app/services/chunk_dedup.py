@@ -1,14 +1,14 @@
 """
-Pre-ingestion Deduplication Pipeline
-=====================================
+Pipeline Deduplication truoc ingest
+===================================
 
-Filters noise and removes duplicate/near-duplicate chunks BEFORE embedding,
-reducing vector space pollution and improving retrieval quality.
+Lọc nhiễu và loại chunk trùng/gần trùng TRƯỚC khi embedding,
+giảm ô nhiễm vector space và cải thiện chất lượng retrieval.
 
-Three-stage pipeline:
-  1. Noise filter  — remove boilerplate headers/footers, legal junk, tiny chunks
-  2. Exact dedup   — SHA-256 content hash to drop identical chunks
-  3. Near dedup    — character n-gram shingling + Jaccard similarity for fuzzy matches
+Pipeline 3 giai đoạn:
+    1. Noise filter  - loại boilerplate header/footer, legal text, chunk quá nhỏ
+    2. Exact dedup   - hash SHA-256 nội dung để loại chunk giống hệt
+    3. Near dedup    - shingling n-gram ký tự + Jaccard similarity cho khớp mờ
 """
 from __future__ import annotations
 
@@ -22,49 +22,49 @@ from app.services.models.parsed_document import EnrichedChunk
 
 logger = logging.getLogger(__name__)
 
-# ── Compiled boilerplate patterns ────────────────────────────────────────
-# Each pattern matches a FULL chunk that is predominantly boilerplate.
-# We use re.IGNORECASE | re.DOTALL so multiline chunks are handled.
+# -- Mẫu boilerplate đã compile --
+# Mỗi pattern khớp một chunk ĐẦY ĐỦ có tính boilerplate chiếm ưu thế.
+# Dùng re.IGNORECASE | re.DOTALL để xử lý được chunk nhiều dòng.
 
 _BOILERPLATE_PATTERNS: list[re.Pattern] = [
-    # Copyright / license lines
+    # Dòng copyright / license
     re.compile(
         r"^[\s\S]{0,30}(?:©|copyright|\(c\)|all\s+rights?\s+reserved)"
         r"[\s\S]{0,300}$",
         re.IGNORECASE,
     ),
-    # "Confidential" / "proprietary" disclaimers
+    # Câu disclaimer kiểu "confidential" / "proprietary"
     re.compile(
         r"^[\s\S]{0,30}(?:confidential|proprietary|internal\s+use\s+only)"
         r"[\s\S]{0,300}$",
         re.IGNORECASE,
     ),
-    # Page number only  ("Page 3", "- 12 -", "3 / 10", "Trang 5")
+    # Chỉ chứa số trang ("Page 3", "- 12 -", "3 / 10", "Trang 5")
     re.compile(
         r"^\s*(?:page|trang|p\.?)?\s*\d{1,4}\s*(?:[/of|trên]\s*\d{1,4})?\s*$",
         re.IGNORECASE,
     ),
-    # Repeated dashes / underscores / equals (visual separators)
+    # Dấu gạch/underscore/equals lặp lại (vạch phân tách thị giác)
     re.compile(r"^\s*[-_=~*]{4,}\s*$"),
-    # "Table of Contents" / "Mục lục" standalone headings
+    # Heading độc lập kiểu "Table of Contents" / "Mục lục"
     re.compile(
         r"^\s*(?:table\s+of\s+contents?|mục\s+lục|nội\s+dung)\s*$",
         re.IGNORECASE,
     ),
-    # Draft / watermark text
+    # Text kiểu draft / watermark
     re.compile(
         r"^\s*(?:draft|bản\s+nháp|watermark|confidential)\s*$",
         re.IGNORECASE,
     ),
-    # Header/footer patterns: "Company Name | Page X" or "Report Title — 2024"
+    # Pattern header/footer: "Company Name | Page X" hoặc "Report Title - 2024"
     re.compile(
         r"^[A-ZÀ-Ỹa-zà-ỹ\s\-|·•]{3,60}\s*[|·•\-—]\s*(?:page|trang|p\.?)?\s*\d{0,4}\s*$",
         re.IGNORECASE,
     ),
 ]
 
-# Vietnamese legal boilerplate fragments (partial match — if chunk CONTAINS these
-# AND is short, it's likely boilerplate)
+# Mảnh legal boilerplate tiếng Việt (khớp một phần - nếu chunk CHỨA các cụm này
+# VÀ ngắn thì nhiều khả năng là boilerplate)
 _LEGAL_FRAGMENTS_VI = [
     "theo quy định của pháp luật",
     "không được sao chép",
@@ -87,17 +87,17 @@ _LEGAL_FRAGMENTS_EN = [
 
 
 def _normalize_text(text: str) -> str:
-    """Collapse whitespace and lowercase for comparison."""
+    """Rút gọn khoảng trắng và chuyển lowercase để so sánh."""
     return re.sub(r"\s+", " ", text.strip().lower())
 
 
 def _content_hash(text: str) -> str:
-    """SHA-256 of normalized text."""
+    """SHA-256 của text đã normalize."""
     return hashlib.sha256(_normalize_text(text).encode("utf-8")).hexdigest()
 
 
 def _char_ngrams(text: str, n: int = 5) -> set[str]:
-    """Generate character-level n-gram shingles from normalized text."""
+    """Sinh shingles n-gram cấp ký tự từ text đã normalize."""
     normed = _normalize_text(text)
     if len(normed) < n:
         return {normed}
@@ -105,7 +105,7 @@ def _char_ngrams(text: str, n: int = 5) -> set[str]:
 
 
 def _jaccard_similarity(set_a: set, set_b: set) -> float:
-    """Jaccard similarity between two sets."""
+    """Jaccard similarity giữa hai tập."""
     if not set_a or not set_b:
         return 0.0
     intersection = len(set_a & set_b)
@@ -113,18 +113,18 @@ def _jaccard_similarity(set_a: set, set_b: set) -> float:
     return intersection / union if union > 0 else 0.0
 
 
-# ── Stage 1: Noise Filter ───────────────────────────────────────────────
+# -- Giai đoạn 1: Noise Filter --
 
 def _is_boilerplate(text: str) -> bool:
-    """Check if text matches known boilerplate patterns."""
+    """Kiểm tra text có khớp pattern boilerplate đã biết không."""
     stripped = text.strip()
 
-    # Full-match patterns
+    # Pattern khớp toàn phần
     for pattern in _BOILERPLATE_PATTERNS:
         if pattern.match(stripped):
             return True
 
-    # Short chunks with legal fragments
+    # Chunk ngắn có chứa legal fragment
     normed = stripped.lower()
     if len(stripped) < 300:
         for frag in _LEGAL_FRAGMENTS_VI + _LEGAL_FRAGMENTS_EN:
@@ -135,45 +135,45 @@ def _is_boilerplate(text: str) -> bool:
 
 
 def _meaningful_char_count(text: str) -> int:
-    """Count non-whitespace, non-punctuation characters."""
+    """Đếm ký tự không phải khoảng trắng và dấu câu."""
     return len(re.sub(r"[\s\-_=~*|#>•·\"\'`(){}\[\]]+", "", text))
 
 
 def filter_noise(chunks: list[EnrichedChunk]) -> list[EnrichedChunk]:
     """
-    Stage 1: Remove chunks that are predominantly noise.
+    Stage 1: Loại chunk chủ yếu là nhiễu.
 
-    Removes:
-      - Chunks shorter than DEDUP_MIN_CHUNK_LENGTH meaningful characters
-      - Boilerplate headers/footers/legal disclaimers/copyright notices
-      - Whitespace-only or formatting-only chunks
+        Loại bỏ:
+            - Chunk ngắn hơn DEDUP_MIN_CHUNK_LENGTH ký tự có nghĩa
+            - Boilerplate header/footer/legal disclaimer/copyright notice
+            - Chunk chỉ có khoảng trắng hoặc chỉ có ký tự format
 
-    Preserves chunks with image_refs or table_refs regardless of text length,
-    since their enriched captions carry semantic value.
+    Giữ lại chunk có image_refs hoặc table_refs bất kể độ dài text,
+    vì caption enrich của chúng vẫn mang giá trị semantic.
     """
     min_len = settings.NEXUSRAG_DEDUP_MIN_CHUNK_LENGTH
     kept: list[EnrichedChunk] = []
     removed = 0
 
     for chunk in chunks:
-        # Always keep chunks with attached images/tables
+        # Luôn giữ chunk có ảnh/bảng đính kèm
         if chunk.image_refs or chunk.table_refs:
             kept.append(chunk)
             continue
 
         text = chunk.content.strip()
 
-        # Empty / whitespace-only
+        # Rỗng / chỉ khoảng trắng
         if not text:
             removed += 1
             continue
 
-        # Too short (after stripping formatting)
+        # Quá ngắn (sau khi loại ký tự format)
         if _meaningful_char_count(text) < min_len:
             removed += 1
             continue
 
-        # Boilerplate match
+        # Khớp boilerplate
         if _is_boilerplate(text):
             removed += 1
             continue
@@ -186,13 +186,13 @@ def filter_noise(chunks: list[EnrichedChunk]) -> list[EnrichedChunk]:
     return kept
 
 
-# ── Stage 2: Exact Dedup ────────────────────────────────────────────────
+# -- Giai đoạn 2: Exact Dedup --
 
 def dedup_exact(chunks: list[EnrichedChunk]) -> list[EnrichedChunk]:
     """
-    Stage 2: Remove chunks with identical normalized content.
+    Stage 2: Loại chunk có nội dung normalize giống hệt nhau.
 
-    Uses SHA-256 of lowercased, whitespace-collapsed text. First occurrence wins.
+    Dùng SHA-256 trên text lowercase và rút gọn khoảng trắng. Giữ lần xuất hiện đầu tiên.
     """
     seen_hashes: set[str] = set()
     kept: list[EnrichedChunk] = []
@@ -212,27 +212,27 @@ def dedup_exact(chunks: list[EnrichedChunk]) -> list[EnrichedChunk]:
     return kept
 
 
-# ── Stage 3: Near-duplicate Detection ───────────────────────────────────
+# -- Giai đoạn 3: Near-duplicate Detection --
 
 def dedup_near(
     chunks: list[EnrichedChunk],
     threshold: float | None = None,
 ) -> list[EnrichedChunk]:
     """
-    Stage 3: Remove near-duplicate chunks using Jaccard similarity
-    on character n-gram shingles.
+    Stage 3: Loại chunk gần trùng bằng Jaccard similarity
+    trên shingles n-gram ký tự.
 
-    For each pair, the LATER chunk (by chunk_index) is dropped when
-    similarity >= threshold.  O(n²) but n is typically < 200 chunks per
-    document, so this is fast enough.
+    Với mỗi cặp, chunk ĐẾN SAU (theo chunk_index) sẽ bị loại khi
+    similarity >= threshold. Độ phức tạp O(n^2) nhưng n thường < 200 chunk
+    mỗi document nên vẫn đủ nhanh.
     """
     if threshold is None:
         threshold = settings.NEXUSRAG_DEDUP_NEAR_THRESHOLD
 
     if threshold >= 1.0:
-        return chunks  # disabled
+        return chunks  # da tat
 
-    # Pre-compute shingles
+    # Tiền tính shingles
     shingles = [_char_ngrams(c.content) for c in chunks]
 
     drop_indices: set[int] = set()
@@ -259,21 +259,21 @@ def dedup_near(
     return kept
 
 
-# ── Public API ───────────────────────────────────────────────────────────
+# -- API công khai --
 
 def deduplicate_chunks(
     chunks: list[EnrichedChunk],
 ) -> tuple[list[EnrichedChunk], dict[str, int]]:
     """
-    Run the full 3-stage deduplication pipeline.
+    Chạy toàn bộ pipeline deduplication 3 giai đoạn.
 
     Returns:
-        (filtered_chunks, stats) where stats = {
-            "input": total input chunks,
-            "noise_removed": count removed by noise filter,
-            "exact_removed": count removed by exact dedup,
-            "near_removed": count removed by near dedup,
-            "output": total output chunks,
+        (filtered_chunks, stats) trong đó stats = {
+            "input": tổng số chunk đầu vào,
+            "noise_removed": số lượng bị loại bởi noise filter,
+            "exact_removed": số lượng bị loại bởi exact dedup,
+            "near_removed": số lượng bị loại bởi near dedup,
+            "output": tổng số chunk đầu ra,
         }
     """
     if not settings.NEXUSRAG_DEDUP_ENABLED:
@@ -282,19 +282,19 @@ def deduplicate_chunks(
 
     total_input = len(chunks)
 
-    # Stage 1: Noise filter
+    # Giai đoạn 1: Noise filter
     after_noise = filter_noise(chunks)
     noise_removed = total_input - len(after_noise)
 
-    # Stage 2: Exact dedup
+    # Giai đoạn 2: Exact dedup
     after_exact = dedup_exact(after_noise)
     exact_removed = len(after_noise) - len(after_exact)
 
-    # Stage 3: Near dedup
+    # Giai đoạn 3: Near dedup
     after_near = dedup_near(after_exact)
     near_removed = len(after_exact) - len(after_near)
 
-    # Re-index chunk_index to be contiguous
+    # Đánh lại chunk_index liên tục
     for i, chunk in enumerate(after_near):
         chunk.chunk_index = i
 

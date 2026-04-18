@@ -1,7 +1,7 @@
 """
-LLM Provider Base Classes
-=========================
-Abstract interfaces for LLM text/vision generation and embedding.
+Base Class cho LLM Provider
+===========================
+Interface trừu tượng cho sinh text/vision và embedding của LLM.
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from app.services.llm.types import LLMMessage, LLMResult, StreamChunk
 
 
 class LLMProvider(ABC):
-    """Abstract interface for LLM text/multimodal generation."""
+    """Giao diện trừu tượng cho sinh text/multimodal của LLM."""
 
     @abstractmethod
     def complete(
@@ -28,17 +28,17 @@ class LLMProvider(ABC):
         think: bool = False,
     ) -> str | LLMResult:
         """
-        Synchronous text generation.
+        Sinh text đồng bộ.
 
         Args:
-            messages: Conversation history (may include images).
-            temperature: Sampling temperature.
-            max_tokens: Maximum output tokens.
-            system_prompt: System-level instruction (provider handles injection).
-            think: If True and supported, return LLMResult with thinking text.
+            messages: Lịch sử hội thoại (có thể gồm image).
+            temperature: Nhiệt độ sampling.
+            max_tokens: Số output token tối đa.
+            system_prompt: Chỉ dẫn mức system (provider tự xử lý việc inject).
+            think: Nếu True và được hỗ trợ, trả về LLMResult có thinking text.
 
         Returns:
-            Generated text string, or LLMResult when think=True.
+            Chuỗi text sinh ra, hoặc LLMResult khi think=True.
         """
         ...
 
@@ -52,9 +52,9 @@ class LLMProvider(ABC):
         think: bool = False,
     ) -> str | LLMResult:
         """
-        Async text generation.
-        Default: runs complete() in a thread pool.
-        Providers with native async support should override.
+        Sinh text bất đồng bộ.
+        Mặc định: chạy complete() trong thread pool.
+        Provider có native async nên override hàm này.
         """
         return await asyncio.to_thread(
             self.complete,
@@ -75,10 +75,10 @@ class LLMProvider(ABC):
         think: bool = False,
         tools: list | None = None,
     ) -> AsyncGenerator[StreamChunk, None]:
-        """Async streaming generation. Yields StreamChunk objects.
+        """Sinh stream bất đồng bộ. Yield đối tượng StreamChunk.
 
-        Default fallback: calls acomplete() and yields a single text chunk.
-        Providers with native streaming should override this method.
+        Fallback mặc định: gọi acomplete() và yield một text chunk duy nhất.
+        Provider có native streaming nên override hàm này.
         """
         result = await self.acomplete(
             messages,
@@ -96,39 +96,39 @@ class LLMProvider(ABC):
 
     @abstractmethod
     def supports_vision(self) -> bool:
-        """Whether this provider/model supports image inputs."""
+        """Provider/model này có hỗ trợ input image hay không."""
         ...
 
     def supports_thinking(self) -> bool:
-        """Whether this provider/model supports thinking mode."""
+        """Provider/model này có hỗ trợ thinking mode hay không."""
         return False
 
     def supports_native_tools(self) -> bool:
-        """Whether this provider/model supports native tool calling."""
+        """Provider/model này có hỗ trợ native tool calling hay không."""
         return False
 
 
 class EmbeddingProvider(ABC):
-    """Abstract interface for text embedding generation (used by KG)."""
+    """Giao diện trừu tượng cho sinh text embedding (dùng cho KG)."""
 
     @abstractmethod
     def embed_sync(self, texts: list[str]) -> np.ndarray:
         """
-        Synchronous batch embedding.
+        Sinh embedding theo batch đồng bộ.
 
         Returns:
-            numpy array of shape (len(texts), embedding_dim).
+            numpy array có shape (len(texts), embedding_dim).
         """
         ...
 
     async def embed(self, texts: list[str]) -> np.ndarray:
         """
-        Async batch embedding.
-        Default: runs embed_sync() in a thread pool.
+        Sinh embedding theo batch bất đồng bộ.
+        Mặc định: chạy embed_sync() trong thread pool.
         """
         return await asyncio.to_thread(self.embed_sync, texts)
 
     @abstractmethod
     def get_dimension(self) -> int:
-        """Return the embedding vector dimension for this model."""
+        """Trả về embedding vector dimension của model này."""
         ...

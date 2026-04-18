@@ -28,11 +28,11 @@ def _inject_images_from_db(
     images: list[DocumentImage],
     workspace_id: int,
 ) -> str:
-    """Replace remaining <!-- image --> placeholders with real image markdown.
+    """Thay các placeholder <!-- image --> còn lại bằng image markdown thực.
 
-    Used as a safety net when the parser didn't inject them during processing.
-    Images are matched in insertion order (by primary key) which mirrors the
-    order of pictures in the original Docling document.
+    Dùng như lớp safety net khi parser chưa inject trong lúc xử lý.
+    Ảnh được ghép theo thứ tự insert (theo primary key), tương ứng với
+    thứ tự ảnh trong document Docling gốc.
     """
     img_iter = iter(images)
 
@@ -61,7 +61,7 @@ async def list_documents(
     workspace_id: int,
     db: AsyncSession = Depends(get_db),
 ):
-    """List all documents in a knowledge base."""
+    """Liệt kê toàn bộ document trong một knowledge base."""
     result = await db.execute(select(KnowledgeBase).where(KnowledgeBase.id == workspace_id))
     kb = result.scalar_one_or_none()
 
@@ -75,13 +75,13 @@ async def list_documents(
 
 
 async def process_document_background(document_id: int, file_path: str, workspace_id: int):
-    """Background task to process document for RAG indexing."""
+    """Background task xử lý document để RAG indexing."""
     from app.core.database import async_session_maker
     from app.services.rag_service import get_rag_service
 
     async with async_session_maker() as db:
         try:
-            # Load workspace-level KG settings
+            # Tải cấu hình KG ở cấp workspace
             from sqlalchemy import select as sa_select
             from app.models.knowledge_base import KnowledgeBase
             ws_result = await db.execute(
@@ -101,7 +101,7 @@ async def process_document_background(document_id: int, file_path: str, workspac
             logger.info(f"Document {document_id} processed successfully")
         except Exception as e:
             logger.error(f"Failed to process document {document_id}: {e}")
-            # Guarantee FAILED status even if process_document's own handler failed
+            # Đảm bảo trạng thái FAILED ngay cả khi handler của process_document lỗi
             try:
                 from sqlalchemy import select, update
                 from app.models.document import Document, DocumentStatus
@@ -130,7 +130,7 @@ async def upload_document(
     custom_metadata: str | None = Form(None),
     db: AsyncSession = Depends(get_db),
 ):
-    """Upload a document to a knowledge base. Processing must be triggered separately."""
+    """Upload document vào knowledge base. Việc xử lý cần được trigger riêng."""
     
     parsed_metadata = None
     if custom_metadata:
@@ -203,7 +203,7 @@ async def get_document(
     document_id: int,
     db: AsyncSession = Depends(get_db),
 ):
-    """Get document by ID"""
+    """Lấy document theo ID"""
     result = await db.execute(select(Document).where(Document.id == document_id))
     document = result.scalar_one_or_none()
 
@@ -218,7 +218,7 @@ async def get_document_markdown(
     document_id: int,
     db: AsyncSession = Depends(get_db),
 ):
-    """Get the full structured markdown content of a document (NexusRAG parsed)."""
+    """Lấy toàn bộ structured markdown content của document (đã parse bởi NexusRAG)."""
     result = await db.execute(select(Document).where(Document.id == document_id))
     document = result.scalar_one_or_none()
 
@@ -233,7 +233,7 @@ async def get_document_markdown(
 
     markdown = document.markdown_content
 
-    # Safety net: if image placeholders remain, inject real references on-the-fly
+    # Lớp safety net: nếu còn image placeholder thì inject reference thực ngay lúc trả về
     if "<!-- image" in markdown:
         img_result = await db.execute(
             select(DocumentImage)
@@ -255,7 +255,7 @@ async def get_document_images(
     document_id: int,
     db: AsyncSession = Depends(get_db),
 ):
-    """List all extracted images for a document."""
+    """Liệt kê toàn bộ ảnh đã extract của document."""
     result = await db.execute(select(Document).where(Document.id == document_id))
     document = result.scalar_one_or_none()
 
@@ -288,7 +288,7 @@ async def delete_document(
     document_id: int,
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete a document and its chunks from vector store"""
+    """Xóa document và các chunk của nó khỏi vector store"""
     result = await db.execute(select(Document).where(Document.id == document_id))
     document = result.scalar_one_or_none()
 

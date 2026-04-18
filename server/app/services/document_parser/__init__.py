@@ -1,15 +1,5 @@
 """
-Document Parser Package
-========================
-
-Factory function to create document parsers based on config.
-
-Usage::
-
-    from app.services.document_parser import get_document_parser
-
-    parser = get_document_parser(workspace_id=1)
-    result = parser.parse(file_path, document_id, original_filename)
+Factory function để tạo document parser dựa trên config.
 """
 from __future__ import annotations
 
@@ -23,7 +13,7 @@ def get_document_parser(
     workspace_id: int,
     output_dir: Optional[Path] = None,
 ) -> BaseDocumentParser:
-    """Create a document parser based on ``NEXUSRAG_DOCUMENT_PARSER`` config."""
+    """Tạo document parser dựa theo config ``NEXUSRAG_DOCUMENT_PARSER``."""
     from app.core.config import settings
 
     provider = settings.NEXUSRAG_DOCUMENT_PARSER.lower()
@@ -33,7 +23,7 @@ def get_document_parser(
 
         return MarkerDocumentParser(workspace_id, output_dir)
 
-    # Default: docling
+    # Mặc định: docling
     from app.services.document_parser.docling_parser import DoclingDocumentParser
 
     return DoclingDocumentParser(workspace_id, output_dir)

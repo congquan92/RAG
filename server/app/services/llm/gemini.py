@@ -1,9 +1,9 @@
 """
-Gemini LLM & Embedding Providers
-=================================
-Concrete implementations using Google's ``google-genai`` SDK.
+Gemini LLM va Embedding Provider
+================================
+Triển khai cụ thể bằng SDK ``google-genai`` của Google.
 
-Supports both Gemini 2.5 (thinking_budget_tokens) and Gemini 3.x+
+Hỗ trợ cả Gemini 2.5 (thinking_budget_tokens) và Gemini 3.x+
 (thinking_level: minimal | low | medium | high).
 """
 from __future__ import annotations
@@ -21,12 +21,12 @@ from app.services.llm.types import LLMMessage, LLMResult, StreamChunk
 
 logger = logging.getLogger(__name__)
 
-# Regex to extract major version from model name: gemini-2.5-flash → 2, gemini-3.1-flash-lite → 3
+# Regex trích xuất major version từ tên model: gemini-2.5-flash -> 2, gemini-3.1-flash-lite -> 3
 _GEMINI_VERSION_RE = re.compile(r"gemini-(\d+)")
 
 
 class GeminiLLMProvider(LLMProvider):
-    """Google Gemini text/multimodal generation."""
+    """Sinh text/multimodal bằng Google Gemini."""
 
     def __init__(
         self,
@@ -40,18 +40,18 @@ class GeminiLLMProvider(LLMProvider):
         self._major_version = self._parse_major_version(model)
 
     # ------------------------------------------------------------------
-    # Internal helpers
+    # Trợ giúp nội bộ
     # ------------------------------------------------------------------
 
     @staticmethod
     def _parse_major_version(model: str) -> int:
-        """Extract major version number from model name (e.g. 'gemini-3.1-flash' → 3)."""
+        """Trích xuất major version từ tên model (vd: 'gemini-3.1-flash' -> 3)."""
         match = _GEMINI_VERSION_RE.search(model)
         return int(match.group(1)) if match else 0
 
     @staticmethod
     def _build_parts(msg: LLMMessage) -> list[types.Part]:
-        """Convert an LLMMessage into a list of Gemini Part objects."""
+        """Chuyển một LLMMessage thành danh sách Gemini Part object."""
         parts: list[types.Part] = []
         if msg.content:
             parts.append(types.Part.from_text(text=msg.content))
@@ -60,26 +60,25 @@ class GeminiLLMProvider(LLMProvider):
         return parts
 
     def _to_contents(self, messages: list[LLMMessage]) -> list[types.Content]:
-        """Map a list of LLMMessage into Gemini Content objects.
+        """Ánh xạ danh sách LLMMessage thành Gemini Content object.
 
-        System messages are injected as a fake user→model exchange
-        (Gemini does not support a native system role in ``contents``).
+        System message được inject thành cặp user->model giả lập
+        (Gemini không hỗ trợ native system role trong ``contents``).
 
-        If a message carries ``_raw_provider_content`` (a native Gemini
-        ``types.Content``), it is used directly — this preserves opaque
-        fields like ``thought_signature`` that cannot be reconstructed
-        from plain text.
+        Nếu message có ``_raw_provider_content`` (``types.Content`` native của Gemini)
+        thì dùng trực tiếp, để giữ các field opaque như ``thought_signature``
+        vốn không thể tái tạo từ plain text.
         """
         contents: list[types.Content] = []
         for msg in messages:
-            # Raw Gemini Content — use as-is (preserves thought_signature)
+            # Raw Gemini Content - dùng nguyên bản (giữ thought_signature)
             if msg._raw_provider_content is not None:
                 contents.append(msg._raw_provider_content)
                 continue
 
             if msg.role == "system":
-                # Gemini: system role not allowed in contents → inject as
-                # user instruction + model acknowledgement pair.
+                # Gemini: system role không được phép trong contents -> inject thành
+                # cặp user instruction + model acknowledgement.
                 contents.append(types.Content(
                     role="user",
                     parts=[types.Part.from_text(
@@ -101,23 +100,23 @@ class GeminiLLMProvider(LLMProvider):
         return contents
 
     def _build_thinking_config(self) -> types.ThinkingConfig:
-        """Build ThinkingConfig based on model version.
+        """Tạo ThinkingConfig theo phiên bản model.
 
-        Gemini 2.5: uses ``thinking_budget_tokens`` (does NOT support thinking_level).
-        Gemini 3.x+: uses ``thinking_level`` + ``include_thoughts=True``.
+        Gemini 2.5: dùng ``thinking_budget_tokens`` (KHÔNG hỗ trợ thinking_level).
+        Gemini 3.x+: dùng ``thinking_level`` + ``include_thoughts=True``.
         """
         if self._major_version >= 3:
             return types.ThinkingConfig(
                 thinking_level=self._thinking_level,
                 include_thoughts=True,
             )
-        # Gemini 2.5 — use budget-based thinking
+        # Gemini 2.5 - dùng thinking theo budget
         _BUDGET_MAP = {"minimal": 1024, "low": 2048, "medium": 4096, "high": 8192}
         budget = _BUDGET_MAP.get(self._thinking_level, 4096)
         return types.ThinkingConfig(thinking_budget=budget)
 
     # ------------------------------------------------------------------
-    # LLMProvider interface
+    # Giao diện LLMProvider
     # ------------------------------------------------------------------
 
     def complete(
@@ -157,7 +156,7 @@ class GeminiLLMProvider(LLMProvider):
 
     @staticmethod
     def _extract_with_thinking(response) -> LLMResult:
-        """Extract content and thinking from a Gemini response."""
+        """Trích xuất content và thinking từ Gemini response."""
         content = ""
         thinking = ""
         if response.candidates:
@@ -178,13 +177,13 @@ class GeminiLLMProvider(LLMProvider):
         think: bool = False,
         tools: list | None = None,
     ) -> AsyncGenerator[StreamChunk, None]:
-        """Streaming generation via Gemini's async stream API.
+        """Streaming generation qua async stream API của Gemini.
 
-        After streaming completes, ``self.last_response_content`` holds the
-        accumulated ``types.Content`` with all parts (including opaque
-        ``thought_signature`` fields).  Callers that need to build proper
-        multi-turn history (e.g. after a function call) should read this
-        attribute and pass it back via ``LLMMessage._raw_provider_content``.
+        Sau khi streaming xong, ``self.last_response_content`` chứa
+        ``types.Content`` đã tích lũy đủ mọi part (kể cả field opaque
+        ``thought_signature``). Caller nào cần dựng history nhiều lượt đúng
+        chuẩn (vd sau function call) nên đọc thuộc tính này và truyền lại
+        qua ``LLMMessage._raw_provider_content``.
         """
         contents = self._to_contents(messages)
 
@@ -201,8 +200,8 @@ class GeminiLLMProvider(LLMProvider):
         if use_think:
             config.thinking_config = self._build_thinking_config()
 
-        # Accumulate raw parts so callers can access the full response
-        # including thought_signature for proper multi-turn circulation.
+        # Tích lũy raw part để caller truy cập full response,
+        # bao gồm thought_signature cho chu trình multi-turn chuẩn.
         accumulated_parts: list[types.Part] = []
 
         try:
@@ -235,8 +234,8 @@ class GeminiLLMProvider(LLMProvider):
             logger.error(f"Gemini streaming failed: {e}")
             yield StreamChunk(type="text", text="")
         finally:
-            # Store the complete response Content for callers that need
-            # thought_signature circulation (Gemini 3 function calling).
+            # Lưu Content response đầy đủ cho caller cần
+            # luân chuyển thought_signature (Gemini 3 function calling).
             self.last_response_content = types.Content(
                 role="model",
                 parts=accumulated_parts,
@@ -246,7 +245,7 @@ class GeminiLLMProvider(LLMProvider):
         return True
 
     def supports_thinking(self) -> bool:
-        """Gemini 2.5+ and 3.x+ models support thinking."""
+        """Model Gemini 2.5+ và 3.x+ hỗ trợ thinking."""
         return self._major_version >= 2
 
     def supports_native_tools(self) -> bool:
@@ -254,9 +253,9 @@ class GeminiLLMProvider(LLMProvider):
 
 
 class GeminiEmbeddingProvider(EmbeddingProvider):
-    """Google Gemini text embedding (``gemini-embedding-001``, 3072-dim)."""
+    """Text embedding của Google Gemini (``gemini-embedding-001``, 3072-dim)."""
 
-    _BATCH_SIZE = 100  # Gemini API limit
+    _BATCH_SIZE = 100  # giới hạn Gemini API
     _MAX_BATCH_RETRIES = 1
 
     def __init__(self, api_key: str, model: str = "gemini-embedding-001"):
@@ -266,7 +265,7 @@ class GeminiEmbeddingProvider(EmbeddingProvider):
 
     @staticmethod
     def _to_embed_contents(texts: list[str]) -> list[types.Content]:
-        """Build one Gemini Content per input text (1:1 text→vector contract)."""
+        """Tạo một Gemini Content cho mỗi input text (hợp đồng 1:1 text->vector)."""
         contents: list[types.Content] = []
         for text in texts:
             normalized = text.strip() or "[empty]"
@@ -277,7 +276,7 @@ class GeminiEmbeddingProvider(EmbeddingProvider):
         return contents
 
     def _embed_one(self, text: str) -> list[float]:
-        """Embed a single text and return one vector."""
+        """Embed một text đơn và trả về một vector."""
         result = self._client.models.embed_content(
             model=self._model,
             contents=self._to_embed_contents([text]),
@@ -290,7 +289,7 @@ class GeminiEmbeddingProvider(EmbeddingProvider):
         return values
 
     def _embed_batch_once(self, texts: list[str]) -> list[list[float]]:
-        """Embed a batch once and enforce 1:1 input/output count."""
+        """Embed một batch và ép ràng buộc số lượng input/output 1:1."""
         result = self._client.models.embed_content(
             model=self._model,
             contents=self._to_embed_contents(texts),
@@ -315,7 +314,7 @@ class GeminiEmbeddingProvider(EmbeddingProvider):
         batch_start: int,
         depth: int = 0,
     ) -> list[list[float]]:
-        """Retry full batch, then split recursively to isolate bad items."""
+        """Thử lại cả batch, rồi tách đệ quy để cô lập item lỗi."""
         last_error: Exception | None = None
 
         for attempt in range(self._MAX_BATCH_RETRIES + 1):
@@ -343,7 +342,7 @@ class GeminiEmbeddingProvider(EmbeddingProvider):
             return [[0.0] * self.get_dimension() for _ in texts]
 
         if len(texts) == 1:
-            # Leaf fallback: keep 1:1 contract even for stubborn failures.
+            # Fallback ở node lá: vẫn giữ hợp đồng 1:1 cả khi lỗi cứng đầu.
             try:
                 return [self._embed_one(texts[0])]
             except Exception as leaf_error:
@@ -381,7 +380,7 @@ class GeminiEmbeddingProvider(EmbeddingProvider):
         return any(marker in msg for marker in fatal_markers)
 
     def _detect_dimension(self) -> int:
-        """Probe actual embedding dimension from the active model."""
+        """Probe embedding dimension thực tế từ model đang dùng."""
         from app.core.config import settings
 
         try:

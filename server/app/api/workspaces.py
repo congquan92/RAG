@@ -1,5 +1,5 @@
 """
-Knowledge Base (Workspace) CRUD API endpoints.
+Các CRUD API endpoint cho Knowledge Base (Workspace).
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,7 +20,7 @@ router = APIRouter(prefix="/workspaces", tags=["workspaces"])
 logger = logging.getLogger(__name__)
 
 async def _enrich_response(db: AsyncSession, kb: KnowledgeBase) -> WorkspaceResponse:
-    """Build WorkspaceResponse with computed counts."""
+    """Tạo WorkspaceResponse với các số lượng đã tính."""
     total = await db.execute(
         select(func.count(Document.id)).where(Document.workspace_id == kb.id)
     )
@@ -46,7 +46,7 @@ async def _enrich_response(db: AsyncSession, kb: KnowledgeBase) -> WorkspaceResp
 
 @router.get("", response_model=list[WorkspaceResponse])
 async def list_workspaces(db: AsyncSession = Depends(get_db)):
-    """List all knowledge bases."""
+    """Liệt kê toàn bộ knowledge base."""
     result = await db.execute(
         select(KnowledgeBase).order_by(KnowledgeBase.updated_at.desc())
     )
@@ -59,7 +59,7 @@ async def create_workspace(
     body: WorkspaceCreate,
     db: AsyncSession = Depends(get_db),
 ):
-    """Create a new knowledge base."""
+    """Tạo knowledge base mới."""
     kb = KnowledgeBase(
         name=body.name,
         description=body.description,
@@ -74,7 +74,7 @@ async def create_workspace(
 
 @router.get("/summary", response_model=list[WorkspaceSummary])
 async def list_workspace_summaries(db: AsyncSession = Depends(get_db)):
-    """Compact list for dropdown selectors."""
+    """Danh sách gọn cho dropdown selectors."""
     result = await db.execute(
         select(KnowledgeBase).order_by(KnowledgeBase.name)
     )
@@ -95,7 +95,7 @@ async def get_workspace(
     workspace_id: int,
     db: AsyncSession = Depends(get_db),
 ):
-    """Get a knowledge base by ID."""
+    """Lấy knowledge base theo ID."""
     result = await db.execute(
         select(KnowledgeBase).where(KnowledgeBase.id == workspace_id)
     )
@@ -111,7 +111,7 @@ async def update_workspace(
     body: WorkspaceUpdate,
     db: AsyncSession = Depends(get_db),
 ):
-    """Update a knowledge base name/description."""
+    """Cập nhật tên/mô tả của knowledge base."""
     result = await db.execute(
         select(KnowledgeBase).where(KnowledgeBase.id == workspace_id)
     )
@@ -124,7 +124,7 @@ async def update_workspace(
     if body.description is not None:
         kb.description = body.description
     if body.system_prompt is not None:
-        # Empty string → reset to default (None)
+        # Chuỗi rỗng → reset về mặc định (None)
         kb.system_prompt = body.system_prompt or None
     if body.kg_language is not None:
         kb.kg_language = body.kg_language or None
@@ -141,7 +141,7 @@ async def delete_workspace(
     workspace_id: int,
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete a knowledge base and all its documents."""
+    """Xóa knowledge base và toàn bộ document của nó."""
     result = await db.execute(
         select(KnowledgeBase).where(KnowledgeBase.id == workspace_id)
     )
@@ -149,7 +149,7 @@ async def delete_workspace(
     if kb is None:
         raise NotFoundError("KnowledgeBase", workspace_id)
 
-    # Clean up vector store and KG data
+    # Dọn dẹp vector store và dữ liệu KG
     try:
         from app.services.vector_store import get_vector_store
         vs = get_vector_store(workspace_id)
@@ -164,7 +164,7 @@ async def delete_workspace(
     except Exception as e:
         logger.warning(f"Failed to delete KG data for workspace {workspace_id}: {e}")
 
-    # Clean up image files
+    # Dọn dẹp file ảnh
     import shutil
     from app.core.config import settings
     images_dir = settings.BASE_DIR / "data" / "docling" / f"kb_{workspace_id}"

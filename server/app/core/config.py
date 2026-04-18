@@ -3,22 +3,22 @@ from pydantic import Field
 from functools import lru_cache
 from pathlib import Path
 
-# Find .env file - check project root first, fallback for Docker
+# Tìm file .env - ưu tiên project root, fallback cho Docker
 _candidate = Path(__file__).resolve().parent.parent.parent.parent / ".env"
 ENV_FILE = str(_candidate) if _candidate.exists() else ".env"
 
 
 class Settings(BaseSettings):
-    # App
+    # Ứng dụng
     APP_NAME: str = "NexusRAG"
     DEBUG: bool = False
     API_V1_PREFIX: str = "/api/v1"
 
-    # Base directory (backend folder)
+    # Thư mục gốc (backend folder)
     BASE_DIR: Path = Path(__file__).resolve().parent.parent.parent
 
-    # Database
-    DATABASE_URL: str = Field(default="postgresql+asyncpg://postgres:postgres@localhost:5433/nexusrag")
+    # Cơ sở dữ liệu
+    DATABASE_URL: str = Field(default="postgresql+asyncpg://anhquan:anhquandeptrai@localhost:5433/graprag")
 
     # LLM Provider: "gemini" | "ollama"
     LLM_PROVIDER: str = Field(default="gemini")
@@ -31,18 +31,18 @@ class Settings(BaseSettings):
     OLLAMA_MODEL: str = Field(default="gemma3:12b")
     OLLAMA_ENABLE_THINKING: bool = Field(default=False)
 
-    # LLM (fast model for chat + KG extraction — used when provider=gemini)
+    # LLM (model nhanh cho chat + KG extraction — dùng khi provider=gemini)
     LLM_MODEL_FAST: str = Field(default="gemini-2.5-flash")
 
-    # Thinking level for Gemini 3.x+ models: "minimal" | "low" | "medium" | "high"
-    # Gemini 2.5 uses thinking_budget_tokens instead (auto-detected)
+    # Mức thinking cho model Gemini 3.x+: "minimal" | "low" | "medium" | "high"
+    # Gemini 2.5 dùng thinking_budget_tokens thay thế (auto-detected)
     LLM_THINKING_LEVEL: str = Field(default="medium")
 
-    # Max output tokens for LLM chat responses (includes thinking tokens)
-    # Gemini 3.1 Flash-Lite supports up to 65536
+    # Số output tokens tối đa cho phản hồi chat của LLM (bao gồm thinking tokens)
+    # Gemini 3.1 Flash-Lite hỗ trợ tối đa 65536
     LLM_MAX_OUTPUT_TOKENS: int = Field(default=8192)
 
-    # LightRAG LLM timeout (seconds) used for KG extraction/query worker timeouts
+    # LightRAG LLM timeout (giây) dùng cho timeout worker của KG extraction/query
     LLM_TIMEOUT: int = Field(default=180, ge=1)
 
     # KG extraction :"llm" | "specialized"
@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     NEXUSRAG_KG_GLINER_MODEL: str = Field(default="urchade/gliner_multi-v2.1")
     NEXUSRAG_KG_RELATION_MODEL: str = Field(default="Babelscape/mrebel-large")
 
-    # KG Embedding provider (can differ from LLM provider)
+    # KG Embedding provider (llm | gemini)
     KG_EMBEDDING_PROVIDER: str = Field(default="gemini")
     KG_EMBEDDING_MODEL: str = Field(default="gemini-embedding-001")
     KG_EMBEDDING_DIMENSION: int = Field(default=3072)
@@ -79,19 +79,19 @@ class Settings(BaseSettings):
     NEXUSRAG_MAX_IMAGES_PER_DOC: int = 50
     NEXUSRAG_ENABLE_FORMULA_ENRICHMENT: bool = True
 
-    # Document Parser provider: "docling" (default) or "marker" (lighter, better math)
+    # Document Parser provider: "docling" (mặc định) hoặc "marker" (nhẹ hơn, tốt hơn cho math)
     NEXUSRAG_DOCUMENT_PARSER: str = "docling"
     NEXUSRAG_MARKER_USE_LLM: bool = False
 
-    # Processing timeout (minutes) — stale documents auto-recover to FAILED
+    # Processing timeout (phút) — document bị stale sẽ tự khôi phục về FAILED
     NEXUSRAG_PROCESSING_TIMEOUT_MINUTES: int = 10
 
-    # Pre-ingestion Deduplication
+    # Deduplication trước ingestion
     NEXUSRAG_DEDUP_ENABLED: bool = True
-    NEXUSRAG_DEDUP_MIN_CHUNK_LENGTH: int = 50       # min meaningful chars
-    NEXUSRAG_DEDUP_NEAR_THRESHOLD: float = 0.85     # Jaccard similarity cutoff
+    NEXUSRAG_DEDUP_MIN_CHUNK_LENGTH: int = 50       # số ký tự có ý nghĩa tối thiểu
+    NEXUSRAG_DEDUP_NEAR_THRESHOLD: float = 0.85     # ngưỡng Jaccard similarity
 
-    # NexusRAG Retrieval Quality
+    # Chất lượng Retrieval của NexusRAG
     NEXUSRAG_EMBEDDING_MODEL: str = "BAAI/bge-m3"
     NEXUSRAG_RERANKER_MODEL: str = "BAAI/bge-reranker-v2-m3"
     NEXUSRAG_VECTOR_PREFETCH: int = 20
