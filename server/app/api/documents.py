@@ -85,17 +85,26 @@ async def process_document_background(document_id: int, file_path: str, workspac
             from sqlalchemy import select as sa_select
             from app.models.knowledge_base import KnowledgeBase
             ws_result = await db.execute(
-                sa_select(KnowledgeBase.kg_language, KnowledgeBase.kg_entity_types)
+                sa_select(
+                    KnowledgeBase.kg_language,
+                    KnowledgeBase.kg_entity_types,
+                    KnowledgeBase.chunk_size,
+                    KnowledgeBase.chunk_overlap,
+                )
                 .where(KnowledgeBase.id == workspace_id)
             )
             ws_row = ws_result.one_or_none()
             kg_language = ws_row.kg_language if ws_row else None
             kg_entity_types = ws_row.kg_entity_types if ws_row else None
+            chunk_size = ws_row.chunk_size if ws_row else None
+            chunk_overlap = ws_row.chunk_overlap if ws_row else None
 
             rag_service = get_rag_service(
                 db, workspace_id,
                 kg_language=kg_language,
                 kg_entity_types=kg_entity_types,
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
             )
             await rag_service.process_document(document_id, file_path)
             logger.info(f"Document {document_id} processed successfully")

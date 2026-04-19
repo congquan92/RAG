@@ -18,6 +18,16 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+async def _run_additive_schema_migrations(conn):
+    """Chạy các migration cộng dồn an toàn cho DB đã khởi tạo."""
+    statements = [
+        "ALTER TABLE IF EXISTS public.knowledge_bases ADD COLUMN IF NOT EXISTS chunk_size INTEGER",
+        "ALTER TABLE IF EXISTS public.knowledge_bases ADD COLUMN IF NOT EXISTS chunk_overlap INTEGER",
+    ]
+    for stmt in statements:
+        await conn.execute(text(stmt))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting NexusRAG API...")
@@ -51,6 +61,9 @@ async def lifespan(app: FastAPI):
                     logger.info("Database tables created/verified (Base.metadata.create_all)")
             else:
                 logger.info("Database is already initialized.")
+
+            # Migration cộng dồn cho DB cũ (idempotent)
+            await _run_additive_schema_migrations(conn)
 
         # Khôi phục các document bị treo khi xử lý (còn sót từ lần chạy trước)
         from app.models.document import Document, DocumentStatus

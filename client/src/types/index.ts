@@ -6,6 +6,8 @@ export interface KnowledgeBase {
     system_prompt: string | null;
     kg_language: string | null;
     kg_entity_types: string[] | null;
+    chunk_size: number | null;
+    chunk_overlap: number | null;
     document_count: number;
     indexed_count: number;
     created_at: string;
@@ -23,6 +25,8 @@ export interface UpdateWorkspace {
     system_prompt?: string | null;
     kg_language?: string | null;
     kg_entity_types?: string[] | null;
+    chunk_size?: number | null;
+    chunk_overlap?: number | null;
 }
 
 export interface WorkspaceSummary {

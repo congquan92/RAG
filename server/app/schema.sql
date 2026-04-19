@@ -16,6 +16,8 @@ CREATE TABLE public.knowledge_bases (
     name character varying(255) NOT NULL,
     description text,
     system_prompt text,
+    chunk_size integer,
+    chunk_overlap integer,
     created_at timestamp without time zone NOT NULL,
     updated_at timestamp without time zone NOT NULL,
     kg_language character varying(50),

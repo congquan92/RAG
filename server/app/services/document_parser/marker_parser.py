@@ -49,8 +49,14 @@ class MarkerDocumentParser(BaseDocumentParser):
 
     parser_name = "marker"
 
-    def __init__(self, workspace_id: int, output_dir: Optional[Path] = None):
-        super().__init__(workspace_id, output_dir)
+    def __init__(
+        self,
+        workspace_id: int,
+        output_dir: Optional[Path] = None,
+        chunk_size: int | None = None,
+        chunk_overlap: int | None = None,
+    ):
+        super().__init__(workspace_id, output_dir, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
         self._converter = None
         self._artifact_dict = None
 
@@ -397,7 +403,7 @@ class MarkerDocumentParser(BaseDocumentParser):
                 # Tách section dài thành sub-chunk
                 sub_chunks = self._split_text_by_tokens(
                     section_text,
-                    max_tokens=settings.NEXUSRAG_CHUNK_MAX_TOKENS,
+                    max_tokens=self.chunk_size,
                 )
 
                 for sub_text in sub_chunks:
@@ -528,7 +534,8 @@ class MarkerDocumentParser(BaseDocumentParser):
         from app.services.chunker import DocumentChunker
 
         loaded = load_document(str(file_path))
-        chunker = DocumentChunker(chunk_size=500, chunk_overlap=50)
+        overlap = min(self.chunk_overlap, max(0, self.chunk_size - 1))
+        chunker = DocumentChunker(chunk_size=self.chunk_size, chunk_overlap=overlap)
         text_chunks = chunker.split_text(
             text=loaded.content,
             source=original_filename,

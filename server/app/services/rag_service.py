@@ -252,6 +252,8 @@ def get_rag_service(
     workspace_id: int,
     kg_language: str | None = None,
     kg_entity_types: list[str] | None = None,
+    chunk_size: int | None = None,
+    chunk_overlap: int | None = None,
 ) -> "RAGService | NexusRAGService":
     """Factory function: điều hướng tới NexusRAGService hoặc RAGService cũ theo config."""
     from app.core.config import settings
@@ -263,6 +265,15 @@ def get_rag_service(
             workspace_id=workspace_id,
             kg_language=kg_language,
             kg_entity_types=kg_entity_types,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
         )
 
-    return RAGService(db=db, workspace_id=workspace_id)
+    effective_chunk_size = chunk_size if chunk_size is not None else 500
+    effective_chunk_overlap = chunk_overlap if chunk_overlap is not None else 50
+    return RAGService(
+        db=db,
+        workspace_id=workspace_id,
+        chunk_size=effective_chunk_size,
+        chunk_overlap=effective_chunk_overlap,
+    )

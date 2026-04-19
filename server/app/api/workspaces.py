@@ -37,6 +37,8 @@ async def _enrich_response(db: AsyncSession, kb: KnowledgeBase) -> WorkspaceResp
         system_prompt=kb.system_prompt,
         kg_language=kb.kg_language,
         kg_entity_types=kb.kg_entity_types,
+        chunk_size=kb.chunk_size,
+        chunk_overlap=kb.chunk_overlap,
         document_count=total.scalar() or 0,
         indexed_count=indexed.scalar() or 0,
         created_at=kb.created_at,
@@ -60,11 +62,23 @@ async def create_workspace(
     db: AsyncSession = Depends(get_db),
 ):
     """Tạo knowledge base mới."""
+    if (
+        body.chunk_size is not None
+        and body.chunk_overlap is not None
+        and body.chunk_overlap >= body.chunk_size
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="chunk_overlap must be smaller than chunk_size",
+        )
+
     kb = KnowledgeBase(
         name=body.name,
         description=body.description,
         kg_language=body.kg_language,
         kg_entity_types=body.kg_entity_types,
+        chunk_size=body.chunk_size,
+        chunk_overlap=body.chunk_overlap,
     )
     db.add(kb)
     await db.commit()
@@ -119,6 +133,18 @@ async def update_workspace(
     if kb is None:
         raise NotFoundError("KnowledgeBase", workspace_id)
 
+    effective_chunk_size = body.chunk_size if body.chunk_size is not None else kb.chunk_size
+    effective_chunk_overlap = body.chunk_overlap if body.chunk_overlap is not None else kb.chunk_overlap
+    if (
+        effective_chunk_size is not None
+        and effective_chunk_overlap is not None
+        and effective_chunk_overlap >= effective_chunk_size
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="chunk_overlap must be smaller than chunk_size",
+        )
+
     if body.name is not None:
         kb.name = body.name
     if body.description is not None:
@@ -130,6 +156,10 @@ async def update_workspace(
         kb.kg_language = body.kg_language or None
     if body.kg_entity_types is not None:
         kb.kg_entity_types = body.kg_entity_types or None
+    if body.chunk_size is not None:
+        kb.chunk_size = body.chunk_size
+    if body.chunk_overlap is not None:
+        kb.chunk_overlap = body.chunk_overlap
 
     await db.commit()
     await db.refresh(kb)

@@ -1,7 +1,7 @@
 """
 Schema Knowledge Base (Workspace) cho request/response validation.
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from datetime import datetime
 
 
@@ -10,6 +10,15 @@ class WorkspaceCreate(BaseModel):
     description: str | None = None
     kg_language: str | None = None
     kg_entity_types: list[str] | None = None
+    chunk_size: int | None = Field(default=None, ge=100, le=4000)
+    chunk_overlap: int | None = Field(default=None, ge=0, le=1000)
+
+    @model_validator(mode="after")
+    def validate_chunk_params(self):
+        if self.chunk_size is not None and self.chunk_overlap is not None:
+            if self.chunk_overlap >= self.chunk_size:
+                raise ValueError("chunk_overlap must be smaller than chunk_size")
+        return self
 
 
 class WorkspaceUpdate(BaseModel):
@@ -18,6 +27,15 @@ class WorkspaceUpdate(BaseModel):
     system_prompt: str | None = None
     kg_language: str | None = None
     kg_entity_types: list[str] | None = None
+    chunk_size: int | None = Field(default=None, ge=100, le=4000)
+    chunk_overlap: int | None = Field(default=None, ge=0, le=1000)
+
+    @model_validator(mode="after")
+    def validate_chunk_params(self):
+        if self.chunk_size is not None and self.chunk_overlap is not None:
+            if self.chunk_overlap >= self.chunk_size:
+                raise ValueError("chunk_overlap must be smaller than chunk_size")
+        return self
 
 
 class WorkspaceResponse(BaseModel):
@@ -27,6 +45,8 @@ class WorkspaceResponse(BaseModel):
     system_prompt: str | None = None
     kg_language: str | None = None
     kg_entity_types: list[str] | None = None
+    chunk_size: int | None = None
+    chunk_overlap: int | None = None
     document_count: int = 0
     indexed_count: int = 0
     created_at: datetime

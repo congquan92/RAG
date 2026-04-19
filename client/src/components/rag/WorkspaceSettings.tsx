@@ -8,6 +8,7 @@ import {
   Plus,
   Globe,
   Tags,
+  SlidersHorizontal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
@@ -129,24 +130,40 @@ export function WorkspaceSettings({
   const [entityTypes, setEntityTypes] = useState<string[]>(
     workspace.kg_entity_types ?? []
   );
+  const [chunkSize, setChunkSize] = useState<number>(workspace.chunk_size ?? 500);
+  const [chunkOverlap, setChunkOverlap] = useState<number>(workspace.chunk_overlap ?? 50);
   const [saving, setSaving] = useState(false);
 
   // Sync when workspace changes
   useEffect(() => {
     setLanguage(workspace.kg_language ?? "");
     setEntityTypes(workspace.kg_entity_types ?? []);
-  }, [workspace.kg_language, workspace.kg_entity_types]);
+    setChunkSize(workspace.chunk_size ?? 500);
+    setChunkOverlap(workspace.chunk_overlap ?? 50);
+  }, [workspace.kg_language, workspace.kg_entity_types, workspace.chunk_size, workspace.chunk_overlap]);
 
   const hasChanges =
     language !== (workspace.kg_language ?? "") ||
-    JSON.stringify(entityTypes) !== JSON.stringify(workspace.kg_entity_types ?? []);
+    JSON.stringify(entityTypes) !== JSON.stringify(workspace.kg_entity_types ?? []) ||
+    chunkSize !== (workspace.chunk_size ?? 500) ||
+    chunkOverlap !== (workspace.chunk_overlap ?? 50);
+
+  const presetChunkSizes = [500, 1000, 1500, 2000];
+  const presetChunkOverlaps = [50, 100, 200];
 
   const handleSave = useCallback(async () => {
+    if (chunkOverlap >= chunkSize) {
+      toast.error("Chunk overlap phải nhỏ hơn chunk size");
+      return;
+    }
+
     setSaving(true);
     try {
       await onSave({
         kg_language: language || null,
         kg_entity_types: entityTypes.length > 0 ? entityTypes : null,
+        chunk_size: chunkSize,
+        chunk_overlap: chunkOverlap,
       });
       toast.success("Đã lưu cài đặt không gian làm việc");
       onClose();
@@ -155,11 +172,13 @@ export function WorkspaceSettings({
     } finally {
       setSaving(false);
     }
-  }, [language, entityTypes, onSave, onClose]);
+  }, [language, entityTypes, chunkSize, chunkOverlap, onSave, onClose]);
 
   const handleReset = () => {
     setLanguage("");
     setEntityTypes([]);
+    setChunkSize(500);
+    setChunkOverlap(50);
   };
 
   const handleLoadDefaults = () => {
@@ -233,6 +252,73 @@ export function WorkspaceSettings({
             <p className="text-[10px] text-muted-foreground">
               Danh sách loại entity dùng cho trích xuất Knowledge Graph. Nhấn Enter hoặc dấu phẩy để thêm. Để trống = mặc định từ server.
             </p>
+          </div>
+
+          {/* Chunk Strategy */}
+          <div className="space-y-2.5">
+            <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              Chunk Strategy
+            </label>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-muted-foreground">Chunk size</span>
+                <span className="text-[11px] font-semibold">{chunkSize}</span>
+              </div>
+              <input
+                type="range"
+                min={100}
+                max={4000}
+                step={50}
+                value={chunkSize}
+                onChange={(e) => setChunkSize(Number(e.target.value))}
+                className="w-full h-1.5 accent-primary"
+              />
+              <div className="flex gap-1 flex-wrap">
+                {presetChunkSizes.map((size) => (
+                  <button
+                    key={size}
+                    type="button"
+                    onClick={() => setChunkSize(size)}
+                    className={`px-2 py-0.5 text-[10px] rounded border transition-colors ${chunkSize === size ? "bg-primary/15 text-primary border-primary/30" : "text-muted-foreground hover:text-foreground"}`}
+                  >
+                    {size}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-muted-foreground">Chunk overlap</span>
+                <span className="text-[11px] font-semibold">{chunkOverlap}</span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={Math.max(0, chunkSize - 1)}
+                step={10}
+                value={Math.min(chunkOverlap, Math.max(0, chunkSize - 1))}
+                onChange={(e) => setChunkOverlap(Number(e.target.value))}
+                className="w-full h-1.5 accent-primary"
+              />
+              <div className="flex gap-1 flex-wrap">
+                {presetChunkOverlaps.map((ov) => (
+                  <button
+                    key={ov}
+                    type="button"
+                    onClick={() => setChunkOverlap(Math.min(ov, Math.max(0, chunkSize - 1)))}
+                    className={`px-2 py-0.5 text-[10px] rounded border transition-colors ${chunkOverlap === ov ? "bg-primary/15 text-primary border-primary/30" : "text-muted-foreground hover:text-foreground"}`}
+                  >
+                    {ov}
+                  </button>
+                ))}
+              </div>
+              {chunkOverlap >= chunkSize && (
+                <p className="text-[10px] text-destructive">Chunk overlap phải nhỏ hơn chunk size.</p>
+              )}
+            </div>
           </div>
 
           {/* Info box */}

@@ -28,11 +28,23 @@ class BaseDocumentParser(ABC):
     # Subclass sẽ set giá trị này để nexus_rag_service lưu tên parser.
     parser_name: str = "unknown"
 
-    def __init__(self, workspace_id: int, output_dir: Optional[Path] = None):
+    def __init__(
+        self,
+        workspace_id: int,
+        output_dir: Optional[Path] = None,
+        chunk_size: int | None = None,
+        chunk_overlap: int | None = None,
+    ):
         self.workspace_id = workspace_id
         self.output_dir = output_dir or (
             settings.BASE_DIR / "data" / self.parser_name / f"kb_{workspace_id}"
         )
+        # chunk_size dùng cho max_tokens (Docling/Marker) và fallback legacy chunker
+        self.chunk_size = int(chunk_size) if chunk_size is not None else settings.NEXUSRAG_CHUNK_MAX_TOKENS
+        # chunk_overlap chủ yếu áp dụng cho fallback legacy chunker
+        self.chunk_overlap = int(chunk_overlap) if chunk_overlap is not None else 50
+        if self.chunk_overlap >= self.chunk_size:
+            self.chunk_overlap = max(0, self.chunk_size // 5)
 
     # ------------------------------------------------------------------
     # Giao diện trừu tượng

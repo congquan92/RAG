@@ -91,9 +91,16 @@ async def query_documents(
     db: AsyncSession = Depends(get_db),
 ):
     """Truy vấn document đã indexed bằng semantic search (+ KG tùy chọn)."""
-    await verify_workspace_access(workspace_id, db)
+    kb = await verify_workspace_access(workspace_id, db)
 
-    rag_service = get_rag_service(db, workspace_id)
+    rag_service = get_rag_service(
+        db,
+        workspace_id,
+        kg_language=kb.kg_language,
+        kg_entity_types=kb.kg_entity_types,
+        chunk_size=kb.chunk_size,
+        chunk_overlap=kb.chunk_overlap,
+    )
 
     # Thử deep query nếu khả dụng
     from app.services.nexus_rag_service import NexusRAGService
@@ -348,7 +355,15 @@ async def reindex_document(
             detail="Document file not found on disk"
         )
 
-    rag_service = get_rag_service(db, document.workspace_id)
+    kb = await verify_workspace_access(document.workspace_id, db)
+    rag_service = get_rag_service(
+        db,
+        document.workspace_id,
+        kg_language=kb.kg_language,
+        kg_entity_types=kb.kg_entity_types,
+        chunk_size=kb.chunk_size,
+        chunk_overlap=kb.chunk_overlap,
+    )
 
     # Xóa dữ liệu hiện có trước
     try:
@@ -396,7 +411,11 @@ async def reindex_workspace(
     và xử lý lại từng document qua pipeline NexusRAG.
     Chạy background — trả về ngay với số lượng document.
     """
-    await verify_workspace_access(workspace_id, db)
+    kb = await verify_workspace_access(workspace_id, db)
+    ws_kg_language = kb.kg_language
+    ws_kg_entity_types = kb.kg_entity_types
+    ws_chunk_size = kb.chunk_size
+    ws_chunk_overlap = kb.chunk_overlap
 
     # Tìm tất cả document trong workspace này
     result = await db.execute(
@@ -427,7 +446,14 @@ async def reindex_workspace(
         """Background task: reindex từng document theo thứ tự."""
         from app.core.database import AsyncSessionLocal
         async with AsyncSessionLocal() as session:
-            rag_service = get_rag_service(session, ws_id)
+            rag_service = get_rag_service(
+                session,
+                ws_id,
+                kg_language=ws_kg_language,
+                kg_entity_types=ws_kg_entity_types,
+                chunk_size=ws_chunk_size,
+                chunk_overlap=ws_chunk_overlap,
+            )
             for did in doc_ids:
                 try:
                     res = await session.execute(
@@ -480,7 +506,7 @@ async def get_workspace_rag_stats(
     db: AsyncSession = Depends(get_db),
 ):
     """Lấy thống kê RAG cho một knowledge base."""
-    await verify_workspace_access(workspace_id, db)
+    kb = await verify_workspace_access(workspace_id, db)
 
     total_result = await db.execute(
         select(func.count(Document.id)).where(Document.workspace_id == workspace_id)
@@ -512,7 +538,14 @@ async def get_workspace_rag_stats(
     )
     image_count = image_result.scalar() or 0
 
-    rag_service = get_rag_service(db, workspace_id)
+    rag_service = get_rag_service(
+        db,
+        workspace_id,
+        kg_language=kb.kg_language,
+        kg_entity_types=kb.kg_entity_types,
+        chunk_size=kb.chunk_size,
+        chunk_overlap=kb.chunk_overlap,
+    )
     try:
         total_chunks = rag_service.get_chunk_count()
     except Exception:
@@ -548,7 +581,15 @@ async def get_document_chunks(
             "message": "Document is not yet indexed"
         }
 
-    rag_service = get_rag_service(db, document.workspace_id)
+    kb = await verify_workspace_access(document.workspace_id, db)
+    rag_service = get_rag_service(
+        db,
+        document.workspace_id,
+        kg_language=kb.kg_language,
+        kg_entity_types=kb.kg_entity_types,
+        chunk_size=kb.chunk_size,
+        chunk_overlap=kb.chunk_overlap,
+    )
 
     chunk_ids = [f"doc_{document_id}_chunk_{i}" for i in range(document.chunk_count)]
 
@@ -657,7 +698,7 @@ async def get_workspace_analytics(
     db: AsyncSession = Depends(get_db),
 ):
     """Lấy analytics mở rộng cho knowledge base (stats + KG + per-doc breakdown)."""
-    await verify_workspace_access(workspace_id, db)
+    kb = await verify_workspace_access(workspace_id, db)
 
     # Thống kê cơ bản
     total_result = await db.execute(
@@ -688,7 +729,14 @@ async def get_workspace_analytics(
     )
     image_count = image_result.scalar() or 0
 
-    rag_service = get_rag_service(db, workspace_id)
+    rag_service = get_rag_service(
+        db,
+        workspace_id,
+        kg_language=kb.kg_language,
+        kg_entity_types=kb.kg_entity_types,
+        chunk_size=kb.chunk_size,
+        chunk_overlap=kb.chunk_overlap,
+    )
     try:
         total_chunks = rag_service.get_chunk_count()
     except Exception:
@@ -870,7 +918,14 @@ async def chat_with_documents(
     """Chat với document bằng NexusRAG retrieval + LLM answer generation."""
     kb = await verify_workspace_access(workspace_id, db)
 
-    rag_service = get_rag_service(db, workspace_id)
+    rag_service = get_rag_service(
+        db,
+        workspace_id,
+        kg_language=kb.kg_language,
+        kg_entity_types=kb.kg_entity_types,
+        chunk_size=kb.chunk_size,
+        chunk_overlap=kb.chunk_overlap,
+    )
 
     # -- 1. Retrieve các chunk liên quan qua NexusRAG --
     chunks = []
@@ -1236,7 +1291,14 @@ async def debug_chat(
     """
     kb = await verify_workspace_access(workspace_id, db)
 
-    rag_service = get_rag_service(db, workspace_id)
+    rag_service = get_rag_service(
+        db,
+        workspace_id,
+        kg_language=kb.kg_language,
+        kg_entity_types=kb.kg_entity_types,
+        chunk_size=kb.chunk_size,
+        chunk_overlap=kb.chunk_overlap,
+    )
 
     # -- 1. Retrieve --
     chunks = []

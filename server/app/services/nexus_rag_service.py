@@ -52,12 +52,18 @@ class NexusRAGService:
         workspace_id: int,
         kg_language: str | None = None,
         kg_entity_types: list[str] | None = None,
+        chunk_size: int | None = None,
+        chunk_overlap: int | None = None,
     ):
         self.db = db
         self.workspace_id = workspace_id
 
         # Các service
-        self.parser = get_document_parser(workspace_id=workspace_id)
+        self.parser = get_document_parser(
+            workspace_id=workspace_id,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+        )
         self.embedder = get_embedding_service()
         self.vector_store = get_vector_store(workspace_id)
 
