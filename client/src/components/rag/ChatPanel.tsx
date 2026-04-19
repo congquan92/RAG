@@ -48,6 +48,7 @@ import markdown from "react-syntax-highlighter/dist/esm/languages/prism/markdown
 import { toast } from "sonner";
 import { cn, generateId } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useThemeStore } from "@/stores/useThemeStore";
 
@@ -1221,6 +1222,7 @@ export const ChatPanel = memo(function ChatPanel({
 }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
+  const [clearHistoryConfirmOpen, setClearHistoryConfirmOpen] = useState(false);
   const [enableThinking, setEnableThinking] = useState(false);
   const [thinkingDefaultSynced, setThinkingDefaultSynced] = useState(false);
   const [forceSearch, setForceSearch] = useState(false);
@@ -1630,6 +1632,7 @@ export const ChatPanel = memo(function ChatPanel({
     setMessages([]);
     clearMutation.mutate();
     useWorkspaceStore.getState().clearHighlights();
+    setClearHistoryConfirmOpen(false);
   };
 
   // Collect all sources from all assistant messages for citation fallback.
@@ -1732,7 +1735,7 @@ export const ChatPanel = memo(function ChatPanel({
           </button>
           {messages.length > 0 && (
             <button
-              onClick={handleClear}
+              onClick={() => setClearHistoryConfirmOpen(true)}
               className="p-1 rounded hover:bg-muted transition-colors"
               title="Xóa lịch sử chat"
             >
@@ -1916,6 +1919,16 @@ export const ChatPanel = memo(function ChatPanel({
           Nhấn Enter để gửi, Shift+Enter để xuống dòng
         </p>
       </div>
+
+      <ConfirmDialog
+        open={clearHistoryConfirmOpen}
+        onConfirm={handleClear}
+        onCancel={() => setClearHistoryConfirmOpen(false)}
+        title="Xóa lịch sử chat"
+        message="Bạn có chắc muốn xóa toàn bộ lịch sử chat trong workspace này không?"
+        confirmLabel="Xóa"
+        variant="danger"
+      />
     </div>
     </AllSourcesCtx.Provider>
     </DebugCtx.Provider>

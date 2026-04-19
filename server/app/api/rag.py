@@ -3,7 +3,7 @@ Các RAG API endpoint cho truy vấn và retrieval tài liệu.
 """
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, delete
 
 from app.core.deps import get_db
 from app.core.exceptions import NotFoundError
@@ -850,6 +850,80 @@ async def delete_chat_history(
     )
     await db.commit()
     return {"status": "cleared", "workspace_id": workspace_id}
+
+
+@router.delete("/workspace/{workspace_id}/vector-store")
+async def clear_workspace_vector_store(
+    workspace_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Xóa toàn bộ dữ liệu vector/KG và tài liệu đã upload của workspace."""
+    await verify_workspace_access(workspace_id, db)
+
+    # Lấy danh sách documents trước khi xóa để dọn file upload
+    doc_result = await db.execute(
+        select(Document.id, Document.filename)
+        .where(Document.workspace_id == workspace_id)
+    )
+    docs = list(doc_result.all())
+    doc_count = len(docs)
+
+    # Dọn file upload trong thư mục uploads/
+    import os
+    from app.core.config import settings
+    upload_dir = settings.BASE_DIR / "uploads"
+    removed_upload_files = 0
+    for _, filename in docs:
+        if not filename:
+            continue
+        fp = upload_dir / filename
+        if fp.exists():
+            try:
+                os.remove(fp)
+                removed_upload_files += 1
+            except OSError as e:
+                logger.warning(f"Failed to remove upload file {fp}: {e}")
+
+    # Dọn thư mục ảnh Docling/Marker của workspace
+    import shutil
+    images_dir = settings.BASE_DIR / "data" / "docling" / f"kb_{workspace_id}"
+    if images_dir.exists():
+        shutil.rmtree(images_dir, ignore_errors=True)
+
+    # Xóa toàn bộ document rows (cascade xóa images/tables)
+    await db.execute(
+        delete(Document).where(Document.workspace_id == workspace_id)
+    )
+    await db.commit()
+
+    # Dọn vector collection
+    vector_cleared = False
+    try:
+        from app.services.vector_store import get_vector_store
+        vs = get_vector_store(workspace_id)
+        vs.delete_collection()
+        vector_cleared = True
+    except Exception as e:
+        logger.warning(f"Failed to delete vector collection for workspace {workspace_id}: {e}")
+
+    # Dọn KG data
+    kg_cleared = False
+    try:
+        from app.services.knowledge_graph_service import KnowledgeGraphService
+        kg = KnowledgeGraphService(workspace_id)
+        await kg.delete_project_data()
+        kg_cleared = True
+    except Exception as e:
+        logger.warning(f"Failed to delete KG data for workspace {workspace_id}: {e}")
+
+    return {
+        "status": "cleared",
+        "workspace_id": workspace_id,
+        "documents_deleted": doc_count,
+        "upload_files_deleted": removed_upload_files,
+        "vector_store_cleared": vector_cleared,
+        "kg_cleared": kg_cleared,
+    }
 
 
 # ---------------------------------------------------------------------------

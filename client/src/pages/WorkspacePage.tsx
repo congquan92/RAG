@@ -133,6 +133,18 @@ export function WorkspacePage() {
         onError: () => toast.error("Không thể phân tích lại tài liệu"),
     });
 
+    const clearVectorStore = useMutation({
+        mutationFn: () => api.delete(`/rag/workspace/${workspaceId}/vector-store`),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["documents", workspaceId] });
+            queryClient.invalidateQueries({ queryKey: ["rag-stats", workspaceId] });
+            queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+            selectDoc(null);
+            toast.success("Đã xóa toàn bộ tài liệu và vector store của workspace");
+        },
+        onError: () => toast.error("Không thể clear vector store"),
+    });
+
     // -----------------------------------------------------------------------
     // Handlers
     // -----------------------------------------------------------------------
@@ -175,6 +187,8 @@ export function WorkspacePage() {
                 onProcess={(id) => processDoc.mutate(id)}
                 onReindex={(id) => reindexDoc.mutate(id)}
                 isProcessing={processDoc.isPending}
+                onClearVectorStore={() => clearVectorStore.mutate()}
+                isClearingVectorStore={clearVectorStore.isPending}
                 onUpdateWorkspace={handleUpdateWorkspace}
             />
 

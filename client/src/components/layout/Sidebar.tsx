@@ -1,7 +1,6 @@
 import { memo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
-  Database,
   ChevronLeft,
   ChevronRight,
   Archive,

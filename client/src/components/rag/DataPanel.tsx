@@ -11,6 +11,7 @@ import {
   Loader2,
   Sparkles,
   Settings2,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,6 +46,8 @@ interface DataPanelProps {
   onProcess: (id: number) => void;
   onReindex: (id: number) => void;
   isProcessing: boolean;
+  onClearVectorStore: () => void;
+  isClearingVectorStore: boolean;
   onUpdateWorkspace: (data: UpdateWorkspace) => Promise<void>;
 }
 
@@ -61,6 +64,8 @@ export const DataPanel = memo(function DataPanel({
   onProcess,
   onReindex,
   isProcessing,
+  onClearVectorStore,
+  isClearingVectorStore,
   onUpdateWorkspace,
 }: DataPanelProps) {
   const navigate = useNavigate();
@@ -71,6 +76,7 @@ export const DataPanel = memo(function DataPanel({
   const [editName, setEditName] = useState("");
   const [editDesc, setEditDesc] = useState("");
   const [batchProcessing, setBatchProcessing] = useState(false);
+  const [clearVectorConfirmOpen, setClearVectorConfirmOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [customMetadata, setCustomMetadata] = useState<{key: string, value: string}[]>([]);
 
@@ -244,9 +250,28 @@ export const DataPanel = memo(function DataPanel({
             <FileText className="w-3.5 h-3.5" />
             Tài liệu
           </h2>
-          <span className="text-[10px] text-muted-foreground">
-            {documents?.length ?? 0} tệp
-          </span>
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] text-muted-foreground">
+              {documents?.length ?? 0} tệp
+            </span>
+            {(documents?.length ?? 0) > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setClearVectorConfirmOpen(true)}
+                disabled={isClearingVectorStore}
+                className="h-6 px-2 text-[10px] text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                title="Xóa toàn bộ dữ liệu đã lập chỉ mục"
+              >
+                {isClearingVectorStore ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3 h-3" />
+                )}
+                Xóa dữ liệu
+              </Button>
+            )}
+          </div>
         </div>
         <StatsBar stats={ragStats} processingCount={processingCount} />
 
@@ -273,6 +298,7 @@ export const DataPanel = memo(function DataPanel({
             </span>
           </button>
         )}
+
       </div>
 
       {/* Document list — ~80% */}
@@ -348,6 +374,19 @@ export const DataPanel = memo(function DataPanel({
         title="Xóa tài liệu"
         message="Bạn có chắc không? Thao tác này sẽ xóa tài liệu và dữ liệu đã lập chỉ mục của nó."
         confirmLabel="Xóa"
+        variant="danger"
+      />
+
+      <ConfirmDialog
+        open={clearVectorConfirmOpen}
+        onConfirm={() => {
+          onClearVectorStore();
+          setClearVectorConfirmOpen(false);
+        }}
+        onCancel={() => setClearVectorConfirmOpen(false)}
+        title="Xóa toàn bộ dữ liệu chỉ mục"
+        message="Thao tác này sẽ xóa toàn bộ tài liệu đã tải lên cùng dữ liệu vector/KG của workspace. Bạn có chắc muốn tiếp tục không?"
+        confirmLabel="Xóa toàn bộ"
         variant="danger"
       />
     </div>
