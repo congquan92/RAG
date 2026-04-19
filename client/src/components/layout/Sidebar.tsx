@@ -4,6 +4,9 @@ import {
   Database,
   ChevronLeft,
   ChevronRight,
+  Archive,
+  Container,
+  Brain,
 } from "lucide-react";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
@@ -31,7 +34,8 @@ export const Sidebar = memo(function Sidebar({ collapsed, onToggle }: SidebarPro
     >
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-3 h-12 border-b border-border flex-shrink-0">
-        <Database className="w-6 h-6 text-primary flex-shrink-0" />
+        {/* <Database className="w-6 h-6 text-primary flex-shrink-0" /> */}
+        <Brain className="w-6 h-6 text-primary flex-shrink-0" />
         {!collapsed && (
           <span className="font-bold text-primary text-base truncate">NexusRAG</span>
         )}
@@ -49,7 +53,7 @@ export const Sidebar = memo(function Sidebar({ collapsed, onToggle }: SidebarPro
           )}
           title={collapsed ? "Cơ sở kiến thức" : undefined}
         >
-          <Database className="w-4 h-4 flex-shrink-0" />
+          <Container  className="w-4 h-4 flex-shrink-0" />
           {!collapsed && <span className="truncate">Cơ sở kiến thức</span>}
         </button>
       </nav>
@@ -75,7 +79,7 @@ export const Sidebar = memo(function Sidebar({ collapsed, onToggle }: SidebarPro
                         : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
                     )}
                   >
-                    <Database className="w-3.5 h-3.5 flex-shrink-0" />
+                    <Archive className="w-3.5 h-3.5 flex-shrink-0" />
                     <span className="truncate">{ws.name}</span>
                     <span className="ml-auto text-[10px] text-muted-foreground/60 tabular-nums">
                       {ws.document_count}
@@ -104,7 +108,7 @@ export const Sidebar = memo(function Sidebar({ collapsed, onToggle }: SidebarPro
                   )}
                   title={ws.name}
                 >
-                  <Database className="w-3.5 h-3.5" />
+                  <Archive className="w-3.5 h-3.5 " />
                 </button>
               );
             })}

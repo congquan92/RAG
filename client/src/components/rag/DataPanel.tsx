@@ -229,9 +229,6 @@ export const DataPanel = memo(function DataPanel({
 
       {/* Upload zone header & settings */}
       <div className="flex-shrink-0 px-3 py-1.5 flex items-center justify-between border-t border-b">
-        <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-          Thêm tài liệu
-        </h3>
         <CustomMetadataInput metadata={customMetadata} onChange={setCustomMetadata} />
       </div>
 

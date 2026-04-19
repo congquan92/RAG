@@ -13,10 +13,8 @@ import { Button } from "./button";
 export function ThemeToggle() {
   const { theme, toggleTheme } = useThemeStore();
 
-  // Sync data-theme attribute on <html>
   useEffect(() => {
     const root = document.documentElement;
-    // Enable transition class briefly for smooth switch
     root.classList.add("theme-transition");
     root.setAttribute("data-theme", theme);
     const timeout = setTimeout(() => {
@@ -31,12 +29,12 @@ export function ThemeToggle() {
       size="icon"
       onClick={toggleTheme}
       title={theme === "dark" ? "Chuyển sang giao diện sáng" : "Chuyển sang giao diện tối"}
-      className="w-8 h-8"
+      className="size-8"
     >
       {theme === "dark" ? (
-        <Sun className="w-4 h-4" />
+        <Sun className="size-4" />
       ) : (
-        <Moon className="w-4 h-4" />
+        <Moon className="size-4" />
       )}
     </Button>
   );

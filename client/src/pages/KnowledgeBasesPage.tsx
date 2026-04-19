@@ -5,7 +5,7 @@ import { useWorkspaces, useCreateWorkspace, useDeleteWorkspace } from "@/hooks/u
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Plus, Database, FileText, Trash2, MoreHorizontal, X } from "lucide-react";
+import { Plus, Database, FileText, Trash2, MoreHorizontal, X, Archive, Container } from "lucide-react";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import type { KnowledgeBase } from "@/types";
 
@@ -67,7 +67,9 @@ export function KnowledgeBasesPage() {
                 {/* Section header + action */}
                 <div className="flex items-center justify-between mb-6">
                     <div>
-                        <h2 className="text-lg font-semibold">Cơ sở kiến thức</h2>
+                        <h2 className="text-lg font-semibold">
+                            <Container className="size-6 inline mr-2" /> Cơ sở kiến thức
+                        </h2>
                         {workspaces && workspaces.length > 0 && (
                             <p className="text-sm text-muted-foreground mt-0.5">
                                 {workspaces.length} cơ sở kiến thức
@@ -137,7 +139,7 @@ export function KnowledgeBasesPage() {
                                     <div className="flex items-start justify-between mb-1">
                                         <div className="flex items-center gap-2.5 min-w-0">
                                             <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-                                                <Database className="w-4 h-4 text-blue-500" />
+                                                <Archive className="w-4 h-4 text-blue-500" />
                                             </div>
                                             <div className="min-w-0">
                                                 <h3 className="font-medium text-sm truncate">{ws.name}</h3>
