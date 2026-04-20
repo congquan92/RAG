@@ -1,18 +1,5 @@
-"""
-ORM Models package — re-export Base và tất cả models.
+from app.models.knowledge_base import KnowledgeBase
+from app.models.document import Document, DocumentImage, DocumentTable
+from app.models.chat_message import ChatMessage
 
-Import models ở đây để đảm bảo SQLAlchemy metadata biết tất cả tables
-TRƯỚC khi gọi Base.metadata.create_all() trong lifespan.
-"""
-
-from app.core.database import Base
-from app.models.chat import ChatMessage, ChatSession
-from app.models.document import Document, IngestionTask
-
-__all__ = [
-    "Base",
-    "ChatSession",
-    "ChatMessage",
-    "Document",
-    "IngestionTask",
-]
+__all__ = ["KnowledgeBase", "Document", "DocumentImage", "DocumentTable", "ChatMessage"]

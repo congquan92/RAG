@@ -1,122 +1,88 @@
-"""
-Document Models — SQLAlchemy ORM cho metadata file và trạng thái ingestion.
-
-Tables:
-  - documents: Metadata của file đã upload (tên, path, kích thước, loại).
-  - ingestion_tasks: Theo dõi trạng thái xử lý từng file (pending → processing → done/failed).
-
-Quan hệ: Document 1─N IngestionTask (cascade delete).
-"""
-
-from __future__ import annotations
-
-import uuid
-from datetime import datetime, timezone
-
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import String, ForeignKey, DateTime, Integer, Text, Enum, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from datetime import datetime
+import enum
 
 from app.core.database import Base
 
 
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
-
-
-def _generate_uuid() -> str:
-    return str(uuid.uuid4())
+class DocumentStatus(str, enum.Enum):
+    PENDING = "pending"
+    PARSING = "parsing"
+    PROCESSING = "processing"
+    INDEXING = "indexing"
+    INDEXED = "indexed"
+    FAILED = "failed"
 
 
 class Document(Base):
-    """
-    Metadata file đã upload vào hệ thống.
-
-    Columns:
-      - id: UUID primary key
-      - filename: Tên file gốc user upload
-      - file_path: Đường dẫn lưu trên server
-      - file_size: Kích thước file (bytes)
-      - mime_type: Loại file (pdf, docx, ...) từ python-magic
-      - chunk_count: Số chunks đã tạo sau khi xử lý (0 nếu chưa xử lý)
-      - created_at: Thời điểm upload
-    """
-
     __tablename__ = "documents"
 
-    id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=_generate_uuid
+    id: Mapped[int] = mapped_column(primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(ForeignKey("knowledge_bases.id", ondelete="CASCADE"))
+    filename: Mapped[str] = mapped_column(String(255))
+    original_filename: Mapped[str] = mapped_column(String(255))
+    file_type: Mapped[str] = mapped_column(String(50))
+    file_size: Mapped[int] = mapped_column(Integer)
+    status: Mapped[DocumentStatus] = mapped_column(
+        Enum(DocumentStatus), default=DocumentStatus.PENDING
     )
-    filename: Mapped[str] = mapped_column(String(500))
-    file_path: Mapped[str] = mapped_column(String(1000))
-    file_size: Mapped[int] = mapped_column(BigInteger, default=0)
-    mime_type: Mapped[str] = mapped_column(String(100), default="application/octet-stream")
     chunk_count: Mapped[int] = mapped_column(Integer, default=0)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow
-    )
-
-    # Relationship: 1 document → nhiều ingestion tasks (retry, re-process)
-    ingestion_tasks: Mapped[list[IngestionTask]] = relationship(
-        "IngestionTask",
-        back_populates="document",
-        cascade="all, delete-orphan",
-        order_by="IngestionTask.created_at.desc()",
-        lazy="selectin",
-    )
-
-    def __repr__(self) -> str:
-        return f"<Document id={self.id!r} filename={self.filename!r}>"
-
-
-class IngestionTask(Base):
-    """
-    Theo dõi trạng thái xử lý (ingestion) của 1 file.
-
-    Mỗi lần upload hoặc re-process sẽ tạo 1 task mới.
-    Background worker cập nhật status theo tiến trình.
-
-    Columns:
-      - id: UUID primary key (cũng là task_id trả về cho client)
-      - document_id: FK → documents.id
-      - status: "pending" | "processing" | "completed" | "failed"
-      - error_message: Chi tiết lỗi nếu failed (nullable)
-      - chunks_processed: Số chunks đã xử lý xong (progress tracking)
-      - created_at: Thời điểm tạo task
-      - updated_at: Cập nhật mỗi khi status thay đổi
-    """
-
-    __tablename__ = "ingestion_tasks"
-
-    id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=_generate_uuid
-    )
-    document_id: Mapped[str] = mapped_column(
-        String(36),
-        ForeignKey("documents.id", ondelete="CASCADE"),
-        index=True,
-    )
-    status: Mapped[str] = mapped_column(
-        String(20), default="pending"
-    )
-    error_message: Mapped[str | None] = mapped_column(
-        Text, nullable=True, default=None
-    )
-    chunks_processed: Mapped[int] = mapped_column(Integer, default=0)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow
-    )
+    error_message: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
     )
 
-    # Relationship ngược
-    document: Mapped[Document] = relationship(
-        "Document", back_populates="ingestion_tasks"
+    # Các trường NexusRAG
+    markdown_content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    page_count: Mapped[int] = mapped_column(Integer, default=0)
+    image_count: Mapped[int] = mapped_column(Integer, default=0)
+    table_count: Mapped[int] = mapped_column(Integer, default=0)
+    parser_version: Mapped[str | None] = mapped_column(String(50), nullable=True)  # "docling" | "legacy"
+    processing_time_ms: Mapped[int] = mapped_column(Integer, default=0)
+    custom_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    # Quan hệ
+    workspace: Mapped["KnowledgeBase"] = relationship(back_populates="documents")
+    images: Mapped[list["DocumentImage"]] = relationship(
+        back_populates="document", cascade="all, delete-orphan"
+    )
+    tables: Mapped[list["DocumentTable"]] = relationship(
+        back_populates="document", cascade="all, delete-orphan"
     )
 
-    def __repr__(self) -> str:
-        return (
-            f"<IngestionTask id={self.id!r} "
-            f"document_id={self.document_id!r} "
-            f"status={self.status!r}>"
-        )
+
+class DocumentImage(Base):
+    __tablename__ = "document_images"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    document_id: Mapped[int] = mapped_column(ForeignKey("documents.id", ondelete="CASCADE"))
+    image_id: Mapped[str] = mapped_column(String(100), unique=True)  # UUID
+    page_no: Mapped[int] = mapped_column(Integer, default=0)
+    file_path: Mapped[str] = mapped_column(String(500))
+    caption: Mapped[str] = mapped_column(Text, default="")
+    width: Mapped[int] = mapped_column(Integer, default=0)
+    height: Mapped[int] = mapped_column(Integer, default=0)
+    mime_type: Mapped[str] = mapped_column(String(50), default="image/png")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    # Quan hệ
+    document: Mapped["Document"] = relationship(back_populates="images")
+
+
+class DocumentTable(Base):
+    __tablename__ = "document_tables"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    document_id: Mapped[int] = mapped_column(ForeignKey("documents.id", ondelete="CASCADE"))
+    table_id: Mapped[str] = mapped_column(String(100), unique=True)
+    page_no: Mapped[int] = mapped_column(Integer, default=0)
+    content_markdown: Mapped[str] = mapped_column(Text, default="")
+    caption: Mapped[str] = mapped_column(Text, default="")
+    num_rows: Mapped[int] = mapped_column(Integer, default=0)
+    num_cols: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    # Quan hệ
+    document: Mapped["Document"] = relationship(back_populates="tables")

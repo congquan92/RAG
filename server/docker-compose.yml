@@ -1,0 +1,27 @@
+services:
+    db:
+        image: postgres:latest
+        container_name: postgres_db
+        environment:
+            POSTGRES_USER: anhquan
+            POSTGRES_PASSWORD: anhquandeptrai
+            POSTGRES_DB: graprag
+        ports:
+            - "5433:5432"
+        volumes:
+            - postgres_data:/var/lib/postgresql
+
+    chroma:
+        image: chromadb/chroma:latest
+        container_name: chroma_db
+        environment:
+            - IS_PERSISTENT=TRUE
+            - ANONYMIZED_TELEMETRY=FALSE
+        ports:
+            - "8002:8000"
+        volumes:
+            - chroma_data:/chroma/chroma
+
+volumes:
+    postgres_data:
+    chroma_data:

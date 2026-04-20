@@ -1,9 +1,13 @@
 // Knowledge Base (Document Workspace)
 export interface KnowledgeBase {
-    id: string;
+    id: number;
     name: string;
     description: string | null;
     system_prompt: string | null;
+    kg_language: string | null;
+    kg_entity_types: string[] | null;
+    chunk_size: number | null;
+    chunk_overlap: number | null;
     document_count: number;
     indexed_count: number;
     created_at: string;
@@ -19,17 +23,21 @@ export interface UpdateWorkspace {
     name?: string;
     description?: string;
     system_prompt?: string | null;
+    kg_language?: string | null;
+    kg_entity_types?: string[] | null;
+    chunk_size?: number | null;
+    chunk_overlap?: number | null;
 }
 
 export interface WorkspaceSummary {
-    id: string;
+    id: number;
     name: string;
     document_count: number;
 }
 
 export interface Document {
-    id: string;
-    workspace_id: string;
+    id: number;
+    workspace_id: number;
     filename: string;
     original_filename: string;
     file_type: string;
@@ -47,20 +55,20 @@ export interface Document {
 }
 
 // RAG Types
-export type DocumentStatus = "pending" | "parsing" | "indexing" | "processing" | "completed" | "indexed" | "failed";
+export type DocumentStatus = "pending" | "parsing" | "indexing" | "processing" | "indexed" | "failed";
 
 export type RAGQueryMode = "hybrid" | "vector_only" | "naive" | "local" | "global";
 
 export interface RAGQueryRequest {
     question: string;
     top_k?: number;
-    document_ids?: string[];
+    document_ids?: number[];
     mode?: RAGQueryMode;
 }
 
 export interface Citation {
     source_file: string;
-    document_id: string | null;
+    document_id: number | null;
     page_no: number | null;
     heading_path: string[];
     formatted: string;
@@ -68,7 +76,7 @@ export interface Citation {
 
 export interface DocumentImage {
     image_id: string;
-    document_id: string;
+    document_id: number;
     page_no: number;
     caption: string;
     width: number;
@@ -95,7 +103,7 @@ export interface RAGQueryResponse {
 }
 
 export interface RAGStats {
-    workspace_id: string;
+    workspace_id: number;
     total_documents: number;
     indexed_documents: number;
     total_chunks: number;
@@ -148,7 +156,7 @@ export interface KGAnalytics {
 }
 
 export interface DocumentBreakdown {
-    document_id: string;
+    document_id: number;
     filename: string;
     chunk_count: number;
     image_count: number;
@@ -167,7 +175,7 @@ export interface ProjectAnalytics {
 export interface ChatImageRef {
     ref_id?: string; // 4-char alphanumeric ID, e.g. "p4f2"
     image_id: string;
-    document_id: string;
+    document_id: number;
     page_no: number;
     caption: string;
     url: string;
@@ -192,8 +200,8 @@ export interface ChatSourceChunk {
     index: number | string; // number for legacy, string for new [a3x9] format
     chunk_id: string;
     content: string;
-    document_id: string;
-    page_no: number | null;
+    document_id: number;
+    page_no: number;
     heading_path: string[];
     score: number;
     source_type?: "vector" | "kg";
@@ -209,7 +217,7 @@ export interface ChatResponseData {
 }
 
 export interface PersistedChatMessage {
-    id: string;
+    id: number;
     message_id: string;
     role: "user" | "assistant";
     content: string;
@@ -222,7 +230,7 @@ export interface PersistedChatMessage {
 }
 
 export interface ChatHistoryResponse {
-    workspace_id: string;
+    workspace_id: number;
     messages: PersistedChatMessage[];
     total: number;
 }
