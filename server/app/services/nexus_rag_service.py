@@ -3,7 +3,7 @@ Service Deep RAG
 ================
 
 Orchestrator cho pipeline NexusRAG:
-    Document -> Docling Parse -> ChromaDB Index + LightRAG KG -> Hybrid Retrieval
+    Document -> Docling Parse -> ChromaDB Index + LightRAG KG -> Hybrid Retrieval -> SSE Response
 
 Tương thích ngược: cung cấp cùng interface `process_document()`, `query()`,
 `delete_document()`, `get_chunk_count()` như RAGService cũ.
@@ -35,7 +35,6 @@ logger = logging.getLogger(__name__)
 class NexusRAGService:
     """
     Orchestrator đầy đủ cho pipeline NexusRAG.
-
         Phases:
             1. PARSING  - Docling parse -> markdown + chunks + images
             2. INDEXING - Embed chunks -> ChromaDB + ingest markdown -> LightRAG KG
@@ -67,7 +66,7 @@ class NexusRAGService:
         self.embedder = get_embedding_service()
         self.vector_store = get_vector_store(workspace_id)
 
-        # KG service (tùy chọn, bật/tắt qua config)
+        # KG service 
         self.kg_service: Optional[KnowledgeGraphService] = None
         if settings.NEXUSRAG_ENABLE_KG:
             self.kg_service = KnowledgeGraphService(
@@ -170,7 +169,7 @@ class NexusRAGService:
             if parsed.tables:
                 await self.db.commit()
 
-            # Giai đoạn 1.5: PRE-INGESTION DEDUP
+            # Giai đoạn 1.5: PRE-INGESTION DEDUP(nếu có, lọc nhiễu)
             if parsed.chunks:
                 parsed.chunks, dedup_stats = deduplicate_chunks(parsed.chunks)
                 if dedup_stats["input"] != dedup_stats["output"]:

@@ -241,6 +241,99 @@ python scripts/eval_ragas_synthetic.py
 ```
 
 ---
+### 7. Sequence diagram 
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant U as User
+    participant CP as ChatPanel (React)
+    participant HK as useRAGChatStream
+    participant API as FastAPI /rag/chat/{workspace_id}/stream
+    participant AG as chat_agent.agent_chat_stream
+    participant CFG as core.config
+    participant DB as DB (chat_message)
+    participant VS as vector_store
+    participant RET as NexusRAG Retriever
+    participant RER as reranker
+    participant KG as knowledge_graph_service
+    participant DP as deep_document_parser
+    participant LLM as LLM Provider (Gemini/Ollama)
+
+    U->>CP: Send message
+    CP->>CP: Add user msg + assistant placeholder (isStreaming=true)
+    CP->>HK: sendMessage(message, history, enableThinking, forceSearch)
+    HK->>API: POST stream request (fetch + ReadableStream)
+
+    API->>CFG: Load workspace config + model settings
+    API->>DB: Persist user message
+    API->>AG: Start event_generator + heartbeat wrapper
+
+    AG-->>HK: event:status(step=analyzing)
+    HK->>CP: Update timeline/status
+
+    AG->>LLM: astream(messages, tools?)
+
+    alt LLM requests search_documents
+        LLM-->>AG: StreamChunk(type=function_call)
+        AG-->>HK: event:token_rollback (if speculative tokens sent)
+        AG-->>HK: event:status(step=retrieving)
+
+        AG->>RET: execute_search_documents(query, top_k, filters)
+        RET->>VS: similarity_search(query, top_k)
+        VS-->>RET: raw chunks + metadata
+        RET->>RER: rerank(raw chunks, query)
+        RER-->>RET: reranked chunks
+        RET-->>AG: context + sources + image_refs
+
+        AG-->>HK: event:sources
+        AG-->>HK: event:images
+        AG-->>HK: event:status(step=generating)
+        AG->>LLM: astream() again with retrieved context
+    else No tool call
+        LLM-->>AG: StreamChunk(type=text/thinking)
+    end
+
+    opt Knowledge graph enrich
+        AG->>KG: build_or_query_graph(context)
+        KG-->>AG: entity/relationship summary
+        AG-->>HK: event:kg_summary
+    end
+
+    loop Streaming chunks
+        LLM-->>AG: StreamChunk(type=thinking)
+        AG-->>HK: event:thinking
+        LLM-->>AG: StreamChunk(type=text)
+        AG-->>HK: event:token
+        HK->>HK: Buffer token with requestAnimationFrame
+        HK->>CP: Sync streamingContent/pendingSources/pendingImages/agentSteps
+    end
+
+    AG-->>HK: event:complete(answer, sources, images, thinking)
+    API->>DB: Persist assistant message (+ agent_steps)
+
+    HK->>CP: Resolve final assistant message (isStreaming=false)
+    CP-->>U: Final rendered markdown + citations + timeline
+
+    opt User clicks Stop
+        U->>CP: Stop
+        CP->>HK: cancel()
+        HK->>API: AbortController abort
+        CP-->>U: Keep partial content, end streaming
+    end
+
+    opt Document upload and indexing
+        U->>CP: Upload documents
+        CP->>API: POST /documents/upload
+        API->>DP: parse + chunk documents
+        DP-->>API: chunks + metadata
+        API->>VS: upsert embeddings + metadata
+        API->>KG: extract entities/relations
+        KG-->>API: graph updates
+        API-->>CP: Upload complete
+    end
+```
+---
 
 <div align="center">
 

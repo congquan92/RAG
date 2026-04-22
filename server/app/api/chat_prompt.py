@@ -11,7 +11,6 @@ Kiến trúc prompt hai phần, điều chỉnh từ Perplexity AI cho document 
 Cách ghép:
      system_prompt = (workspace.system_prompt or DEFAULT_SYSTEM_PROMPT) + HARD_SYSTEM_PROMPT
 
-Xem thêm: NexusRAG/.agent/systemprompt_ex/chat_prompt.md
 """
 
 # ---------------------------------------------------------------------------
