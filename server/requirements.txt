@@ -18,6 +18,8 @@ sentence-transformers>=2.2.2
 
 # Document parsing (Docling — default)
 docling>=2.0.0
+rank_bm25
+underthesea
 
 # Document parsing (Marker — alternative, better math/formula, lighter GPU)
 # Install with: pip install marker-pdf[full]
@@ -35,7 +37,9 @@ ollama>=0.4.0
 lightrag-hku>=1.0.0
 gliner>=0.2.18
 transformers>=4.45.0
-torch>=2.2.0
+torch>=2.7.0
+torchvision>=0.18.0
+torchaudio>=2.7.0
 
 # Utilities
 python-dotenv>=1.0.0
