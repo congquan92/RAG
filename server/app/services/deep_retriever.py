@@ -36,6 +36,9 @@ from app.services.models.parsed_document import (
 
 logger = logging.getLogger(__name__)
 
+from app.log.loggermodule import LoggerFactory
+
+logger_module = LoggerFactory.get_logger(log_file="deep_retriever.log")
 
 class DeepRetriever:
     """
@@ -110,6 +113,15 @@ class DeepRetriever:
                 self._vector_query, question, prefetch_k, document_ids, metadata_filter
             )
         )
+        
+        #keyword search
+        keyword_task = None
+        if mode != "vector_only":
+            keyword_task = asyncio.create_task(
+                asyncio.to_thread(
+                    self._keyword_query, question, prefetch_k, document_ids, metadata_filter
+                )
+            )
 
         # Đợi kết quả
         kg_summary = ""
@@ -121,9 +133,22 @@ class DeepRetriever:
 
         raw_chunks, raw_citations = await vector_task
 
+        raw_keyword_chunks: list = []
+        raw_keyword_citations: list = []
+        if keyword_task:
+            try:
+                raw_keyword_chunks, raw_keyword_citations = await keyword_task
+                logger.info(f"Keyword search returned {len(raw_keyword_chunks)} chunks")
+            except Exception as e:
+                logger.warning(f"Keyword query failed, continuing with vector only: {e}")
+                
+        # Loại bỏ trùng lặp theo chunk id (hoặc document_id + page_no + text)
+        combined_chunks, combined_citations = self.merge_hybrid_results(raw_chunks, raw_citations, raw_keyword_chunks, raw_keyword_citations)
+        
+
         # Rerank: chấm điểm bằng cross-encoder để tăng độ chính xác
         chunks, citations = await asyncio.to_thread(
-            self._rerank_chunks, question, raw_chunks, raw_citations, effective_top_k
+            self._rerank_chunks, question, combined_chunks, combined_citations, effective_top_k
         )
 
         # Tìm image và table liên quan
@@ -201,44 +226,107 @@ class DeepRetriever:
         for i, doc_text in enumerate(results.get("documents", [])):
             meta = results["metadatas"][i] if results.get("metadatas") else {}
 
-            heading_path = []
-            heading_str = meta.get("heading_path", "")
-            if heading_str:
-                heading_path = heading_str.split(" > ") if isinstance(heading_str, str) else []
-
-            image_refs = []
-            image_ids_str = meta.get("image_ids", "")
-            if image_ids_str and isinstance(image_ids_str, str):
-                image_refs = [iid for iid in image_ids_str.split("|") if iid]
-
-            table_refs = []
-            table_ids_str = meta.get("table_ids", "")
-            if table_ids_str and isinstance(table_ids_str, str):
-                table_refs = [tid for tid in table_ids_str.split("|") if tid]
-
-            chunk = EnrichedChunk(
-                content=doc_text,
-                chunk_index=meta.get("chunk_index", i),
-                source_file=meta.get("source", ""),
-                document_id=meta.get("document_id", 0),
-                page_no=meta.get("page_no", 0),
-                heading_path=heading_path,
-                image_refs=image_refs,
-                table_refs=table_refs,
-                has_table=meta.get("has_table", False),
-                has_code=meta.get("has_code", False),
-            )
+            chunk, citation = self._process_search_result(doc_text, meta, i)
             chunks.append(chunk)
+            citations.append(citation)
 
-            citations.append(Citation(
-                source_file=meta.get("source", "Unknown"),
-                document_id=meta.get("document_id", 0),
-                page_no=meta.get("page_no", 0),
-                heading_path=heading_path,
-            ))
+        return chunks, citations
+    
+    def tokenize_vietnamese(self, text):
+        from underthesea import word_tokenize
+        # Sử dụng format="text" để nối các từ ghép bằng dấu gạch dưới (ví dụ: "trí_tuệ_nhân_tạo")
+        tokenized_text = word_tokenize(text.lower(), format="text")
+        return tokenized_text.split()
+    
+    def _keyword_query(
+        self,
+        question: str,
+        top_k: int,
+        document_ids: Optional[list[int]],
+        metadata_filter: dict | None = None,
+    ) -> tuple[list[EnrichedChunk], list[Citation]]:
+        from rank_bm25 import BM25Okapi
+
+        # Gộp metadata_filter và document_ids
+        where = metadata_filter.copy() if metadata_filter else {}
+        if document_ids:
+            where["document_id"] = {"$in": document_ids}
+            
+        if not where:
+            where = None
+
+        allChunks = self.vector_store.get_with_condition(
+            where=where
+        )
+        # Xử lý keyword search
+        # Lấy text từ chunk
+        corpus_texts = allChunks.get("documents", [])
+        
+        # tokenize doc và question
+        tokenized_query = self.tokenize_vietnamese(question)
+        tokenized_corpus = [self.tokenize_vietnamese(doc) for doc in corpus_texts]
+        
+        bm25 = BM25Okapi(tokenized_corpus)
+        doc_scores = bm25.get_scores(tokenized_query)
+        
+        # Xử lý lấy top_k theo danh sách index để không làm mất cấu trúc của allChunks
+        # Lấy mảng index
+        indexed_scores = list(enumerate(doc_scores))
+        
+        # Kết hợp score với chunk và sắp xếp giảm dần
+        sorted_indices = sorted(
+            indexed_scores, 
+            key=lambda x: x[1], 
+            reverse=True
+        )
+        
+        top_indices = sorted_indices[:top_k]
+
+        chunks = []
+        citations = []
+
+        for rank, (idx, score) in enumerate(top_indices):
+            doc_text = allChunks["documents"][idx]
+            meta = allChunks["metadatas"][idx] if allChunks.get("metadatas") else {}
+
+            chunk, citation = self._process_search_result(doc_text, meta, rank)
+            chunks.append(chunk)
+            citations.append(citation)
 
         return chunks, citations
 
+    def _process_search_result(self, doc_text: str, meta: dict, index: int) -> tuple[EnrichedChunk, Citation]:        
+        heading_str = meta.get("heading_path", "")
+        heading_path = heading_str.split(" > ") if isinstance(heading_str, str) and heading_str else []
+
+        image_ids_str = meta.get("image_ids", "")
+        image_refs = [iid for iid in image_ids_str.split("|") if iid] if isinstance(image_ids_str, str) else []
+
+        table_ids_str = meta.get("table_ids", "")
+        table_refs = [tid for tid in table_ids_str.split("|") if tid] if isinstance(table_ids_str, str) else []
+
+        chunk = EnrichedChunk(
+            content=doc_text,
+            chunk_index=meta.get("chunk_index", index),
+            source_file=meta.get("source", ""),
+            document_id=meta.get("document_id", 0),
+            page_no=meta.get("page_no", 0),
+            heading_path=heading_path,
+            image_refs=image_refs,
+            table_refs=table_refs,
+            has_table=meta.get("has_table", False),
+            has_code=meta.get("has_code", False),
+        )
+
+        citation = Citation(
+            source_file=meta.get("source", "Unknown"),
+            document_id=meta.get("document_id", 0),
+            page_no=meta.get("page_no", 0),
+            heading_path=heading_path,
+        )
+
+        return chunk, citation
+    
     def _rerank_chunks(
         self,
         question: str,
@@ -407,3 +495,23 @@ class DeepRetriever:
             return "No relevant documents found for this query."
 
         return "\n".join(parts)
+    
+    #helper cho phần keyword + vector search
+    def merge_hybrid_results(self, v_chunks, v_citations, k_chunks, k_citations):
+        combined_chunks = v_chunks + k_chunks
+        combined_citations = v_citations + k_citations
+        
+        merged_chunks = []
+        merged_citations = []
+        seen_ids = set()
+
+        for chunk, citation in zip(combined_chunks, combined_citations):
+            # Tạo khóa định danh duy nhất cho Chunk
+            unique_key = (chunk.document_id, chunk.chunk_index)
+            
+            if unique_key not in seen_ids:
+                seen_ids.add(unique_key)
+                merged_chunks.append(chunk)
+                merged_citations.append(citation)
+                
+        return merged_chunks, merged_citations

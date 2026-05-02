@@ -65,7 +65,7 @@ class ParsedDocument:
     tables: list[ExtractedTable] = field(default_factory=list)
     tables_count: int = 0
 
-
+#nguồn trích dẫn
 @dataclass
 class Citation:
     """Source citation trỏ tới vị trí cụ thể trong một document."""
