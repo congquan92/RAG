@@ -97,6 +97,8 @@ class Settings(BaseSettings):
     NEXUSRAG_VECTOR_PREFETCH: int = 20
     NEXUSRAG_RERANKER_TOP_K: int = Field(default=8, ge=1)
     NEXUSRAG_MIN_RELEVANCE_SCORE: float = 0.15
+    # Viết lại câu query
+    NEXUSRAG_ENABLE_REWRITE_QUESTION: bool = False
 
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost:5174", "http://localhost:3000"]
