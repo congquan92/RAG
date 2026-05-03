@@ -33,6 +33,8 @@ from app.services.models.parsed_document import (
     ExtractedImage,
     ExtractedTable,
 )
+from app.services.rewritter import get_rewriter_service
+
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +62,8 @@ class DeepRetriever:
         self.embedder = embedder
         self.db = db
         self.reranker = reranker or get_reranker_service()
+        self.rewriter = get_rewriter_service()
+        
 
     async def query(
         self,
@@ -89,6 +93,16 @@ class DeepRetriever:
         Returns:
             DeepRetrievalResult gồm chunk, citation, context và image tùy chọn
         """
+        
+        
+        # Viết lại câu truy vấn nếu không rõ
+        if settings.NEXUSRAG_ENABLE_REWRITE_QUESTION:
+            question = self.rewriter.rewrite(question)
+            logger.info(f"--- Query Transformation ---")
+            logger.info(f"Optimized question: {question}")
+            logger.info(f"----------------------------")
+        
+        
         # Áp dụng trần rerank toàn cục từ settings để env NEXUSRAG_RERANKER_TOP_K
         # luôn tác động runtime, nhưng vẫn cho phép caller yêu cầu ít hơn.
         effective_top_k = min(top_k, settings.NEXUSRAG_RERANKER_TOP_K)
