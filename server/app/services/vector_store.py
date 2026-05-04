@@ -183,6 +183,14 @@ class VectorStore:
             ids=list(ids),
             include=["documents", "metadatas"]
         )
+    
+    def get_with_condition(self, where: dict | None = None) -> dict:
+        # Nếu where là một dict trống {}, nên chuyển về None
+        filter_query = where if where else None
+        return self.collection.get(
+            where=filter_query,
+            include=["documents", "metadatas"]
+        )
 
 
 def get_vector_store(workspace_id: int) -> VectorStore:

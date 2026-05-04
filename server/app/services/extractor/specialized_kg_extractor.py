@@ -28,6 +28,10 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+from app.log.loggermodule import LoggerFactory
+
+logger_module = LoggerFactory.get_logger(log_file="KG_extractor_service.log")
+
 TUPLE_DELIMITER = "<|#|>"
 COMPLETION_DELIMITER = "<|COMPLETE|>"
 
@@ -217,10 +221,12 @@ class SpecializedKGExtractor:
         if self._mrebel_model is None or self._mrebel_tokenizer is None:
             raise RuntimeError("mREBEL model/tokenizer is not initialized")
 
+        #split text tránh vượt giới hạn model
         segments = self._split_text_for_relations(text)
         relation_map: dict[tuple[str, str, str], ExtractedRelation] = {}
 
         for segment in segments:
+            #tách từng segment thành token để model xử lý
             inputs = self._mrebel_tokenizer(
                 segment,
                 max_length=256,
@@ -400,30 +406,38 @@ class SpecializedKGExtractor:
         lines.append(COMPLETION_DELIMITER)
         return "\n".join(lines)
 
+    #split theo câu
     def _split_text_for_relations(self, text: str, max_chars: int = 900) -> list[str]:
+        #xóa khoảng trắng và nối lại thành câu cách nhau 1 khoảng trắng duy nhất
         normalized = " ".join(text.split())
+        
+        #trường hợp full text < 900 thì trả về, không xử lý tiếp
         if len(normalized) <= max_chars:
             return [normalized]
 
+        #cắt theo dấu câu và khoảng trắng sau dấu câu
         parts = re.split(r"(?<=[.!?])\s+", normalized)
         chunks: list[str] = []
         current = ""
 
         for part in parts:
             sentence = part.strip()
+            #trường hợp câu trống
             if not sentence:
                 continue
-
+            # trường hợp câu dài quá max_chars
             if len(sentence) > max_chars:
                 if current:
                     chunks.append(current)
                     current = ""
+                # split theo max_chars, và add vào danh sách chunks
                 for i in range(0, len(sentence), max_chars):
                     piece = sentence[i : i + max_chars].strip()
                     if piece:
                         chunks.append(piece)
                 continue
-
+            
+            # trường hợp câu trong khoảng max_chars
             candidate = f"{current} {sentence}".strip()
             if len(candidate) <= max_chars:
                 current = candidate
